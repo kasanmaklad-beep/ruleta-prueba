@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Compilados (los regenera Cloudflare Pages al hacer build)
+public/*.js
+
+# Sistema
+.DS_Store
+*.log
+
+# Artefactos locales
+ruleta-prueba.zip
+*.zip
+
+# Editor
+.vscode/
+.idea/

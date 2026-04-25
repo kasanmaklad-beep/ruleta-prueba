@@ -1,0 +1,15 @@
+{
+  "name": "ruleta-prueba",
+  "version": "1.0.0",
+  "description": "Ruleta Lightning — American Roulette",
+  "private": true,
+  "scripts": {
+    "build": "babel src --presets=@babel/preset-react --out-dir public --extensions .jsx --out-file-extension .js",
+    "dev": "npm run build && python3 -m http.server 8766 --directory public"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.28.6",
+    "@babel/core": "^7.29.0",
+    "@babel/preset-react": "^7.28.5"
+  }
+}

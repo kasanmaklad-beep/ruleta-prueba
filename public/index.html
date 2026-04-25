@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Ruleta Lightning — American 0/00</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="theme-color" content="#0a0a0a" />
+<meta name="description" content="Ruleta Lightning — American Roulette con multiplicadores hasta 500x" />
+<style>
+  html, body { margin: 0; padding: 0; background: #000; }
+  body { font-family: Georgia, serif; min-height: 100vh; }
+  * { box-sizing: border-box; }
+
+  @keyframes ltgFlicker {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+  @keyframes pocketLtgPulse {
+    0%   { opacity: 0.20; }
+    100% { opacity: 0.55; }
+  }
+  @keyframes ltgAuraPulse {
+    0%   { opacity: 0.45; transform: scale(0.85); }
+    100% { opacity: 0.95; transform: scale(1.15); }
+  }
+  @keyframes feltLtgPulse {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(255,216,74,0), inset 0 0 0 0 rgba(255,216,74,0);
+      filter: brightness(1);
+    }
+    50% {
+      box-shadow: 0 0 24px 6px rgba(255,216,74,0.7), inset 0 0 16px 2px rgba(255,216,74,0.5);
+      filter: brightness(1.35);
+    }
+  }
+  @keyframes feltLtgPulseBlue {
+    0%, 100% {
+      box-shadow: 0 0 0 0 rgba(90,184,255,0), inset 0 0 0 0 rgba(90,184,255,0);
+      filter: brightness(1);
+    }
+    50% {
+      box-shadow: 0 0 24px 6px rgba(90,184,255,0.8), inset 0 0 16px 2px rgba(90,184,255,0.5);
+      filter: brightness(1.35);
+    }
+  }
+  @keyframes ltgBoltSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes pulseBar {
+    from { box-shadow: 0 0 10px rgba(90,184,255,0.3); }
+    to { box-shadow: 0 0 30px rgba(90,184,255,0.7); }
+  }
+  @keyframes boltFlash {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    30% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  @keyframes winnerPulse {
+    0%   { opacity: 0.25; }
+    100% { opacity: 0.65; }
+  }
+  @keyframes winnerFlick {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+  @keyframes winnerAura {
+    0%   { opacity: 0.5; transform: scale(0.8); }
+    100% { opacity: 1; transform: scale(1.25); }
+  }
+  @keyframes coinFall {
+    0%   { transform: translate3d(0, -20vh, 0) rotate(0deg); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translate3d(var(--dx, 0), 110vh, 0) rotate(720deg); opacity: 0; }
+  }
+  @keyframes winBannerPop {
+    0%   { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+    30%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+    50%  { transform: translate(-50%, -50%) scale(0.95); }
+    70%  { transform: translate(-50%, -50%) scale(1.05); }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  @keyframes winBannerGlow {
+    0%, 100% { filter: drop-shadow(0 0 20px #ffd84a) drop-shadow(0 0 40px #ffaa00); }
+    50%      { filter: drop-shadow(0 0 35px #fff5b0) drop-shadow(0 0 70px #ffd84a); }
+  }
+  @keyframes screenFlash {
+    0%   { opacity: 0; }
+    20%  { opacity: 0.45; }
+    100% { opacity: 0; }
+  }
+  @keyframes winnerCoinPulse {
+    0%   { transform: scale(0.92); }
+    100% { transform: scale(1.08); }
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #111; }
+  ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- React 18 PRODUCCIÓN minificado (rápido y pequeño) -->
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+
+<!-- JSX precompilado a JS plano (sin Babel runtime) -->
+<script src="audio.js"></script>
+<script src="tweaks-panel.js"></script>
+<script src="wheel.js"></script>
+<script src="table.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
