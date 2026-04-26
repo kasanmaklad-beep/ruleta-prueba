@@ -369,10 +369,10 @@ function RouletteApp() {
         background: bgByTheme[t.theme] || bgByTheme.classic,
         color: '#fff',
         fontFamily: 'Georgia, serif',
-        padding: isMobile ? '4px 6px 8px' : '16px 24px',
+        padding: isMobile ? '2px 0 4px' : '16px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: isMobile ? 4 : 16,
+        gap: isMobile ? 2 : 16,
         overflow: isMobile ? 'visible' : 'hidden',
         position: 'relative',
       }}
@@ -394,7 +394,7 @@ function RouletteApp() {
           justifyContent: 'space-between',
           alignItems: 'center',
           borderBottom: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
-          paddingBottom: isMobile ? 4 : 12,
+          padding: isMobile ? '2px 6px 4px' : '0 0 12px',
           gap: 8,
         }}
       >
@@ -431,8 +431,9 @@ function RouletteApp() {
       <div
         style={{
           textAlign: 'center',
-          padding: isMobile ? '4px 8px' : '14px 16px',
-          borderRadius: 6,
+          padding: isMobile ? '3px 6px' : '14px 16px',
+          borderRadius: isMobile ? 0 : 6,
+          margin: isMobile ? '0 4px' : 0,
           background: phase === 'lightning'
             ? 'linear-gradient(90deg, rgba(90,184,255,0.2), rgba(159,216,255,0.3), rgba(90,184,255,0.2))'
             : winAmount > 0
@@ -625,20 +626,20 @@ function RouletteApp() {
                 );
               }
               // Móvil: fichas verticales a la izquierda + paño rotado 90° a la derecha
-              // El paño debe llenar TODA la pantalla disponible (ancho y alto)
-              const CHIP_COL_W = 60; // ancho de la columna de fichas (un poco más estrecha)
-              const GAP = 4;
-              const SIDE_PAD = 6; // padding lateral del wrapper
+              // FULL SCREEN: usa el 100% del ancho/alto sin márgenes
+              const CHIP_COL_W = 56; // ancho de la columna de fichas
+              const GAP = 2;
+              const SIDE_PAD = 0; // sin padding lateral — full width
               const rotatedW = NATURAL_H; // ancho del paño rotado = alto natural del paño
               const rotatedH = NATURAL_W; // alto del paño rotado = ancho natural del paño
-              // Espacio disponible horizontal: ancho - columna fichas - gap - paddings
-              const availableForTableWidth = vw - CHIP_COL_W - GAP - SIDE_PAD * 2;
-              // Espacio disponible vertical: alto - header (~38) - mensaje/historial (~50) - margen (~16)
-              const availableForTableHeight = vh - 110;
+              // Espacio disponible horizontal: ancho total - columna fichas - gap
+              const availableForTableWidth = vw - CHIP_COL_W - GAP;
+              // Espacio disponible vertical: alto - header (~32) - mensaje (~32) - margen
+              const availableForTableHeight = vh - 80;
               // Escalamos por la dimensión más restrictiva para que entre completo
               const sByW = availableForTableWidth / rotatedW;
               const sByH = availableForTableHeight / rotatedH;
-              const s = Math.min(1.6, sByW, sByH);
+              const s = Math.min(2.5, sByW, sByH); // permitimos más scale para pantallas grandes
               const finalW = rotatedW * s;
               const finalH = rotatedH * s;
               return (
@@ -646,10 +647,11 @@ function RouletteApp() {
                   display: 'flex',
                   flexDirection: 'row',
                   alignItems: 'flex-start',
-                  justifyContent: 'center',
+                  justifyContent: 'flex-start',
                   gap: GAP,
-                  padding: `0 ${SIDE_PAD}px`,
+                  padding: 0,
                   overflow: 'visible',
+                  width: '100%',
                 }}>
                   {/* Columna izquierda: fichas + botones (LIMPIAR / REPETIR / GIRAR) */}
                   <div style={{
@@ -659,9 +661,12 @@ function RouletteApp() {
                     alignItems: 'center',
                     padding: '4px 4px',
                     background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
-                    borderRadius: 6,
+                    borderRadius: '0 6px 6px 0', // sin redondeo en el borde izquierdo (pegado a pantalla)
                     border: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
+                    borderLeft: 'none',
                     alignSelf: 'stretch',
+                    flexShrink: 0,
+                    width: 56,
                   }}>
                     {CHIP_VALUES.map((v) => (
                       <Chip
