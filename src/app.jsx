@@ -12,7 +12,7 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 const CHIP_VALUES = [1, 5, 25, 100, 500];
 const STARTING_BALANCE = 1000;
 
-function Chip({ value, selected, onClick, disabled }) {
+function Chip({ value, selected, onClick, disabled, compact }) {
   const colors = {
     1: { base: '#fafafa', dark: '#a0a0a0', text: '#1a1a1a' },
     5: { base: '#d41a1a', dark: '#7a0a0a', text: '#fff' },
@@ -21,36 +21,40 @@ function Chip({ value, selected, onClick, disabled }) {
     500: { base: '#6a00a0', dark: '#3a0060', text: '#fff' },
   };
   const c = colors[value];
+  const size = compact ? 44 : 62;
+  const fontSize = compact ? 11 : 16;
+  const innerInset = compact ? 5 : 8;
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       style={{
         position: 'relative',
-        width: 62,
-        height: 62,
+        width: size,
+        height: size,
         borderRadius: '50%',
         border: 'none',
         background: `radial-gradient(circle at 35% 30%, ${c.base} 0%, ${c.dark} 100%)`,
         color: c.text,
         fontWeight: 900,
-        fontSize: 16,
+        fontSize: fontSize,
         fontFamily: 'Georgia, serif',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        transform: selected ? 'translateY(-12px) scale(1.08)' : 'translateY(0)',
+        transform: selected ? `translateY(${compact ? -8 : -12}px) scale(1.08)` : 'translateY(0)',
         transition: 'transform 0.2s, box-shadow 0.2s',
         boxShadow: selected
           ? `0 14px 24px rgba(0,0,0,0.6), 0 0 0 3px #ffd84a, inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.3)`
           : `0 6px 12px rgba(0,0,0,0.5), inset 0 -4px 8px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.3)`,
         opacity: disabled ? 0.4 : 1,
+        flexShrink: 0,
       }}
     >
       <div
         style={{
           position: 'absolute',
-          inset: 8,
+          inset: innerInset,
           borderRadius: '50%',
-          border: `2px dashed ${c.text === '#fff' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)'}`,
+          border: `${compact ? 1.5 : 2}px dashed ${c.text === '#fff' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.3)'}`,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -169,8 +173,9 @@ function RouletteApp() {
 
   // Viewport / responsive
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  const [vh, setVh] = useState(typeof window !== 'undefined' ? window.innerHeight : 768);
   useEffect(() => {
-    const onR = () => setVw(window.innerWidth);
+    const onR = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
     window.addEventListener('resize', onR);
     window.addEventListener('orientationchange', onR);
     return () => {
@@ -364,10 +369,10 @@ function RouletteApp() {
         background: bgByTheme[t.theme] || bgByTheme.classic,
         color: '#fff',
         fontFamily: 'Georgia, serif',
-        padding: isMobile ? '8px 12px 16px' : '16px 24px',
+        padding: isMobile ? '4px 6px 8px' : '16px 24px',
         display: 'flex',
         flexDirection: 'column',
-        gap: isMobile ? 10 : 16,
+        gap: isMobile ? 4 : 16,
         overflow: isMobile ? 'visible' : 'hidden',
         position: 'relative',
       }}
@@ -389,13 +394,13 @@ function RouletteApp() {
           justifyContent: 'space-between',
           alignItems: 'center',
           borderBottom: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
-          paddingBottom: isMobile ? 8 : 12,
+          paddingBottom: isMobile ? 4 : 12,
           gap: 8,
         }}
       >
         <div style={{ minWidth: 0 }}>
           <div style={{
-            fontSize: isMobile ? 15 : 28, fontWeight: 900, letterSpacing: isMobile ? 1 : 4,
+            fontSize: isMobile ? 12 : 28, fontWeight: 900, letterSpacing: isMobile ? 1 : 4,
             color: t.theme === 'lightning' ? '#9fd8ff' : '#d4a94a',
             textShadow: t.theme === 'lightning'
               ? '0 0 20px #5ab8ff, 0 2px 4px rgba(0,0,0,0.8)'
@@ -412,12 +417,12 @@ function RouletteApp() {
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 10 : 24, alignItems: 'center' }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: isMobile ? 9 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>APUESTA</div>
-            <div style={{ fontSize: isMobile ? 15 : 22, fontWeight: 900, color: '#ffd84a' }}>${totalBet.toLocaleString()}</div>
+            <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>APUESTA</div>
+            <div style={{ fontSize: isMobile ? 12 : 22, fontWeight: 900, color: '#ffd84a' }}>${totalBet.toLocaleString()}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: isMobile ? 9 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>SALDO</div>
-            <div style={{ fontSize: isMobile ? 17 : 26, fontWeight: 900, color: '#fff' }}>${balance.toLocaleString()}</div>
+            <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>SALDO</div>
+            <div style={{ fontSize: isMobile ? 14 : 26, fontWeight: 900, color: '#fff' }}>${balance.toLocaleString()}</div>
           </div>
         </div>
       </div>
@@ -426,7 +431,7 @@ function RouletteApp() {
       <div
         style={{
           textAlign: 'center',
-          padding: isMobile ? '10px 12px' : '14px 16px',
+          padding: isMobile ? '4px 8px' : '14px 16px',
           borderRadius: 6,
           background: phase === 'lightning'
             ? 'linear-gradient(90deg, rgba(90,184,255,0.2), rgba(159,216,255,0.3), rgba(90,184,255,0.2))'
@@ -434,12 +439,12 @@ function RouletteApp() {
               ? 'linear-gradient(90deg, rgba(255,216,74,0.15), rgba(255,216,74,0.3), rgba(255,216,74,0.15))'
               : 'rgba(0,0,0,0.35)',
           border: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
-          fontSize: isMobile ? 14 : 18,
+          fontSize: isMobile ? 11 : 18,
           fontWeight: 800,
           letterSpacing: 1,
           color: phase === 'lightning' ? '#9fd8ff' : winAmount > 0 ? '#ffd84a' : '#fff',
           textShadow: phase === 'lightning' ? '0 0 12px #5ab8ff' : winAmount > 0 ? '0 0 10px #ffd84a' : 'none',
-          minHeight: isMobile ? 44 : 54,
+          minHeight: isMobile ? 28 : 54,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -451,14 +456,14 @@ function RouletteApp() {
         {phase === 'betting' ? (
           history.length > 0 ? (
             <>
-              <span style={{ fontSize: 10, letterSpacing: 2, color: '#888', marginRight: 4 }}>HISTORIAL</span>
+              <span style={{ fontSize: isMobile ? 8 : 10, letterSpacing: 2, color: '#888', marginRight: 4 }}>HIST.</span>
               {history.map((h, i) => (
                 <div key={i} style={{
-                  width: isMobile ? 26 : 30, height: isMobile ? 26 : 30, borderRadius: '50%',
+                  width: isMobile ? 18 : 30, height: isMobile ? 18 : 30, borderRadius: '50%',
                   background: h.color === 'red' ? '#b8101a' : h.color === 'black' ? '#151515' : '#0d7a2e',
                   border: h.lightning ? `2px solid ${t.theme === 'lightning' ? '#9fd8ff' : '#ffd84a'}` : '1px solid #444',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: isMobile ? 11 : 12, fontWeight: 900, color: '#fff',
+                  fontSize: isMobile ? 9 : 12, fontWeight: 900, color: '#fff',
                   boxShadow: h.lightning ? `0 0 8px ${t.theme === 'lightning' ? '#5ab8ff' : '#ffd84a'}` : 'none',
                   opacity: Math.max(0.4, 1 - i * 0.07),
                   flexShrink: 0,
@@ -618,13 +623,20 @@ function RouletteApp() {
                 );
               }
               // Móvil: fichas verticales a la izquierda + paño rotado 90° a la derecha
-              const CHIP_COL_W = 64; // ancho de la columna de fichas (incluye padding)
-              const GAP = 6;
-              const SIDE_PAD = 8; // padding lateral del wrapper
-              const rotatedW = NATURAL_H;
-              const rotatedH = NATURAL_W;
-              const availableForTable = vw - CHIP_COL_W - GAP - SIDE_PAD * 2;
-              const s = Math.min(1.2, availableForTable / rotatedW);
+              // El paño debe llenar TODA la pantalla disponible (ancho y alto)
+              const CHIP_COL_W = 60; // ancho de la columna de fichas (un poco más estrecha)
+              const GAP = 4;
+              const SIDE_PAD = 6; // padding lateral del wrapper
+              const rotatedW = NATURAL_H; // ancho del paño rotado = alto natural del paño
+              const rotatedH = NATURAL_W; // alto del paño rotado = ancho natural del paño
+              // Espacio disponible horizontal: ancho - columna fichas - gap - paddings
+              const availableForTableWidth = vw - CHIP_COL_W - GAP - SIDE_PAD * 2;
+              // Espacio disponible vertical: alto - header (~38) - mensaje/historial (~50) - margen (~16)
+              const availableForTableHeight = vh - 110;
+              // Escalamos por la dimensión más restrictiva para que entre completo
+              const sByW = availableForTableWidth / rotatedW;
+              const sByH = availableForTableHeight / rotatedH;
+              const s = Math.min(1.6, sByW, sByH);
               const finalW = rotatedW * s;
               const finalH = rotatedH * s;
               return (
@@ -641,11 +653,11 @@ function RouletteApp() {
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 8,
+                    gap: 4,
                     alignItems: 'center',
-                    padding: '8px 6px',
+                    padding: '4px 4px',
                     background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
-                    borderRadius: 8,
+                    borderRadius: 6,
                     border: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
                     alignSelf: 'stretch',
                   }}>
@@ -655,6 +667,7 @@ function RouletteApp() {
                         value={v}
                         selected={selectedChip === v}
                         disabled={phase !== 'betting' || v > balance}
+                        compact
                         onClick={() => {
                           setSelectedChip(v);
                           if (window.AudioEngine) window.AudioEngine.chip();
@@ -856,7 +869,7 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
       disabled={disabled}
       style={{
         flex: compact ? 1 : 'none',
-        padding: compact ? '9px 8px' : '10px 20px',
+        padding: compact ? '5px 4px' : '10px 20px',
         borderRadius: 4,
         border: primary ? `2px solid ${accent}` : '1px solid #555',
         background: primary
@@ -865,8 +878,8 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
         color: primary ? '#1a1006' : '#ddd',
         fontFamily: 'Georgia, serif',
         fontWeight: 900,
-        fontSize: compact ? 12 : 13,
-        letterSpacing: compact ? 1 : 2,
+        fontSize: compact ? 9 : 13,
+        letterSpacing: compact ? 0.5 : 2,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.35 : 1,
         boxShadow: primary ? `0 4px 10px rgba(0,0,0,0.6), 0 0 20px ${accent}55` : '0 3px 6px rgba(0,0,0,0.5)',
