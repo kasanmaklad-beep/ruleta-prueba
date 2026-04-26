@@ -23,9 +23,9 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
   // ───────────────────────────────────────────────
   const ZERO_W = 50;       // ancho de la columna 0/00
   const NUM_W = 56;        // ancho de cada celda numérica
-  const NUM_H = 56;        // alto de cada celda numérica
+  const NUM_H = 84;        // alto de cada celda numérica (más alto = números más visibles en vista rotada móvil)
   const COL21_W = 56;      // ancho columna 2:1
-  const OUTER_H = 44;      // alto de docenas / exteriores
+  const OUTER_H = 52;      // alto de docenas / exteriores
 
   const TOTAL_W = ZERO_W + NUM_W * 12 + COL21_W;
   // TOTAL_H = altura del grid de números (sin contar las filas de docenas/exteriores)
@@ -194,9 +194,9 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
   return (
     <div
       style={{
-        padding: 16,
+        padding: 6,
         background: `radial-gradient(ellipse at center, ${felt.bg} 0%, ${shade(felt.bg, -30)} 100%)`,
-        borderRadius: 8,
+        borderRadius: 6,
         boxShadow: `inset 0 0 40px rgba(0,0,0,0.6), 0 8px 24px rgba(0,0,0,0.5)`,
         border: `2px solid ${felt.border}`,
         width: '100%',

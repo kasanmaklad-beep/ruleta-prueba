@@ -598,8 +598,10 @@ function RouletteApp() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12, minWidth: 0 }}>
             {/* Mesa: en móvil rotada 90° (vertical) con fichas en columna a la izquierda */}
             {(() => {
-              const NATURAL_W = 814;
-              const NATURAL_H = 292;
+              // Dimensiones naturales del wrapper de BettingTable (incluye padding + border)
+              // TOTAL_W (778) + 16 = 794 ; TOTAL_H + OUTER_H*2 (356) + 16 = 372
+              const NATURAL_W = 794;
+              const NATURAL_H = 372;
               if (!isMobile) {
                 return (
                   <div style={{
