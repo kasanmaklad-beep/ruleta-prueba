@@ -626,22 +626,24 @@ function RouletteApp() {
                 );
               }
               // Móvil: fichas verticales a la izquierda + paño rotado 90° a la derecha
-              // FULL SCREEN: usa el 100% del ancho/alto sin márgenes
+              // FULL SCREEN: usa el 100% del ancho/alto con escalado NO-UNIFORME
+              // (estiramos x e y por separado para llenar exacto, sin huecos laterales)
               const CHIP_COL_W = 56; // ancho de la columna de fichas
               const GAP = 2;
-              const SIDE_PAD = 0; // sin padding lateral — full width
-              const rotatedW = NATURAL_H; // ancho del paño rotado = alto natural del paño
-              const rotatedH = NATURAL_W; // alto del paño rotado = ancho natural del paño
               // Espacio disponible horizontal: ancho total - columna fichas - gap
               const availableForTableWidth = vw - CHIP_COL_W - GAP;
               // Espacio disponible vertical: alto - header (~32) - mensaje (~32) - margen
               const availableForTableHeight = vh - 80;
-              // Escalamos por la dimensión más restrictiva para que entre completo
-              const sByW = availableForTableWidth / rotatedW;
-              const sByH = availableForTableHeight / rotatedH;
-              const s = Math.min(2.5, sByW, sByH); // permitimos más scale para pantallas grandes
-              const finalW = rotatedW * s;
-              const finalH = rotatedH * s;
+              // Calculamos escalas independientes por eje:
+              // - sByW: escala que el ancho de la fuente (NATURAL_H, eje Y rotado→X pantalla) necesita para llenar el ancho disponible
+              // - sByH: escala que el alto de la fuente (NATURAL_W, eje X rotado→Y pantalla) necesita para llenar el alto disponible
+              const sByW = availableForTableWidth / NATURAL_H;
+              const sByH = availableForTableHeight / NATURAL_W;
+              // Escalas no-uniformes aplicadas en ejes de la fuente (antes del rotate)
+              const scaleX = sByH; // fuente X → pantalla Y → debe ajustarse al alto disponible
+              const scaleY = sByW; // fuente Y → pantalla X → debe ajustarse al ancho disponible
+              const finalW = availableForTableWidth;
+              const finalH = availableForTableHeight;
               return (
                 <div style={{
                   display: 'flex',
@@ -708,7 +710,7 @@ function RouletteApp() {
                       </ActionBtn>
                     </div>
                   </div>
-                  {/* Paño rotado */}
+                  {/* Paño rotado — full screen con escalado NO-UNIFORME */}
                   <div style={{
                     width: finalW,
                     height: finalH,
@@ -719,7 +721,11 @@ function RouletteApp() {
                     <div style={{
                       width: NATURAL_W,
                       height: NATURAL_H,
-                      transform: `translate(${finalW}px, 0) rotate(90deg) scale(${s})`,
+                      // CSS aplica transforms de derecha a izquierda:
+                      // 1) scale(scaleX, scaleY) escala los ejes de la fuente
+                      // 2) rotate(90) gira a vertical
+                      // 3) translate posiciona en pantalla
+                      transform: `translate(${finalW}px, 0) rotate(90deg) scale(${scaleX}, ${scaleY})`,
                       transformOrigin: '0 0',
                       position: 'absolute',
                       top: 0,
