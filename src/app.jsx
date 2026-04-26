@@ -224,10 +224,15 @@ function RouletteApp() {
     if (phase !== 'betting') return;
     setBalance((b) => b + totalBet);
     setBets([]);
+    setCountdownSec(null); // cancela cualquier countdown activo
   }, [phase, totalBet]);
 
   // Trigger interno: cuando se setea pendingSpin=true y bets ya están listos, gira
   const [pendingSpin, setPendingSpin] = useState(false);
+  // Countdown opcional antes de girar (en segundos restantes). null = sin countdown.
+  // Permite al jugador agregar más apuestas tras un GIRAR ↻ automático.
+  const [countdownSec, setCountdownSec] = useState(null);
+  const COUNTDOWN_SECONDS = 5;
 
   // Genera los números Lightning para esta ronda
   const generateLightning = useCallback(() => {
@@ -288,10 +293,19 @@ function RouletteApp() {
     }, totalLtgTime);
   }, [phase, bets, generateLightning, t.lightningIntensity, spawnBolt]);
 
-  // GIRAR combinado: si no hay apuestas pero sí lastBets, primero repite y luego gira.
-  // Si no hay nada que repetir, muestra aviso. El estado pendingSpin coordina el flujo.
+  // GIRAR combinado:
+  // - Hay apuestas → gira ya
+  // - No hay apuestas pero sí lastBets → repite y arranca countdown (permite agregar más antes del giro)
+  // - Si ya hay countdown corriendo → tocar de nuevo lo SALTA y gira ya
+  // - LIMPIAR cancela el countdown
   const handleSpinClick = useCallback(() => {
     if (phase !== 'betting') return;
+    // Si hay countdown activo, saltarlo y girar ya
+    if (countdownSec !== null) {
+      setCountdownSec(null);
+      setPendingSpin(true);
+      return;
+    }
     if (bets.length > 0) {
       startSpin();
       return;
@@ -300,22 +314,40 @@ function RouletteApp() {
       setMessage('Debes apostar primero');
       return;
     }
-    // Repetir y dejar que el effect dispare el spin cuando bets esté listo
+    // Repetir apuestas
     const total = lastBets.reduce((s, b) => s + b.amount, 0);
     if (total > balance) { setMessage('Saldo insuficiente para repetir'); return; }
     setBalance((b) => b - total);
     setBets(lastBets.map(b => ({ ...b })));
     if (window.AudioEngine) window.AudioEngine.chip();
-    setPendingSpin(true);
-  }, [phase, bets, lastBets, balance, startSpin]);
+    // Iniciar countdown: el jugador tiene COUNTDOWN_SECONDS para agregar más apuestas
+    setCountdownSec(COUNTDOWN_SECONDS);
+  }, [phase, bets, lastBets, balance, startSpin, countdownSec]);
 
-  // Cuando hay un spin pendiente y los bets ya se aplicaron, lo disparamos
+  // Spin pendiente: cuando los bets se actualizaron y hay flag, gira
   useEffect(() => {
     if (pendingSpin && phase === 'betting' && bets.length > 0) {
       setPendingSpin(false);
       startSpin();
     }
   }, [pendingSpin, phase, bets, startSpin]);
+
+  // Tick del countdown: -1 cada segundo. Al llegar a 0 dispara el spin.
+  useEffect(() => {
+    if (countdownSec === null) return;
+    if (countdownSec <= 0) {
+      setCountdownSec(null);
+      setPendingSpin(true);
+      return;
+    }
+    const t = setTimeout(() => setCountdownSec((s) => (s == null ? null : s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [countdownSec]);
+
+  // Si la fase deja de ser betting (ej. ya empezó el giro), cancelar countdown.
+  useEffect(() => {
+    if (phase !== 'betting' && countdownSec !== null) setCountdownSec(null);
+  }, [phase, countdownSec]);
 
   const handleSpinEnd = useCallback(() => {
     setCameraZoom(false);
@@ -478,7 +510,11 @@ function RouletteApp() {
         }}
       >
         {phase === 'betting' ? (
-          history.length > 0 ? (
+          countdownSec !== null ? (
+            <span style={{ color: '#ffd84a', textShadow: '0 0 8px #ffaa00' }}>
+              ⏱ Girando en {countdownSec}s — puedes agregar más apuestas
+            </span>
+          ) : history.length > 0 ? (
             <>
               <span style={{ fontSize: isMobile ? 8 : 10, letterSpacing: 2, color: '#888', marginRight: 4 }}>HIST.</span>
               {history.map((h, i) => (
@@ -715,18 +751,22 @@ function RouletteApp() {
                       opacity: 0.5,
                     }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', alignItems: 'stretch' }}>
-                      <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0} compact>
+                      <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || (bets.length === 0 && countdownSec === null)} compact>
                         LIMPIAR
                       </ActionBtn>
                       <ActionBtn
                         id="spin-btn"
                         onClick={handleSpinClick}
-                        disabled={phase !== 'betting' || (bets.length === 0 && lastBets.length === 0)}
+                        disabled={phase !== 'betting' || (bets.length === 0 && lastBets.length === 0 && countdownSec === null)}
                         primary
                         theme={t.theme}
                         compact
                       >
-                        {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
+                        {countdownSec !== null
+                          ? `GIRAR (${countdownSec})`
+                          : bets.length === 0 && lastBets.length > 0
+                            ? 'GIRAR ↻'
+                            : 'GIRAR'}
                       </ActionBtn>
                     </div>
                   </div>
@@ -793,17 +833,21 @@ function RouletteApp() {
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0}>
+                  <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || (bets.length === 0 && countdownSec === null)}>
                     LIMPIAR
                   </ActionBtn>
                   <ActionBtn
                     id="spin-btn"
                     onClick={handleSpinClick}
-                    disabled={phase !== 'betting' || (bets.length === 0 && lastBets.length === 0)}
+                    disabled={phase !== 'betting' || (bets.length === 0 && lastBets.length === 0 && countdownSec === null)}
                     primary
                     theme={t.theme}
                   >
-                    {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
+                    {countdownSec !== null
+                      ? `GIRAR YA (${countdownSec}s)`
+                      : bets.length === 0 && lastBets.length > 0
+                        ? 'GIRAR ↻'
+                        : 'GIRAR'}
                   </ActionBtn>
                 </div>
               </div>
