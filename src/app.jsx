@@ -1,4 +1,4 @@
-// App principal — Ruleta Lightning
+// App principal — Ruleta Catatumbo
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -402,7 +402,7 @@ function RouletteApp() {
               : '0 2px 4px rgba(0,0,0,0.8)',
             whiteSpace: 'nowrap',
           }}>
-            ⚡ RULETA LIGHTNING ⚡
+            ⚡ RULETA CATATUMBO ⚡
           </div>
           {!isMobile && (
             <div style={{ fontSize: 11, letterSpacing: 3, color: '#888', marginTop: 2 }}>
