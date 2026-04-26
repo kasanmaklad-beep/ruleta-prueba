@@ -226,14 +226,8 @@ function RouletteApp() {
     setBets([]);
   }, [phase, totalBet]);
 
-  const repeatBets = useCallback(() => {
-    if (phase !== 'betting' || lastBets.length === 0) return;
-    const total = lastBets.reduce((s, b) => s + b.amount, 0);
-    if (total > balance) { setMessage('Saldo insuficiente para repetir'); return; }
-    setBalance((b) => b - total);
-    setBets(lastBets.map(b => ({ ...b })));
-    if (window.AudioEngine) window.AudioEngine.chip();
-  }, [phase, lastBets, balance]);
+  // Trigger interno: cuando se setea pendingSpin=true y bets ya están listos, gira
+  const [pendingSpin, setPendingSpin] = useState(false);
 
   // Genera los números Lightning para esta ronda
   const generateLightning = useCallback(() => {
@@ -293,6 +287,35 @@ function RouletteApp() {
       setResultNum(AMERICAN_WHEEL_ORDER[idx]);
     }, totalLtgTime);
   }, [phase, bets, generateLightning, t.lightningIntensity, spawnBolt]);
+
+  // GIRAR combinado: si no hay apuestas pero sí lastBets, primero repite y luego gira.
+  // Si no hay nada que repetir, muestra aviso. El estado pendingSpin coordina el flujo.
+  const handleSpinClick = useCallback(() => {
+    if (phase !== 'betting') return;
+    if (bets.length > 0) {
+      startSpin();
+      return;
+    }
+    if (lastBets.length === 0) {
+      setMessage('Debes apostar primero');
+      return;
+    }
+    // Repetir y dejar que el effect dispare el spin cuando bets esté listo
+    const total = lastBets.reduce((s, b) => s + b.amount, 0);
+    if (total > balance) { setMessage('Saldo insuficiente para repetir'); return; }
+    setBalance((b) => b - total);
+    setBets(lastBets.map(b => ({ ...b })));
+    if (window.AudioEngine) window.AudioEngine.chip();
+    setPendingSpin(true);
+  }, [phase, bets, lastBets, balance, startSpin]);
+
+  // Cuando hay un spin pendiente y los bets ya se aplicaron, lo disparamos
+  useEffect(() => {
+    if (pendingSpin && phase === 'betting' && bets.length > 0) {
+      setPendingSpin(false);
+      startSpin();
+    }
+  }, [pendingSpin, phase, bets, startSpin]);
 
   const handleSpinEnd = useCallback(() => {
     setCameraZoom(false);
@@ -695,18 +718,15 @@ function RouletteApp() {
                       <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0} compact>
                         LIMPIAR
                       </ActionBtn>
-                      <ActionBtn onClick={repeatBets} disabled={phase !== 'betting' || lastBets.length === 0} compact>
-                        REPETIR
-                      </ActionBtn>
                       <ActionBtn
                         id="spin-btn"
-                        onClick={startSpin}
-                        disabled={phase !== 'betting' || bets.length === 0}
+                        onClick={handleSpinClick}
+                        disabled={phase !== 'betting' || (bets.length === 0 && lastBets.length === 0)}
                         primary
                         theme={t.theme}
                         compact
                       >
-                        GIRAR
+                        {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
                       </ActionBtn>
                     </div>
                   </div>
@@ -776,17 +796,14 @@ function RouletteApp() {
                   <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0}>
                     LIMPIAR
                   </ActionBtn>
-                  <ActionBtn onClick={repeatBets} disabled={phase !== 'betting' || lastBets.length === 0}>
-                    REPETIR
-                  </ActionBtn>
                   <ActionBtn
                     id="spin-btn"
-                    onClick={startSpin}
-                    disabled={phase !== 'betting' || bets.length === 0}
+                    onClick={handleSpinClick}
+                    disabled={phase !== 'betting' || (bets.length === 0 && lastBets.length === 0)}
                     primary
                     theme={t.theme}
                   >
-                    GIRAR
+                    {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
                   </ActionBtn>
                 </div>
               </div>
