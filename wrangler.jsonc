@@ -1,10 +1,19 @@
 {
-  // Configuración de despliegue para Cloudflare (Workers + Static Assets).
-  // Sirve los archivos compilados de ./public como un sitio estático.
+  // Configuración de despliegue para Cloudflare (Workers + Static Assets + D1).
+  // El Worker sirve la API en /api/* y delega el resto a los assets de ./public.
   "name": "ruleta-git",
   "compatibility_date": "2024-12-01",
+  "main": "worker/index.js",
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
     "not_found_handling": "404-page"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ruleta-db",
+      "database_id": "b593f828-e38b-4ba4-aa37-327d1a4aec81"
+    }
+  ]
 }

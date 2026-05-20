@@ -15,3 +15,7 @@ ruleta-prueba.zip
 # Editor
 .vscode/
 .idea/
+
+# Cloudflare / secrets locales
+.dev.vars
+.wrangler/

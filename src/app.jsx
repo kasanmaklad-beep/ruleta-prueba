@@ -152,11 +152,11 @@ function WinCelebration({ amount, lightning, isMobile }) {
   );
 }
 
-function RouletteApp() {
+function RouletteApp({ user, onLogout, onOpenAdmin }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
-  // Estado del juego
-  const [balance, setBalance] = useState(STARTING_BALANCE);
+  // Estado del juego — el saldo es autoritativo del servidor (cae a STARTING_BALANCE solo sin sesión)
+  const [balance, setBalance] = useState(user ? user.balance : STARTING_BALANCE);
   const [bets, setBets] = useState([]);
   const [lastBets, setLastBets] = useState([]);
   const [selectedChip, setSelectedChip] = useState(5);
@@ -257,6 +257,15 @@ function RouletteApp() {
       return;
     }
     setLastBets(bets.map(b => ({ ...b })));
+
+    // Registrar la apuesta en el servidor (descuento autoritativo del saldo)
+    const stake = bets.reduce((s, b) => s + b.amount, 0);
+    if (window.Api && window.Api.getToken()) {
+      window.Api.bet(stake)
+        .then((r) => { if (r && typeof r.balance === 'number') setBalance(r.balance); })
+        .catch(() => { window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {}); });
+    }
+
     setPhase('lightning');
     setMessage('⚡ GENERANDO MULTIPLICADORES ⚡');
 
@@ -329,6 +338,14 @@ function RouletteApp() {
     setWinAmount(total);
     setWinDetails(biggestHit);
     setBalance((bal) => bal + total);
+
+    // Acreditar la ganancia en el servidor (saldo autoritativo)
+    if (total > 0 && window.Api && window.Api.getToken()) {
+      window.Api.win(total, `Ganancia ronda (salió ${resultNum})`)
+        .then((r) => { if (r && typeof r.balance === 'number') setBalance(r.balance); })
+        .catch(() => {});
+    }
+
     setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, 15));
 
     if (total > 0) {
@@ -439,6 +456,33 @@ function RouletteApp() {
             <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>SALDO</div>
             <div style={{ fontSize: isMobile ? 14 : 26, fontWeight: 900, color: '#fff' }}>${balance.toLocaleString()}</div>
           </div>
+          {(onOpenAdmin || onLogout) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
+              {user && (
+                <div style={{ fontSize: isMobile ? 8 : 10, color: '#888', letterSpacing: 1, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user.username}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {onOpenAdmin && (
+                  <button onClick={onOpenAdmin} style={{
+                    padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
+                    border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.4)', color: '#d4a94a',
+                    fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
+                    letterSpacing: 1, cursor: 'pointer',
+                  }}>ADMIN</button>
+                )}
+                {onLogout && (
+                  <button onClick={onLogout} style={{
+                    padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
+                    border: '1px solid #555', background: 'rgba(0,0,0,0.4)', color: '#aaa',
+                    fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
+                    letterSpacing: 1, cursor: 'pointer',
+                  }}>SALIR</button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -814,7 +858,7 @@ function RouletteApp() {
                   letterSpacing: 1,
                   color: '#aaa',
                 }}>
-                  <span><b style={{ color: '#fff' }}>PLENO</b> 1 nº · 35:1</span>
+                  <span><b style={{ color: '#fff' }}>PLENO</b> 1 nº · 30:1</span>
                   <span><b style={{ color: '#fff' }}>SPLIT</b> 2 nº · 17:1</span>
                   <span><b style={{ color: '#fff' }}>CALLE</b> 3 nº · 11:1</span>
                   <span><b style={{ color: '#fff' }}>CUATRO</b> 4 nº · 8:1</span>
@@ -971,6 +1015,52 @@ function generateBoltPath(seed) {
   return d;
 }
 
+// ═══ Raíz: gate de autenticación + ruteo /admin ═══
+function AppRoot() {
+  const [status, setStatus] = useState('loading'); // loading | login | game | admin
+  const [user, setUser] = useState(null);
+
+  const isAdminRoute = () => window.location.pathname.replace(/\/+$/, '') === '/admin';
+
+  useEffect(() => {
+    if (!window.Api || !window.Api.getToken()) { setStatus('login'); return; }
+    window.Api.me()
+      .then((d) => {
+        const u = d.user;
+        setUser(u);
+        setStatus(isAdminRoute() && u.is_admin ? 'admin' : 'game');
+      })
+      .catch(() => { window.Api.logout(); setStatus('login'); });
+  }, []);
+
+  if (status === 'loading') {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#0a0604', color: '#d4a94a',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'Georgia, serif', letterSpacing: 2,
+      }}>Cargando…</div>
+    );
+  }
+
+  if (status === 'login') {
+    return <LoginScreen onAuth={(u) => {
+      setUser(u);
+      setStatus(isAdminRoute() && u.is_admin ? 'admin' : 'game');
+    }} />;
+  }
+
+  if (status === 'admin') {
+    return <AdminPanel user={user} onExit={() => { window.history.pushState({}, '', '/'); setStatus('game'); }} />;
+  }
+
+  return <RouletteApp
+    user={user}
+    onLogout={() => { window.Api.logout(); setUser(null); window.history.pushState({}, '', '/'); setStatus('login'); }}
+    onOpenAdmin={user && user.is_admin ? () => { window.history.pushState({}, '', '/admin'); setStatus('admin'); } : null}
+  />;
+}
+
 // Mount
 const root = ReactDOM.createRoot(document.getElementById('app'));
-root.render(<RouletteApp />);
+root.render(<AppRoot />);

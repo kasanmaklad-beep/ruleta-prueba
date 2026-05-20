@@ -1,7 +1,7 @@
 // Paño de apuestas americano clásico (layout de casino con 0 y 00)
 // Sistema completo con apuestas internas: straight, split, street, corner, six-line, top-line, basket
 
-// Pagos (sin contar la apuesta original): straight 35, split 17, street 11, corner 8,
+// Pagos (sin contar la apuesta original): straight 30 (Lightning), split 17, street 11, corner 8,
 // six-line 5, top-line (0,00,1,2,3) 6, basket (0,00,2 o 0,1,2 o 00,2,3) 11.
 // Aquí calcWin retorna pago BRUTO incluyendo la apuesta (amount * (payout+1)).
 
@@ -763,7 +763,7 @@ function calcWin(bet, result, lightningNumbers) {
 
   // Pagos (payout = ganancia neta a 1; pago bruto = amount * (payout+1))
   const PAYOUT = {
-    straight: 35,
+    straight: 30,
     split: 17,
     street: 11,
     corner: 8,
