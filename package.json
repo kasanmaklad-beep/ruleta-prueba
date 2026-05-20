@@ -5,11 +5,14 @@
   "private": true,
   "scripts": {
     "build": "babel src --presets=@babel/preset-react --out-dir public --extensions .jsx --out-file-extension .js",
-    "dev": "npm run build && python3 -m http.server 8766 --directory public"
+    "dev": "npm run build && python3 -m http.server 8766 --directory public",
+    "dev:worker": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
   },
   "devDependencies": {
     "@babel/cli": "^7.28.6",
     "@babel/core": "^7.29.0",
-    "@babel/preset-react": "^7.28.5"
+    "@babel/preset-react": "^7.28.5",
+    "wrangler": "^4.42.0"
   }
 }
