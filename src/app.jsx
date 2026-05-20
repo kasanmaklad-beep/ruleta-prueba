@@ -858,7 +858,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                   letterSpacing: 1,
                   color: '#aaa',
                 }}>
-                  <span><b style={{ color: '#fff' }}>PLENO</b> 1 nº · 35:1</span>
+                  <span><b style={{ color: '#fff' }}>PLENO</b> 1 nº · 30:1</span>
                   <span><b style={{ color: '#fff' }}>SPLIT</b> 2 nº · 17:1</span>
                   <span><b style={{ color: '#fff' }}>CALLE</b> 3 nº · 11:1</span>
                   <span><b style={{ color: '#fff' }}>CUATRO</b> 4 nº · 8:1</span>
