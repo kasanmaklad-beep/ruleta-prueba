@@ -129,7 +129,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     hotspots.push({
       type: 'corner', payload: nums.join('-'),
       numbers: nums,
-      x: cx - 10, y: cy - 10, w: 20, h: 20,
+      x: cx - 14, y: cy - 14, w: 28, h: 28,
       chipX: cx, chipY: cy,
     });
   }
@@ -144,7 +144,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     hotspots.push({
       type: 'sixline', payload: nums.join('-'),
       numbers: nums,
-      x: xRight - 10, y: yBottom - 10, w: 20, h: 20,
+      x: xRight - 14, y: yBottom - 14, w: 28, h: 28,
       chipX: xRight, chipY: yBottom,
     });
   }
@@ -159,7 +159,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     hotspots.push({
       type: 'topline', payload: '0-00-1-2-3',
       numbers: [0, '00', 1, 2, 3],
-      x: cx - 10, y: yTop + NUM_H / 2 - 10, w: 20, h: 20,
+      x: cx - 14, y: yTop + NUM_H / 2 - 14, w: 28, h: 28,
       chipX: cx, chipY: yTop + NUM_H / 2,
     });
   }
@@ -647,7 +647,7 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
     const touch = e.touches[0];
     const dx = touch.clientX - startPos.current.x;
     const dy = touch.clientY - startPos.current.y;
-    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) cancelLongPress();
+    if (Math.abs(dx) > 16 || Math.abs(dy) > 16) cancelLongPress();
   };
 
   const onTouchEnd = () => {

@@ -750,7 +750,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                       margin: '4px 0',
                       opacity: 0.5,
                     }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%', alignItems: 'stretch' }}>
                       <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0} compact>
                         LIMPIAR
                       </ActionBtn>
@@ -828,7 +828,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                     />
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 16 }}>
                   <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0}>
                     LIMPIAR
                   </ActionBtn>
