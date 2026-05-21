@@ -718,9 +718,9 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 9,
+                    gap: 13,
                     alignItems: 'center',
-                    padding: '6px 4px',
+                    padding: '8px 4px',
                     background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
                     borderRadius: '0 6px 6px 0', // sin redondeo en el borde izquierdo (pegado a pantalla)
                     border: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
@@ -747,10 +747,10 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                       width: '100%',
                       height: 1,
                       background: t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20',
-                      margin: '8px 0',
+                      margin: '12px 0',
                       opacity: 0.5,
                     }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', alignItems: 'stretch' }}>
                       <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0} compact>
                         LIMPIAR
                       </ActionBtn>
@@ -814,7 +814,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                 borderRadius: 8,
                 border: `1px solid ${t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20'}`,
               }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end' }}>
                   {CHIP_VALUES.map((v) => (
                     <Chip
                       key={v}
@@ -828,7 +828,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                     />
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 22 }}>
+                <div style={{ display: 'flex', gap: 28 }}>
                   <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0}>
                     LIMPIAR
                   </ActionBtn>
