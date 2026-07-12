@@ -45,8 +45,9 @@
     },
     me() { return req('/api/me'); },
 
-    bet(amount, note) { return req('/api/game/bet', { method: 'POST', body: { amount, note } }); },
-    win(amount, note) { return req('/api/game/win', { method: 'POST', body: { amount, note } }); },
+    // El servidor resuelve el giro completo: recibe las apuestas y devuelve
+    // { resultIndex, resultNum, lightning, win, anyLightning, winDetails, balance }.
+    spin(bets) { return req('/api/game/spin', { method: 'POST', body: { bets } }); },
 
     adminUsers() { return req('/api/admin/users'); },
     adminTransactions() { return req('/api/admin/transactions'); },

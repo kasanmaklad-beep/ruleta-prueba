@@ -170,6 +170,9 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   const [cameraZoom, setCameraZoom] = useState(false);
   const [lightningBolts, setLightningBolts] = useState([]); // efectos visuales
   const [winDetails, setWinDetails] = useState(null);
+  // Resultado autoritativo del servidor para la ronda en curso (lo llena startSpin,
+  // lo consume handleSpinEnd). Contiene { resultNum, win, anyLightning, winDetails, balance }.
+  const serverSpinRef = useRef(null);
 
   // Viewport / responsive
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -251,26 +254,14 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     }, 600);
   }, []);
 
-  const startSpin = useCallback(() => {
-    if (phase !== 'betting' || bets.length === 0) {
-      setMessage('Debes apostar primero');
-      return;
-    }
-    setLastBets(bets.map(b => ({ ...b })));
-
-    // Registrar la apuesta en el servidor (descuento autoritativo del saldo)
-    const stake = bets.reduce((s, b) => s + b.amount, 0);
-    if (window.Api && window.Api.getToken()) {
-      window.Api.bet(stake)
-        .then((r) => { if (r && typeof r.balance === 'number') setBalance(r.balance); })
-        .catch(() => { window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {}); });
-    }
+  // Anima la fase Lightning + giro usando el resultado ya decidido por el servidor.
+  const runSpinAnimation = useCallback((server) => {
+    // Reconstruir el Map de Lightning con las mismas claves que la rueda (int o '00').
+    const ltg = new Map((server.lightning || []).map(([n, m]) => [n === '00' ? '00' : Number(n), m]));
+    const resultNum = server.resultNum === '00' ? '00' : Number(server.resultNum);
 
     setPhase('lightning');
     setMessage('⚡ GENERANDO MULTIPLICADORES ⚡');
-
-    // Animación Lightning
-    const ltg = generateLightning();
     setLightningNumbers(ltg);
 
     // Sonidos de truenos escalonados
@@ -283,17 +274,42 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
       }, 300 + i * 400);
     });
 
-    // Después de la fase Lightning, lanzar spin
+    // Después de la fase Lightning, lanzar el giro hacia el resultado del servidor.
     const totalLtgTime = 500 + keys.length * 400 + 800;
     setTimeout(() => {
       setPhase('spinning');
       setCameraZoom(true);
       setMessage('¡No más apuestas!');
-      const idx = Math.floor(Math.random() * AMERICAN_WHEEL_ORDER.length);
-      setResultIndex(idx);
-      setResultNum(AMERICAN_WHEEL_ORDER[idx]);
+      setResultIndex(server.resultIndex);
+      setResultNum(resultNum);
     }, totalLtgTime);
-  }, [phase, bets, generateLightning, t.lightningIntensity, spawnBolt]);
+  }, [t.lightningIntensity, spawnBolt]);
+
+  const startSpin = useCallback(() => {
+    if (phase !== 'betting' || bets.length === 0) {
+      setMessage('Debes apostar primero');
+      return;
+    }
+    const betsSnapshot = bets.map(b => ({ ...b }));
+    setLastBets(betsSnapshot);
+    serverSpinRef.current = null;
+
+    // El SERVIDOR resuelve el giro: valida, descuenta, sortea y calcula el premio.
+    setPhase('lightning');
+    setMessage('⚡ GENERANDO MULTIPLICADORES ⚡');
+    window.Api.spin(betsSnapshot.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })))
+      .then((server) => {
+        serverSpinRef.current = server;
+        if (typeof server.balance === 'number') setBalance(server.balance);
+        runSpinAnimation(server);
+      })
+      .catch((err) => {
+        // Falló (saldo insuficiente / red): volver a apostar y sincronizar saldo real.
+        setPhase('betting');
+        setMessage(err && err.message ? err.message : 'No se pudo girar');
+        window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {});
+      });
+  }, [phase, bets, runSpinAnimation]);
 
   // GIRAR de doble función:
   // - Hay apuestas en mesa → gira la ruleta
@@ -322,29 +338,14 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     setCameraZoom(false);
     setPhase('result');
 
-    // Calcular ganancias
-    let total = 0;
-    let anyLightning = false;
-    let biggestHit = null;
-    bets.forEach((b) => {
-      const { win, multiplier, isLightningHit } = calcWin(b, resultNum, lightningNumbers);
-      total += win;
-      if (isLightningHit) anyLightning = true;
-      if (win > 0 && (!biggestHit || win > biggestHit.win)) {
-        biggestHit = { bet: b, win, multiplier, isLightningHit };
-      }
-    });
+    // El premio ya fue calculado y acreditado por el servidor en /api/game/spin.
+    const server = serverSpinRef.current || {};
+    const total = typeof server.win === 'number' ? server.win : 0;
+    const anyLightning = !!server.anyLightning;
 
     setWinAmount(total);
-    setWinDetails(biggestHit);
-    setBalance((bal) => bal + total);
-
-    // Acreditar la ganancia en el servidor (saldo autoritativo)
-    if (total > 0 && window.Api && window.Api.getToken()) {
-      window.Api.win(total, `Ganancia ronda (salió ${resultNum})`)
-        .then((r) => { if (r && typeof r.balance === 'number') setBalance(r.balance); })
-        .catch(() => {});
-    }
+    setWinDetails(server.winDetails || null);
+    if (typeof server.balance === 'number') setBalance(server.balance);
 
     setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, 15));
 
@@ -367,7 +368,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
       setWinDetails(null);
       setMessage('Haz tu apuesta');
     }, 6000);
-  }, [bets, resultNum, lightningNumbers]);
+  }, [resultNum]);
 
   // Auto-spin
   useEffect(() => {
@@ -430,16 +431,18 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
           gap: 8,
         }}
       >
-        <div style={{ minWidth: 0 }}>
+        <div style={{ minWidth: 0, flexShrink: 1, overflow: 'hidden' }}>
           <div style={{
-            fontSize: isMobile ? 12 : 28, fontWeight: 900, letterSpacing: isMobile ? 1 : 4,
+            fontSize: isMobile ? 11 : 28, fontWeight: 900, letterSpacing: isMobile ? 0.5 : 4,
             color: t.theme === 'lightning' ? '#9fd8ff' : '#d4a94a',
             textShadow: t.theme === 'lightning'
               ? '0 0 20px #5ab8ff, 0 2px 4px rgba(0,0,0,0.8)'
               : '0 2px 4px rgba(0,0,0,0.8)',
             whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
           }}>
-            ⚡ RULETA CATATUMBO ⚡
+            {isMobile ? '⚡ CATATUMBO' : '⚡ RULETA CATATUMBO ⚡'}
           </div>
           {!isMobile && (
             <div style={{ fontSize: 11, letterSpacing: 3, color: '#888', marginTop: 2 }}>

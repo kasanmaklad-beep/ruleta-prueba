@@ -36,8 +36,7 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/auth/register') return register(request, env);
   if (method === 'POST' && path === '/api/auth/login')    return login(request, env);
   if (method === 'GET'  && path === '/api/me')            return me(request, env);
-  if (method === 'POST' && path === '/api/game/bet')      return gameBet(request, env);
-  if (method === 'POST' && path === '/api/game/win')      return gameWin(request, env);
+  if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
   if (method === 'GET'  && path === '/api/admin/users')         return adminUsers(request, env);
   if (method === 'GET'  && path === '/api/admin/transactions')  return adminTransactions(request, env);
   if (method === 'POST' && path === '/api/admin/deposit')       return adminDeposit(request, env);
@@ -105,48 +104,90 @@ async function me(request, env) {
   return json({ user: row });
 }
 
-async function gameBet(request, env) {
+// ═══════════════════════════════════════════════════════════════════════
+//  GAME SPIN — el SERVIDOR es la autoridad del juego.
+//  El cliente manda solo las apuestas; el servidor:
+//   1. valida y reconstruye cada apuesta (no confía en 'numbers' del cliente),
+//   2. descuenta la apuesta de forma atómica (no permite saldo negativo),
+//   3. genera los números Lightning y el resultado con RNG del servidor,
+//   4. calcula el premio y lo acredita,
+//   5. devuelve todo para que el cliente solo ANIME el resultado.
+//  Así el jugador nunca decide cuánto gana.
+// ═══════════════════════════════════════════════════════════════════════
+async function gameSpin(request, env) {
   const auth = await requireAuth(request, env);
   if (auth.error) return auth.response;
 
   const body = await readJson(request);
-  const amount = toPositiveInt(body.amount);
-  if (amount === null) return json({ error: 'Monto inválido' }, 400);
+  const rawBets = Array.isArray(body.bets) ? body.bets : null;
+  if (!rawBets || rawBets.length === 0) return json({ error: 'No hay apuestas' }, 400);
+  if (rawBets.length > 200) return json({ error: 'Demasiadas apuestas' }, 400);
 
-  // Descuento atómico: solo resta si hay saldo suficiente.
+  // 1. Validar y normalizar cada apuesta (server-authoritative: reconstruye los números).
+  const bets = [];
+  let stake = 0;
+  for (const rb of rawBets) {
+    const amount = toPositiveInt(rb && rb.amount);
+    if (amount === null) return json({ error: 'Monto de apuesta inválido' }, 400);
+    const type = String(rb && rb.type || '');
+    const numbers = deriveBetNumbers(type, rb && rb.payload);
+    if (!numbers) return json({ error: `Apuesta inválida: ${type}` }, 400);
+    stake += amount;
+    bets.push({ type, payload: String(rb.payload), numbers, amount });
+  }
+  if (stake <= 0 || stake > 1e12) return json({ error: 'Apuesta total inválida' }, 400);
+
+  // 2. Descontar la apuesta de forma atómica.
   const upd = await env.DB.prepare(
     'UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?'
-  ).bind(amount, auth.userId, amount).run();
-
+  ).bind(stake, auth.userId, stake).run();
   if (upd.meta.changes === 0) {
     const cur = await env.DB.prepare('SELECT balance FROM users WHERE id = ?').bind(auth.userId).first();
     return json({ error: 'Saldo insuficiente', balance: cur ? cur.balance : 0 }, 400);
   }
-
   await env.DB.prepare(
     'INSERT INTO transactions (user_id, type, amount, note) VALUES (?, ?, ?, ?)'
-  ).bind(auth.userId, 'bet', amount, body.note ? String(body.note).slice(0, 200) : null).run();
+  ).bind(auth.userId, 'bet', stake, `Apuesta ronda (${bets.length} fichas)`).run();
+
+  // 3. Generar Lightning y resultado con RNG del servidor.
+  const lightning = generateLightning();       // Array<[num, mult]>
+  const ltgMap = new Map(lightning);
+  const resultIndex = randInt(AMERICAN_WHEEL_ORDER.length);
+  const resultNum = AMERICAN_WHEEL_ORDER[resultIndex];
+
+  // 4. Calcular premio (autoritativo).
+  let win = 0;
+  let anyLightning = false;
+  let winDetails = null;
+  for (const b of bets) {
+    const r = calcWin(b, resultNum, ltgMap);
+    win += r.win;
+    if (r.isLightningHit) anyLightning = true;
+    if (r.win > 0 && (!winDetails || r.win > winDetails.win)) {
+      winDetails = { win: r.win, multiplier: r.multiplier, isLightningHit: r.isLightningHit, type: b.type };
+    }
+  }
+
+  if (win > 0) {
+    await env.DB.prepare('UPDATE users SET balance = balance + ? WHERE id = ?')
+      .bind(win, auth.userId).run();
+    await env.DB.prepare(
+      'INSERT INTO transactions (user_id, type, amount, note) VALUES (?, ?, ?, ?)'
+    ).bind(auth.userId, 'win', win, `Ganancia ronda (salió ${resultNum})`).run();
+  }
 
   const cur = await env.DB.prepare('SELECT balance FROM users WHERE id = ?').bind(auth.userId).first();
-  return json({ balance: cur.balance });
-}
-
-async function gameWin(request, env) {
-  const auth = await requireAuth(request, env);
-  if (auth.error) return auth.response;
-
-  const body = await readJson(request);
-  const amount = toPositiveInt(body.amount);
-  if (amount === null) return json({ error: 'Monto inválido' }, 400);
-
-  await env.DB.prepare('UPDATE users SET balance = balance + ? WHERE id = ?')
-    .bind(amount, auth.userId).run();
-  await env.DB.prepare(
-    'INSERT INTO transactions (user_id, type, amount, note) VALUES (?, ?, ?, ?)'
-  ).bind(auth.userId, 'win', amount, body.note ? String(body.note).slice(0, 200) : null).run();
-
-  const cur = await env.DB.prepare('SELECT balance FROM users WHERE id = ?').bind(auth.userId).first();
-  return json({ balance: cur.balance });
+  // Enviamos resultNum y las claves Lightning en su tipo original (int o '00')
+  // para que el cliente reconstruya el Map con las mismas claves que la rueda.
+  return json({
+    resultIndex,
+    resultNum,
+    lightning,        // Array<[int|'00', mult]>
+    win,
+    anyLightning,
+    winDetails,
+    balance: cur.balance,
+  });
 }
 
 async function adminUsers(request, env) {
@@ -194,6 +235,135 @@ async function adminDeposit(request, env) {
     'SELECT id, username, balance, is_admin, created_at FROM users WHERE id = ?'
   ).bind(target.id).first();
   return json({ user: updated });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  LÓGICA DEL JUEGO (autoritativa en el servidor)
+//  Debe mantenerse consistente con src/wheel.jsx y src/table.jsx (visual).
+// ═══════════════════════════════════════════════════════════════════════
+
+const AMERICAN_WHEEL_ORDER = [
+  0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1,
+  '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2,
+];
+const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+const BLACK = new Set([2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35]);
+
+// Payouts (ganancia neta a 1). Pleno 29:1 (Lightning). Debe coincidir con table.jsx.
+const PAYOUT = {
+  straight: 29, split: 17, street: 11, corner: 8, sixline: 5, topline: 6,
+  column: 2, dozen: 2, half: 1, parity: 1, color: 1,
+};
+// Cantidad de números esperada por tipo interno (para validar la apuesta del cliente).
+const INNER_COUNT = { straight: 1, split: 2, street: 3, corner: 4, sixline: 6, topline: 5 };
+
+// Entero aleatorio [0, n) con RNG criptográfico (más justo que Math.random).
+function randInt(n) {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  return buf[0] % n;
+}
+
+// Normaliza un valor de casilla: '00' se mantiene string; el resto a entero.
+function normNum(v) {
+  const s = String(v);
+  if (s === '00') return '00';
+  const n = parseInt(s, 10);
+  return Number.isInteger(n) ? n : NaN;
+}
+function isValidRouletteNum(v) {
+  if (v === '00') return true;
+  return Number.isInteger(v) && v >= 0 && v <= 36;
+}
+
+// Reconstruye (y valida) los números que cubre una apuesta a partir de type+payload.
+// NO confía en el array 'numbers' que envíe el cliente. Devuelve null si es inválida.
+function deriveBetNumbers(type, payload) {
+  const p = payload == null ? '' : String(payload);
+  switch (type) {
+    case 'straight': case 'split': case 'street': case 'corner': case 'sixline': case 'topline': {
+      const nums = p.split('-').map(normNum);
+      if (nums.some((x) => !isValidRouletteNum(x))) return null;
+      if (nums.length !== INNER_COUNT[type]) return null;
+      // sin duplicados
+      if (new Set(nums.map(String)).size !== nums.length) return null;
+      return nums;
+    }
+    case 'column': {
+      const c = parseInt(p, 10);
+      if (![1, 2, 3].includes(c)) return null;
+      const out = [];
+      for (let n = c; n <= 36; n += 3) out.push(n);
+      return out;
+    }
+    case 'dozen': {
+      const d = parseInt(p, 10);
+      if (![1, 2, 3].includes(d)) return null;
+      const base = (d - 1) * 12 + 1;
+      const out = [];
+      for (let n = base; n < base + 12; n++) out.push(n);
+      return out;
+    }
+    case 'half': {
+      if (p === 'low') return range(1, 18);
+      if (p === 'high') return range(19, 36);
+      return null;
+    }
+    case 'parity': {
+      if (p === 'even') return range(2, 36).filter((n) => n % 2 === 0);
+      if (p === 'odd') return range(1, 36).filter((n) => n % 2 === 1);
+      return null;
+    }
+    case 'color': {
+      if (p === 'red') return [...RED];
+      if (p === 'black') return [...BLACK];
+      return null;
+    }
+    default:
+      return null;
+  }
+}
+function range(a, b) {
+  const r = [];
+  for (let i = a; i <= b; i++) r.push(i);
+  return r;
+}
+
+// Genera 1-5 números Lightning con multiplicadores. Igual que src/app.jsx.
+function generateLightning() {
+  const count = 1 + randInt(5); // 1..5
+  const pool = [...AMERICAN_WHEEL_ORDER];
+  const multPool = [50, 75, 100, 150, 200, 300, 400, 500];
+  const chosen = [];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    const idx = randInt(pool.length);
+    const n = pool.splice(idx, 1)[0];
+    const mult = multPool[randInt(multPool.length)];
+    chosen.push([n, mult]);
+  }
+  return chosen;
+}
+
+// Calcula el premio bruto de una apuesta. Espejo de calcWin en src/table.jsx.
+function calcWin(bet, result, ltgMap) {
+  const { type, amount, numbers } = bet;
+  let win = 0, multiplier = 1, isLightningHit = false;
+  const covers = numbers.some((x) => String(x) === String(result));
+
+  if (type === 'straight' && covers && ltgMap.has(result)) {
+    multiplier = ltgMap.get(result);
+    isLightningHit = true;
+  }
+  if (covers) {
+    const p = PAYOUT[type];
+    if (p != null) win = isLightningHit ? amount * multiplier : amount * (p + 1);
+  }
+  // Las apuestas externas nunca cubren 0 ni 00.
+  if ((type === 'column' || type === 'dozen' || type === 'half' || type === 'parity' || type === 'color')
+      && (result === 0 || result === '00')) {
+    win = 0;
+  }
+  return { win, multiplier, isLightningHit };
 }
 
 // ─────────────────────────────── Auth helpers ─────────────────────────────
