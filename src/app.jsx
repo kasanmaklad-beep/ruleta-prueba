@@ -354,7 +354,8 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
       setMessage(anyLightning ? `⚡ ¡LIGHTNING WIN! $${total.toLocaleString()} ⚡` : `¡Ganaste $${total.toLocaleString()}!`);
     } else {
       if (window.AudioEngine) window.AudioEngine.lose();
-      setMessage(`Salió ${resultNum}. Sin ganancias.`);
+      const a = (window.ANIMALS || {})[resultNum];
+      setMessage(a ? `Salió ${resultNum} ${a[0]} ${a[1]}. Sin ganancias.` : `Salió ${resultNum}. Sin ganancias.`);
     }
 
     // Siguiente ronda

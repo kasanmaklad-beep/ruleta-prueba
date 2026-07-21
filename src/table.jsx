@@ -5,14 +5,38 @@
 // six-line 5, top-line (0,00,1,2,3) 6, basket (0,00,2 o 0,1,2 o 00,2,3) 11.
 // Aquí calcWin retorna pago BRUTO incluyendo la apuesta (amount * (payout+1)).
 
+// ═══════════════════════════════════════════════════════════════
+//  ANIMALITOS — cada casilla lleva su animal (estilo Lotto Activo).
+//  Los colores rojo/negro siguen siendo los de la ruleta americana:
+//  esto es puramente visual, no cambia pagos ni sorteo.
+// ═══════════════════════════════════════════════════════════════
+const ANIMALS = {
+  0: ['🐬', 'DELFÍN'], '00': ['🐋', 'BALLENA'],
+  1: ['🐏', 'CARNERO'], 2: ['🐂', 'TORO'], 3: ['🐛', 'CIEMPIÉS'],
+  4: ['🦂', 'ALACRÁN'], 5: ['🦁', 'LEÓN'], 6: ['🐸', 'RANA'],
+  7: ['🦜', 'PERICO'], 8: ['🐭', 'RATÓN'], 9: ['🦅', 'ÁGUILA'],
+  10: ['🐅', 'TIGRE'], 11: ['🐈', 'GATO'], 12: ['🐎', 'CABALLO'],
+  13: ['🐒', 'MONO'], 14: ['🕊️', 'PALOMA'], 15: ['🦊', 'ZORRO'],
+  16: ['🐻', 'OSO'], 17: ['🦃', 'PAVO'], 18: ['🐴', 'BURRO'],
+  19: ['🐐', 'CHIVO'], 20: ['🐷', 'COCHINO'], 21: ['🐓', 'GALLO'],
+  22: ['🐫', 'CAMELLO'], 23: ['🦓', 'CEBRA'], 24: ['🦎', 'IGUANA'],
+  25: ['🐔', 'GALLINA'], 26: ['🐄', 'VACA'], 27: ['🐕', 'PERRO'],
+  28: ['🐦', 'ZAMURO'], 29: ['🐘', 'ELEFANTE'], 30: ['🐊', 'CAÍMAN'],
+  31: ['🦫', 'LAPA'], 32: ['🐿️', 'ARDILLA'], 33: ['🐟', 'PESCADO'],
+  34: ['🦌', 'VENADO'], 35: ['🦒', 'JIRAFA'], 36: ['🐍', 'CULEBRA'],
+};
+window.ANIMALS = ANIMALS;
+function animalOf(n) { return ANIMALS[n] || ['', '']; }
+
 function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, theme, lightningNumbers, rotateLabels, winningNumber }) {
   // Helper: contra-rotación de textos cuando el paño está girado 90° (móvil vertical)
   const rotText = (cx, cy) => rotateLabels ? `rotate(-90 ${cx} ${cy})` : undefined;
+  // 'classic' = paño de animalitos (turquesa con bordes blancos, estilo Lotto Activo)
   const felt = {
-    classic: { bg: '#0a5a2a', border: '#d4a94a', text: '#f4e8b8' },
+    classic: { bg: '#0f8ea8', border: '#ffffff', text: '#ffffff' },
     modern: { bg: '#062418', border: '#d4af37', text: '#e8d890' },
     lightning: { bg: '#0a1838', border: '#5ab8ff', text: '#c9e5ff' },
-  }[theme] || { bg: '#0a5a2a', border: '#d4a94a', text: '#f4e8b8' };
+  }[theme] || { bg: '#0f8ea8', border: '#ffffff', text: '#ffffff' };
 
   const accent = theme === 'lightning' ? '#9fd8ff' : '#ffd84a';
   const accentGlow = theme === 'lightning' ? '#5ab8ff' : '#ffd84a';
@@ -256,30 +280,60 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               );
             })}
 
-            {/* Texto 0 */}
-            <text x={ZERO_W / 2} y={NUM_H * 0.85} fill="#fff" fontSize="22" fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
-              transform={rotText(ZERO_W / 2, NUM_H * 0.75)}>0</text>
-            <text x={ZERO_W / 2} y={NUM_H * 1.5 + NUM_H * 0.85} fill="#fff" fontSize="22" fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
-              transform={rotText(ZERO_W / 2, NUM_H * 2.25)}>00</text>
+            {/* 0 (Delfín) y 00 (Ballena) */}
+            {[
+              { key: '0', label: '0', cy: NUM_H * 0.75 },
+              { key: '00', label: '00', cy: NUM_H * 2.25 },
+            ].map((z) => {
+              const [emoji, name] = animalOf(z.key);
+              const cx = ZERO_W / 2;
+              return (
+                <g key={'z' + z.key} transform={rotText(cx, z.cy)}>
+                  <text x={cx} y={z.cy - 11} fontSize="15" textAnchor="middle"
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>{emoji}</text>
+                  <text x={cx} y={z.cy + 8} fill="#fff" fontSize="19" fontWeight="900"
+                    fontFamily="Georgia, serif" textAnchor="middle"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{z.label}</text>
+                  <text x={cx} y={z.cy + 19} fill="#fff" fontSize="7" fontWeight="700"
+                    fontFamily="Inter, Helvetica, Arial, sans-serif" letterSpacing="0.3"
+                    textAnchor="middle" opacity="0.95"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{name}</text>
+                </g>
+              );
+            })}
 
-            {/* Números 1..36 texto */}
+            {/* Números 1..36 con su animalito (emoji arriba, número, nombre abajo) */}
             {Array.from({ length: 36 }, (_, i) => i + 1).map((n) => {
               const r = cellRect(n);
               const isLtg = lightningNumbers && lightningNumbers.has(n);
+              const [emoji, name] = animalOf(n);
+              // El grupo se contra-rota completo: así el bloque queda derecho y
+              // apilado en vertical tanto en escritorio como en el paño rotado (móvil).
               return (
-                <text key={'t' + n} x={r.cx} y={r.cy + 6}
-                  fill={isLtg ? '#fff5b0' : '#fff'}
-                  fontSize={isLtg ? "20" : "18"}
-                  fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
-                  transform={rotText(r.cx, r.cy)}
-                  style={{
-                    textShadow: isLtg
-                      ? `0 0 8px ${accent}, 0 0 14px ${accentGlow}, 0 1px 2px rgba(0,0,0,0.9)`
-                      : '0 1px 2px rgba(0,0,0,0.8)',
-                  }}
-                >
-                  {n}
-                </text>
+                <g key={'t' + n} transform={rotText(r.cx, r.cy)}>
+                  <text x={r.cx} y={r.cy - 12} fontSize="17" textAnchor="middle"
+                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>
+                    {emoji}
+                  </text>
+                  <text x={r.cx} y={r.cy + 9}
+                    fill={isLtg ? '#fff5b0' : '#fff'}
+                    fontSize={isLtg ? "19" : "17"}
+                    fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
+                    style={{
+                      textShadow: isLtg
+                        ? `0 0 8px ${accent}, 0 0 14px ${accentGlow}, 0 1px 2px rgba(0,0,0,0.9)`
+                        : '0 1px 2px rgba(0,0,0,0.8)',
+                    }}
+                  >
+                    {n}
+                  </text>
+                  <text x={r.cx} y={r.cy + 22} fill="#fff" fontSize="7.5"
+                    fontWeight="700" fontFamily="Inter, Helvetica, Arial, sans-serif"
+                    letterSpacing="0.3" textAnchor="middle" opacity="0.95"
+                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>
+                    {name}
+                  </text>
+                </g>
               );
             })}
 
