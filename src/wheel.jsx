@@ -138,7 +138,8 @@ function RouletteWheel({
           const speed = angleDiff / 0.016;
           const vel = Math.min(1, speed / 800);
           if (window.AudioEngine) window.AudioEngine.tick(0.4 + vel * 0.6);
-          if (window.AudioEngine) window.AudioEngine.updateSpinIntensity(1 - t * 0.5);
+          // Velocidad real de la bola → el sonido sube y baja de tono con ella
+          if (window.AudioEngine) window.AudioEngine.updateSpinIntensity(Math.max(0.1, vel));
           lastTickAngle = relAngle;
         }
       }

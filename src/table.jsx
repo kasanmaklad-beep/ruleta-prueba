@@ -10,20 +10,21 @@
 //  Los colores rojo/negro siguen siendo los de la ruleta americana:
 //  esto es puramente visual, no cambia pagos ni sorteo.
 // ═══════════════════════════════════════════════════════════════
+// [emoji, nombre, artículo] — el artículo lo usa la voz ("¡Salió la Paloma!")
 const ANIMALS = {
-  0: ['🐬', 'DELFÍN'], '00': ['🐋', 'BALLENA'],
-  1: ['🐏', 'CARNERO'], 2: ['🐂', 'TORO'], 3: ['🐛', 'CIEMPIÉS'],
-  4: ['🦂', 'ALACRÁN'], 5: ['🦁', 'LEÓN'], 6: ['🐸', 'RANA'],
-  7: ['🦜', 'PERICO'], 8: ['🐭', 'RATÓN'], 9: ['🦅', 'ÁGUILA'],
-  10: ['🐅', 'TIGRE'], 11: ['🐈', 'GATO'], 12: ['🐎', 'CABALLO'],
-  13: ['🐒', 'MONO'], 14: ['🕊️', 'PALOMA'], 15: ['🦊', 'ZORRO'],
-  16: ['🐻', 'OSO'], 17: ['🦃', 'PAVO'], 18: ['🐴', 'BURRO'],
-  19: ['🐐', 'CHIVO'], 20: ['🐷', 'COCHINO'], 21: ['🐓', 'GALLO'],
-  22: ['🐫', 'CAMELLO'], 23: ['🦓', 'CEBRA'], 24: ['🦎', 'IGUANA'],
-  25: ['🐔', 'GALLINA'], 26: ['🐄', 'VACA'], 27: ['🐕', 'PERRO'],
-  28: ['🐦', 'ZAMURO'], 29: ['🐘', 'ELEFANTE'], 30: ['🐊', 'CAÍMAN'],
-  31: ['🦫', 'LAPA'], 32: ['🐿️', 'ARDILLA'], 33: ['🐟', 'PESCADO'],
-  34: ['🦌', 'VENADO'], 35: ['🦒', 'JIRAFA'], 36: ['🐍', 'CULEBRA'],
+  0: ['🐬', 'DELFÍN', 'el'], '00': ['🐋', 'BALLENA', 'la'],
+  1: ['🐏', 'CARNERO', 'el'], 2: ['🐂', 'TORO', 'el'], 3: ['🐛', 'CIEMPIÉS', 'el'],
+  4: ['🦂', 'ALACRÁN', 'el'], 5: ['🦁', 'LEÓN', 'el'], 6: ['🐸', 'RANA', 'la'],
+  7: ['🦜', 'PERICO', 'el'], 8: ['🐭', 'RATÓN', 'el'], 9: ['🦅', 'ÁGUILA', 'el'],
+  10: ['🐅', 'TIGRE', 'el'], 11: ['🐈', 'GATO', 'el'], 12: ['🐎', 'CABALLO', 'el'],
+  13: ['🐒', 'MONO', 'el'], 14: ['🕊️', 'PALOMA', 'la'], 15: ['🦊', 'ZORRO', 'el'],
+  16: ['🐻', 'OSO', 'el'], 17: ['🦃', 'PAVO', 'el'], 18: ['🐴', 'BURRO', 'el'],
+  19: ['🐐', 'CHIVO', 'el'], 20: ['🐷', 'COCHINO', 'el'], 21: ['🐓', 'GALLO', 'el'],
+  22: ['🐫', 'CAMELLO', 'el'], 23: ['🦓', 'CEBRA', 'la'], 24: ['🦎', 'IGUANA', 'la'],
+  25: ['🐔', 'GALLINA', 'la'], 26: ['🐄', 'VACA', 'la'], 27: ['🐕', 'PERRO', 'el'],
+  28: ['🐦', 'ZAMURO', 'el'], 29: ['🐘', 'ELEFANTE', 'el'], 30: ['🐊', 'CAÍMAN', 'el'],
+  31: ['🦫', 'LAPA', 'la'], 32: ['🐿️', 'ARDILLA', 'la'], 33: ['🐟', 'PESCADO', 'el'],
+  34: ['🦌', 'VENADO', 'el'], 35: ['🦒', 'JIRAFA', 'la'], 36: ['🐍', 'CULEBRA', 'la'],
 };
 window.ANIMALS = ANIMALS;
 function animalOf(n) { return ANIMALS[n] || ['', '']; }
@@ -476,17 +477,15 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
                     </filter>
                   </defs>
 
-                  {/* Aura radial pulsante */}
+                  {/* Aura radial (estática) */}
                   <circle cx={cx} cy={cy} r={Math.max(r.w, r.h) * 0.65}
-                    fill="url(#winner-rays)"
-                    style={{ animation: 'winnerAura 1.1s ease-in-out infinite alternate', transformOrigin: `${cx}px ${cy}px` }} />
+                    fill="url(#winner-rays)" opacity="0.8" />
 
-                  {/* Borde celda dorado pulsante */}
+                  {/* Borde celda dorado (estático) */}
                   <rect x={r.x + 2} y={r.y + 2} width={r.w - 4} height={r.h - 4}
                     fill="rgba(255,216,74,0.12)"
                     stroke="#fff5b0" strokeWidth="3"
-                    filter="url(#winner-glow)"
-                    style={{ animation: 'winnerFlick 0.5s ease-in-out infinite alternate' }} />
+                    filter="url(#winner-glow)" />
                   <rect x={r.x + 5} y={r.y + 5} width={r.w - 10} height={r.h - 10}
                     fill="none" stroke="#ffd84a" strokeWidth="1.2" opacity="0.9" />
 
@@ -499,13 +498,12 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
                     return (
                       <line key={deg} x1={cx} y1={cy} x2={x2} y2={y2}
                         stroke="#fff5b0" strokeWidth="1.5" opacity="0.55"
-                        strokeLinecap="round"
-                        style={{ animation: `winnerFlick ${0.5 + (deg % 90) / 180}s ease-in-out infinite alternate` }} />
+                        strokeLinecap="round" />
                     );
                   })}
 
-                  {/* Moneda 3D — grupo con scale-pulse */}
-                  <g style={{ animation: 'winnerCoinPulse 1.2s ease-in-out infinite alternate', transformOrigin: `${cx}px ${cy}px`, transformBox: 'fill-box' }}>
+                  {/* Moneda 3D — estática (sin pulso) */}
+                  <g>
                     {/* Sombra debajo */}
                     <ellipse cx={cx} cy={cy + sideH + coinRy * 0.8} rx={coinR * 0.95} ry={coinRy * 0.35}
                       fill="rgba(0,0,0,0.55)" />

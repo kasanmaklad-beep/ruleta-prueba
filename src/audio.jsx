@@ -7,6 +7,9 @@ const AudioEngine = (() => {
   let spinGain = null;
   let spinOsc = null;
   let spinNoise = null;
+  let spinFilter = null;   // filtro del ruido (se modula en estilos dinámicos)
+  let spinOscGain = null;
+  let spinCfg = null;      // config del estilo en curso
   let spinActive = false;
   let volume = 0.7;
 
@@ -38,51 +41,140 @@ const AudioEngine = (() => {
     return noiseBuffer;
   }
 
-  // Whoosh continuo del giro: ruido filtrado + tono grave
-  function startSpin() {
+  // ═══ Estilos de sonido del giro (cilindro) ═══
+  // Cada estilo define el ruido (aire/rodadura) y el tono grave (masa girando).
+  const SPIN_STYLES = {
+    // Whoosh de aire original
+    clasico: {
+      level: 0.25,
+      noise: { type: 'bandpass', freq: 600, q: 1.2, gain: 1 },
+      osc: { type: 'sawtooth', freq: 60, gain: 0.08 },
+    },
+    // Rodadura cálida sobre madera: grave, sin siseo agudo
+    madera: {
+      level: 0.28,
+      noise: { type: 'lowpass', freq: 380, q: 0.8, gain: 0.9 },
+      osc: { type: 'sine', freq: 45, gain: 0.14 },
+    },
+    // Casino amplio: ruido medio con cuerpo, tono doble
+    casino: {
+      level: 0.22,
+      noise: { type: 'bandpass', freq: 1100, q: 0.9, gain: 0.8 },
+      osc: { type: 'triangle', freq: 82, gain: 0.07 },
+    },
+    // Suave: apenas un susurro de fondo
+    suave: {
+      level: 0.12,
+      noise: { type: 'lowpass', freq: 700, q: 0.7, gain: 0.6 },
+      osc: null,
+    },
+    // Turbo: energético y agudo, sensación de velocidad
+    turbo: {
+      level: 0.3,
+      noise: { type: 'bandpass', freq: 1900, q: 2.2, gain: 1 },
+      osc: { type: 'sawtooth', freq: 110, gain: 0.09 },
+    },
+    // Roce de bola: textura de bola rodando en la pista y tono que SUBE y BAJA
+    // con la velocidad real de la rueda (agudo al lanzar, grave al frenar).
+    roce: {
+      level: 0.3,
+      dynamic: true,
+      // El filtro barre de grave (rueda frenando) a agudo (rueda rápida)
+      noise: { type: 'bandpass', freq: 900, q: 3.2, gain: 1, freqMin: 260, freqMax: 2300 },
+      osc: { type: 'triangle', freq: 70, gain: 0.1, freqMin: 38, freqMax: 150 },
+    },
+    // Silencio: solo se oyen los ticks de la bolita
+    silencio: null,
+  };
+  let spinStyle = 'clasico';
+  function setSpinStyle(s) { if (s && (s in SPIN_STYLES)) spinStyle = s; }
+
+  // Giro continuo del cilindro. styleOverride solo lo usa la vista previa:
+  // así se escucha una muestra sin alterar el estilo elegido por el jugador.
+  function startSpin(styleOverride) {
     if (spinActive) return;
+    const cfg = SPIN_STYLES[styleOverride && (styleOverride in SPIN_STYLES) ? styleOverride : spinStyle];
+    spinCfg = cfg;
+    if (!cfg) { spinActive = true; return; } // 'silencio': nada continuo
     const c = ensureCtx();
     spinActive = true;
 
     spinGain = c.createGain();
     spinGain.gain.value = 0;
-    spinGain.gain.setTargetAtTime(0.25, c.currentTime, 0.3);
+    spinGain.gain.setTargetAtTime(cfg.level, c.currentTime, 0.3);
     spinGain.connect(masterGain);
 
-    // Ruido filtrado = aire girando
+    // Ruido filtrado = aire / rodadura
     spinNoise = c.createBufferSource();
     spinNoise.buffer = getNoiseBuffer();
     spinNoise.loop = true;
-    const bp = c.createBiquadFilter();
-    bp.type = 'bandpass';
-    bp.frequency.value = 600;
-    bp.Q.value = 1.2;
-    spinNoise.connect(bp);
-    bp.connect(spinGain);
+    const filt = c.createBiquadFilter();
+    filt.type = cfg.noise.type;
+    filt.frequency.value = cfg.noise.freq;
+    filt.Q.value = cfg.noise.q;
+    spinFilter = filt;
+    const nGain = c.createGain();
+    nGain.gain.value = cfg.noise.gain;
+    spinNoise.connect(filt);
+    filt.connect(nGain);
+    nGain.connect(spinGain);
     spinNoise.start();
 
-    // Tono grave = masa girando
-    spinOsc = c.createOscillator();
-    spinOsc.type = 'sawtooth';
-    spinOsc.frequency.value = 60;
-    const oscGain = c.createGain();
-    oscGain.gain.value = 0.08;
-    spinOsc.connect(oscGain);
-    oscGain.connect(spinGain);
-    spinOsc.start();
+    // Tono grave = masa girando (opcional según estilo)
+    if (cfg.osc) {
+      spinOsc = c.createOscillator();
+      spinOsc.type = cfg.osc.type;
+      spinOsc.frequency.value = cfg.osc.freq;
+      const oscGain = c.createGain();
+      oscGain.gain.value = cfg.osc.gain;
+      spinOscGain = oscGain;
+      spinOsc.connect(oscGain);
+      oscGain.connect(spinGain);
+      spinOsc.start();
+    }
+  }
+
+  // Reproduce una muestra corta del estilo, SIN cambiar el estilo elegido
+  // (el estilo real lo fija setSpinStyle desde la app).
+  function previewSpin(style) {
+    if (spinActive) return; // no interrumpir un giro real
+    startSpin(style);
+    // Barrido de velocidad (rápido → lento) para oír cómo cae el tono
+    const steps = 14, dur = 2200;
+    for (let i = 0; i <= steps; i++) {
+      setTimeout(() => updateSpinIntensity(1 - i / steps), (dur / steps) * i);
+    }
+    setTimeout(() => stopSpin(), dur + 150);
   }
 
   function updateSpinIntensity(intensity) {
-    // intensity 0..1
+    // intensity 0..1 = velocidad relativa de la bola
     if (!spinActive || !spinGain) return;
-    const g = 0.05 + intensity * 0.3;
-    spinGain.gain.setTargetAtTime(g, ctx.currentTime, 0.1);
+    const v = Math.max(0, Math.min(1, intensity));
+    const now = ctx.currentTime;
+    const g = 0.05 + v * 0.3;
+    spinGain.gain.setTargetAtTime(g, now, 0.1);
+
+    // Estilos dinámicos: el tono y el filtro siguen a la velocidad
+    // (agudo cuando la rueda va rápido, grave a medida que frena).
+    if (spinCfg && spinCfg.dynamic) {
+      if (spinFilter && spinCfg.noise.freqMin != null) {
+        const f = spinCfg.noise.freqMin + (spinCfg.noise.freqMax - spinCfg.noise.freqMin) * v;
+        spinFilter.frequency.setTargetAtTime(f, now, 0.08);
+      }
+      if (spinOsc && spinCfg.osc && spinCfg.osc.freqMin != null) {
+        const f = spinCfg.osc.freqMin + (spinCfg.osc.freqMax - spinCfg.osc.freqMin) * v;
+        spinOsc.frequency.setTargetAtTime(f, now, 0.08);
+      }
+    }
   }
 
   function stopSpin() {
     if (!spinActive) return;
     const c = ctx;
     spinActive = false;
+    // Estilo 'silencio': no se creó ningún nodo continuo
+    if (!spinGain) { spinOsc = null; spinNoise = null; spinFilter = null; spinOscGain = null; spinCfg = null; return; }
     const g = spinGain;
     const o = spinOsc;
     const n = spinNoise;
@@ -95,6 +187,9 @@ const AudioEngine = (() => {
     spinGain = null;
     spinOsc = null;
     spinNoise = null;
+    spinFilter = null;
+    spinOscGain = null;
+    spinCfg = null;
   }
 
   // Tick = bolita rebotando en el separador metálico
@@ -279,6 +374,10 @@ const AudioEngine = (() => {
     startSpin,
     updateSpinIntensity,
     stopSpin,
+    setSpinStyle,
+    getSpinStyle: () => spinStyle,
+    previewSpin,
+    spinStyles: Object.keys(SPIN_STYLES),
     tick,
     ballDrop,
     thunder,
@@ -289,3 +388,87 @@ const AudioEngine = (() => {
 })();
 
 window.AudioEngine = AudioEngine;
+
+// ═══════════════════════════════════════════════════════════════════
+//  VOZ (Web Speech API) — narra el número ganador en español.
+//  No usa archivos ni red: la síntesis la hace el propio dispositivo.
+//  Si el equipo no tiene voces en español, simplemente no habla.
+// ═══════════════════════════════════════════════════════════════════
+const Voice = (() => {
+  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  let enabled = true;
+  let voice = null;
+  // Orden de preferencia: Paulina (es-MX) → cualquier es-MX → cualquier es-*
+  const PREFERRED = ['Paulina', 'Mónica'];
+
+  function pickVoice() {
+    if (!supported) return null;
+    const all = speechSynthesis.getVoices();
+    if (!all.length) return null;
+    for (const name of PREFERRED) {
+      const v = all.find((x) => x.name.startsWith(name));
+      if (v) return v;
+    }
+    return all.find((x) => /^es-MX/i.test(x.lang))
+        || all.find((x) => /^es/i.test(x.lang))
+        || null;
+  }
+
+  if (supported) {
+    voice = pickVoice();
+    // En algunos navegadores la lista llega asíncrona
+    speechSynthesis.onvoiceschanged = () => { if (!voice) voice = pickVoice(); };
+  }
+
+  function setEnabled(v) { enabled = !!v; if (!enabled) cancel(); }
+  function isEnabled() { return enabled; }
+  function isSupported() { return supported && !!pickVoice(); }
+  function cancel() { if (supported) { try { speechSynthesis.cancel(); } catch (e) {} } }
+
+  function say(text, opts = {}) {
+    if (!supported || !enabled || !text) return;
+    if (!voice) voice = pickVoice();
+    try {
+      const u = new SpeechSynthesisUtterance(text);
+      if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = 'es-MX'; }
+      u.rate = opts.rate || 1.02;
+      u.pitch = opts.pitch || 1;
+      u.volume = opts.volume != null ? opts.volume : 1;
+      speechSynthesis.speak(u);
+    } catch (e) { /* si falla, el juego sigue igual */ }
+  }
+
+  // "0" → cero · "00" → doble cero · el resto lo lee bien el sintetizador
+  function numeroHablado(n) {
+    const s = String(n);
+    if (s === '00') return 'doble cero';
+    if (s === '0') return 'cero';
+    return s;
+  }
+
+  // Los nombres vienen en MAYÚSCULAS (del paño). Algunos sintetizadores las
+  // deletrean, así que las pasamos a "Caballo", "Águila", etc.
+  function nombrePropio(s) {
+    if (!s) return '';
+    const t = String(s).toLowerCase();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  // Estilo lotería de animalitos: "¡Salió la Paloma, número catorce!"
+  // El 00 suena mejor sin la palabra "número": "¡Salió la Ballena, doble cero!"
+  function anunciarGanador(n, animal, articulo) {
+    cancel(); // corta cualquier anuncio anterior
+    if (!animal) { say(`Número ganador: ${numeroHablado(n)}`); return; }
+    const art = articulo || 'el';
+    const nombre = nombrePropio(animal);
+    const num = numeroHablado(n);
+    const cola = String(n) === '00' ? 'doble cero' : `número ${num}`;
+    say(`¡Salió ${art} ${nombre}, ${cola}!`);
+  }
+  function anunciarPremio(monto) { say(`¡Ganaste ${monto}!`); }
+  function anunciarNoMasApuestas() { cancel(); say('No más apuestas', { rate: 1.08 }); }
+
+  return { say, setEnabled, isEnabled, isSupported, cancel, anunciarGanador, anunciarPremio, anunciarNoMasApuestas };
+})();
+
+window.Voice = Voice;

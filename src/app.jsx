@@ -9,6 +9,17 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "autoSpin": false
 }/*EDITMODE-END*/;
 
+// Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
+const SPIN_SOUND_OPTIONS = [
+  { value: 'clasico', label: 'Clásico', hint: 'Whoosh de aire (original)' },
+  { value: 'madera', label: 'Madera', hint: 'Rodadura grave y cálida' },
+  { value: 'casino', label: 'Casino', hint: 'Amplio, con cuerpo' },
+  { value: 'suave', label: 'Suave', hint: 'Apenas un susurro' },
+  { value: 'turbo', label: 'Turbo', hint: 'Agudo, sensación de velocidad' },
+  { value: 'roce', label: 'Roce de bola', hint: 'El tono baja al frenar la rueda' },
+  { value: 'silencio', label: 'Silencio', hint: 'Solo la bolita' },
+];
+
 const CHIP_VALUES = [1, 5, 25, 100, 500];
 const STARTING_BALANCE = 1000;
 
@@ -173,6 +184,18 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   // Resultado autoritativo del servidor para la ronda en curso (lo llena startSpin,
   // lo consume handleSpinEnd). Contiene { resultNum, win, anyLightning, winDetails, balance }.
   const serverSpinRef = useRef(null);
+  // Tras caer la bola mantenemos la rueda visible 5s con el número ganador marcado
+  // (en móvil, si no, la vista saltaría al paño y no se llega a ver).
+  const [holdWinner, setHoldWinner] = useState(false);
+  // Sonido del giro elegido por el jugador (persistido en el navegador)
+  const [spinSound, setSpinSound] = useState(() => {
+    try { return localStorage.getItem('ruleta_spin_sound') || 'clasico'; } catch (e) { return 'clasico'; }
+  });
+  const [soundMenu, setSoundMenu] = useState(false);
+  // Voz que narra el número ganador (recordada en el navegador)
+  const [voiceOn, setVoiceOn] = useState(() => {
+    try { return localStorage.getItem('ruleta_voz') !== 'off'; } catch (e) { return true; }
+  });
 
   // Viewport / responsive
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -196,6 +219,20 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   useEffect(() => {
     if (window.AudioEngine) window.AudioEngine.setVolume(t.volume / 100);
   }, [t.volume]);
+
+  // Estilo de sonido del giro (cilindro) — elegible por el jugador y recordado
+  useEffect(() => {
+    if (window.AudioEngine && window.AudioEngine.setSpinStyle) {
+      window.AudioEngine.setSpinStyle(spinSound);
+    }
+    try { localStorage.setItem('ruleta_spin_sound', spinSound); } catch (e) {}
+  }, [spinSound]);
+
+  // Voz del número ganador
+  useEffect(() => {
+    if (window.Voice) window.Voice.setEnabled(voiceOn);
+    try { localStorage.setItem('ruleta_voz', voiceOn ? 'on' : 'off'); } catch (e) {}
+  }, [voiceOn]);
 
   const totalBet = bets.reduce((s, b) => s + b.amount, 0);
 
@@ -280,6 +317,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
       setPhase('spinning');
       setCameraZoom(true);
       setMessage('¡No más apuestas!');
+      if (window.Voice) window.Voice.anunciarNoMasApuestas();
       setResultIndex(server.resultIndex);
       setResultNum(resultNum);
     }, totalLtgTime);
@@ -337,6 +375,9 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   const handleSpinEnd = useCallback(() => {
     setCameraZoom(false);
     setPhase('result');
+    // Mantener la rueda con el marcador del ganador 5s antes de volver al paño
+    setHoldWinner(true);
+    setTimeout(() => setHoldWinner(false), 5000);
 
     // El premio ya fue calculado y acreditado por el servidor en /api/game/spin.
     const server = serverSpinRef.current || {};
@@ -348,6 +389,13 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     if (typeof server.balance === 'number') setBalance(server.balance);
 
     setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, 15));
+
+    // Voz: "Número ganador: catorce, Paloma" (+ el premio si ganó)
+    if (window.Voice) {
+      const animal = (window.ANIMALS || {})[resultNum];
+      window.Voice.anunciarGanador(resultNum, animal ? animal[1] : null, animal ? animal[2] : null);
+      if (total > 0) setTimeout(() => window.Voice.anunciarPremio(total), 1400);
+    }
 
     if (total > 0) {
       if (window.AudioEngine) window.AudioEngine.win(total >= 500 || anyLightning);
@@ -368,7 +416,8 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
       setWinAmount(null);
       setWinDetails(null);
       setMessage('Haz tu apuesta');
-    }, 6000);
+      // 15s = 5s de marcador en la rueda + 10s de marcador (estático) en el paño
+    }, 15000);
   }, [resultNum]);
 
   // Auto-spin
@@ -460,6 +509,87 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
             <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>SALDO</div>
             <div style={{ fontSize: isMobile ? 14 : 26, fontWeight: 900, color: '#fff' }}>${balance.toLocaleString()}</div>
           </div>
+          {/* Sonido del giro */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setSoundMenu((v) => !v)}
+              title="Sonido del giro"
+              style={{
+                padding: isMobile ? '3px 7px' : '6px 11px', borderRadius: 4,
+                border: `1px solid ${soundMenu ? '#d4a94a' : '#555'}`,
+                background: 'rgba(0,0,0,0.4)', color: '#d4a94a',
+                fontSize: isMobile ? 12 : 15, cursor: 'pointer', lineHeight: 1,
+              }}
+            >{spinSound === 'silencio' ? '🔇' : '🔊'}</button>
+            {soundMenu && (
+              <>
+                <div onClick={() => setSoundMenu(false)}
+                  style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                <div style={{
+                  position: 'absolute', right: 0, top: '110%', zIndex: 999,
+                  background: 'linear-gradient(180deg, #2a1a08, #140a02)',
+                  border: '1px solid #8b6a20', borderRadius: 8, padding: 8,
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.8)', minWidth: 190,
+                }}>
+                  <div style={{ fontSize: 9, letterSpacing: 2, color: '#888', padding: '2px 6px 6px' }}>
+                    SONIDO DEL GIRO
+                  </div>
+                  {SPIN_SOUND_OPTIONS.map((o) => (
+                    <button
+                      key={o.value}
+                      onClick={() => {
+                        setSpinSound(o.value);
+                        if (window.AudioEngine && window.AudioEngine.previewSpin) window.AudioEngine.previewSpin(o.value);
+                      }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '7px 8px', marginBottom: 2, borderRadius: 5,
+                        border: 'none', cursor: 'pointer', fontFamily: 'Georgia, serif',
+                        background: spinSound === o.value ? 'rgba(212,169,74,0.22)' : 'transparent',
+                        color: spinSound === o.value ? '#ffd84a' : '#ddd',
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {spinSound === o.value ? '✓ ' : ''}{o.label}
+                      </div>
+                      <div style={{ fontSize: 10, color: '#999' }}>{o.hint}</div>
+                    </button>
+                  ))}
+                  <div style={{ fontSize: 9, color: '#777', padding: '4px 6px 6px' }}>
+                    Tocá una opción para escucharla
+                  </div>
+                  {/* Voz del número ganador */}
+                  <div style={{ borderTop: '1px solid #4a3a18', paddingTop: 8, marginTop: 2 }}>
+                    <button
+                      onClick={() => {
+                        const nuevo = !voiceOn;
+                        setVoiceOn(nuevo);
+                        if (nuevo && window.Voice) {
+                          window.Voice.setEnabled(true);
+                          window.Voice.anunciarGanador(14, 'PALOMA', 'la');
+                        }
+                      }}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                        padding: '7px 8px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                        fontFamily: 'Georgia, serif', textAlign: 'left',
+                        background: voiceOn ? 'rgba(212,169,74,0.22)' : 'transparent',
+                        color: voiceOn ? '#ffd84a' : '#ddd',
+                      }}
+                    >
+                      <span style={{ fontSize: 14 }}>{voiceOn ? '🗣️' : '🤐'}</span>
+                      <span>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>
+                          Voz {voiceOn ? 'activada' : 'desactivada'}
+                        </div>
+                        <div style={{ fontSize: 10, color: '#999' }}>Canta el número ganador</div>
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           {(onOpenAdmin || onLogout) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
               {user && (
@@ -523,11 +653,11 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
               <span style={{ fontSize: isMobile ? 8 : 10, letterSpacing: 2, color: '#888', marginRight: 4 }}>HIST.</span>
               {history.map((h, i) => (
                 <div key={i} style={{
-                  width: isMobile ? 18 : 30, height: isMobile ? 18 : 30, borderRadius: '50%',
+                  width: isMobile ? 26 : 34, height: isMobile ? 26 : 34, borderRadius: '50%',
                   background: h.color === 'red' ? '#b8101a' : h.color === 'black' ? '#151515' : '#0d7a2e',
-                  border: h.lightning ? `2px solid ${t.theme === 'lightning' ? '#9fd8ff' : '#ffd84a'}` : '1px solid #444',
+                  border: h.lightning ? `2px solid ${t.theme === 'lightning' ? '#9fd8ff' : '#ffd84a'}` : '1px solid #666',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: isMobile ? 9 : 12, fontWeight: 900, color: '#fff',
+                  fontSize: isMobile ? 13 : 15, fontWeight: 900, color: '#fff',
                   boxShadow: h.lightning ? `0 0 8px ${t.theme === 'lightning' ? '#5ab8ff' : '#ffd84a'}` : 'none',
                   opacity: Math.max(0.4, 1 - i * 0.07),
                   flexShrink: 0,
@@ -541,11 +671,12 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
           <>
             {phase === 'result' && resultNum != null && (
               <div style={{
-                width: isMobile ? 32 : 40, height: isMobile ? 32 : 40, borderRadius: '50%',
+                width: isMobile ? 46 : 56, height: isMobile ? 46 : 56, borderRadius: '50%',
                 background: numColor(resultNum) === 'red' ? '#b8101a' : numColor(resultNum) === 'black' ? '#151515' : '#0d7a2e',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: isMobile ? 14 : 18, fontWeight: 900, marginRight: 10,
-                border: '2px solid #fff',
+                fontSize: isMobile ? 22 : 28, fontWeight: 900, marginRight: 10,
+                border: '3px solid #fff',
+                boxShadow: '0 0 14px rgba(255,216,74,0.8), 0 2px 8px rgba(0,0,0,0.7)',
                 flexShrink: 0,
               }}>{resultNum}</div>
             )}
@@ -594,8 +725,13 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
         {/* LEFT: Wheel + history — en móvil solo durante lightning/spinning (oculto pero montado para preservar estado) */}
         {(
           <div style={{
-            display: (!isMobile || phase === 'lightning' || phase === 'spinning') ? 'flex' : 'none',
-            flexDirection: 'column', alignItems: 'center', gap: isMobile ? 10 : 16
+            display: (!isMobile || phase === 'lightning' || phase === 'spinning' || (phase === 'result' && holdWinner)) ? 'flex' : 'none',
+            flexDirection: 'column', alignItems: 'center', gap: isMobile ? 10 : 16,
+            // En móvil, durante el giro (y los 5s de marcador) la rueda es lo único
+            // en pantalla: ocupamos el alto disponible y la centramos.
+            ...(isMobile && (phase === 'lightning' || phase === 'spinning' || (phase === 'result' && holdWinner))
+              ? { minHeight: 'calc(100vh - 92px)', justifyContent: 'center' }
+              : {}),
           }}>
             <div style={{
               width: wheelMaxSize,
@@ -634,11 +770,11 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                 <div
                   key={i}
                   style={{
-                    width: isMobile ? 24 : 28, height: isMobile ? 24 : 28, borderRadius: '50%',
+                    width: isMobile ? 32 : 34, height: isMobile ? 32 : 34, borderRadius: '50%',
                     background: h.color === 'red' ? '#b8101a' : h.color === 'black' ? '#151515' : '#0d7a2e',
-                    border: h.lightning ? `2px solid ${t.theme === 'lightning' ? '#9fd8ff' : '#ffd84a'}` : '1px solid #444',
+                    border: h.lightning ? `2px solid ${t.theme === 'lightning' ? '#9fd8ff' : '#ffd84a'}` : '1px solid #666',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: isMobile ? 10 : 11, fontWeight: 900, color: '#fff',
+                    fontSize: isMobile ? 15 : 15, fontWeight: 900, color: '#fff',
                     boxShadow: h.lightning ? `0 0 8px ${t.theme === 'lightning' ? '#5ab8ff' : '#ffd84a'}` : 'none',
                     opacity: 1 - i * 0.05,
                   }}
@@ -658,7 +794,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
         )}
 
         {/* RIGHT: betting table + controls — en móvil durante apuestas y resultado */}
-        {(!isMobile || phase === 'betting' || phase === 'result') && (
+        {(!isMobile || phase === 'betting' || (phase === 'result' && !holdWinner)) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12, minWidth: 0 }}>
             {/* Mesa: en móvil rotada 90° (vertical) con fichas en columna a la izquierda */}
             {(() => {
@@ -722,7 +858,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: 13,
+                    gap: 19,
                     alignItems: 'center',
                     padding: '8px 4px',
                     background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
@@ -751,10 +887,10 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                       width: '100%',
                       height: 1,
                       background: t.theme === 'lightning' ? '#2a4a8a' : '#8b6a20',
-                      margin: '12px 0',
+                      margin: '18px 0',
                       opacity: 0.5,
                     }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, width: '100%', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 34, width: '100%', alignItems: 'stretch' }}>
                       <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0} compact>
                         LIMPIAR
                       </ActionBtn>
