@@ -240,7 +240,12 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     };
   }, []);
   const isMobile = vw < 1280;
-  const wheelMaxSize = isMobile ? Math.min(vw - 24, 460) : 620;
+  // En móvil, mientras las apuestas están abiertas mostramos el cilindro en
+  // chico y flotando, para que el jugador VEA la bolita girando sin perder
+  // el paño de vista (el mini no intercepta los toques).
+  const miniRueda = isMobile && phase === 'openbets';
+  const MINI_SIZE = 116;
+  const wheelMaxSize = miniRueda ? MINI_SIZE : (isMobile ? Math.min(vw - 24, 460) : 620);
   const wheelScale = wheelMaxSize / 620;
   const tableMaxW = isMobile ? vw - 24 : 810;
   const tableScale = Math.min(1, tableMaxW / 810);
@@ -797,13 +802,27 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
         {/* LEFT: Wheel + history — en móvil solo durante lightning/spinning (oculto pero montado para preservar estado) */}
         {(
           <div style={{
-            display: (!isMobile || phase === 'lightning' || phase === 'spinning' || (phase === 'result' && holdWinner)) ? 'flex' : 'none',
+            display: (!isMobile || miniRueda || phase === 'spinning' || (phase === 'result' && holdWinner)) ? 'flex' : 'none',
             flexDirection: 'column', alignItems: 'center', gap: isMobile ? 10 : 16,
             // En móvil, durante el giro (y los 5s de marcador) la rueda es lo único
             // en pantalla: ocupamos el alto disponible y la centramos.
-            ...(isMobile && (phase === 'lightning' || phase === 'spinning' || (phase === 'result' && holdWinner))
+            ...(isMobile && (phase === 'spinning' || (phase === 'result' && holdWinner))
               ? { minHeight: 'calc(100vh - 92px)', justifyContent: 'center' }
               : {}),
+            // Mini-cilindro flotante: solo visual, deja pasar los toques al paño
+            ...(miniRueda ? {
+              position: 'fixed',
+              top: 78,
+              right: 8,
+              zIndex: 60,
+              gap: 0,
+              pointerEvents: 'none',
+              borderRadius: '50%',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.85), 0 0 0 2px rgba(212,169,74,0.75)',
+              overflow: 'hidden',
+              width: MINI_SIZE,
+              height: MINI_SIZE,
+            } : {}),
           }}>
             <div style={{
               width: wheelMaxSize,
@@ -835,8 +854,8 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
               </div>
             </div>
 
-            {/* History */}
-            <div style={{ display: 'flex', gap: 6, width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+            {/* History — se oculta en el mini-cilindro flotante (no cabe) */}
+            <div style={{ display: miniRueda ? 'none' : 'flex', gap: 6, width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
               <div style={{ fontSize: 10, letterSpacing: 2, color: '#888', alignSelf: 'center', marginRight: 8 }}>HISTORIAL</div>
               {history.length === 0 && <div style={{ color: '#555', fontSize: 12, fontStyle: 'italic' }}>Aún no hay giros</div>}
               {history.map((h, i) => (
