@@ -1054,8 +1054,8 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                               transform: 'rotate(180deg)',
                               fontFamily: 'Georgia, serif',
                               fontWeight: 900,
-                              fontSize: 19,
-                              letterSpacing: 1.5,
+                              fontSize: 16,
+                              letterSpacing: 1,
                               color: '#fff',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
@@ -1229,8 +1229,21 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
 
 function ActionBtn({ children, onClick, disabled, primary, theme, id, compact }) {
   const accent = theme === 'lightning' ? '#5ab8ff' : '#d4a94a';
-  const press = (e) => { if (!disabled) e.currentTarget.style.transform = 'scale(0.97)'; };
-  const release = (e) => { e.currentTarget.style.transform = 'scale(1)'; };
+  // Canto inferior sólido: da el volumen de tecla física
+  const canto = primary
+    ? (theme === 'lightning' ? '#1d3f6b' : '#6b5010')
+    : '#15120f';
+  const alturaCanto = compact ? 5 : 6;
+  // Al presionar el botón "se hunde" contra su canto
+  const press = (e) => {
+    if (disabled) return;
+    e.currentTarget.style.transform = `translateY(${alturaCanto - 1}px)`;
+    e.currentTarget.style.filter = 'brightness(1.1)';
+  };
+  const release = (e) => {
+    e.currentTarget.style.transform = 'translateY(0)';
+    e.currentTarget.style.filter = 'none';
+  };
   return (
     <button
       id={id}
@@ -1238,7 +1251,8 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
       disabled={disabled}
       style={{
         flex: compact ? 1 : 'none',
-        padding: compact ? '5px 4px' : '10px 20px',
+        padding: compact ? '13px 4px' : '16px 24px',
+        minHeight: compact ? 42 : 52,
         borderRadius: 5,
         // GIRAR: dorado encendido. LIMPIAR: metal claro con filo dorado
         // (antes era gris casi invisible sobre el fondo oscuro).
@@ -1257,10 +1271,10 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
         boxShadow: primary
-          // halo dorado + brillo interior superior (efecto botón iluminado)
-          ? `0 4px 12px rgba(0,0,0,0.6), 0 0 26px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.75), inset 0 -3px 6px rgba(0,0,0,0.35)`
-          : `0 3px 8px rgba(0,0,0,0.6), 0 0 14px ${theme === 'lightning' ? 'rgba(90,184,255,0.35)' : 'rgba(212,169,74,0.4)'}, inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -3px 6px rgba(0,0,0,0.4)`,
-        transition: 'transform 0.1s, box-shadow 0.2s',
+          // canto sólido (volumen) + halo dorado + brillo interior superior
+          ? `0 ${alturaCanto}px 0 ${canto}, 0 ${alturaCanto + 5}px 12px rgba(0,0,0,0.65), 0 0 26px ${accent}aa, inset 0 2px 0 rgba(255,255,255,0.8), inset 0 -4px 8px rgba(0,0,0,0.35)`
+          : `0 ${alturaCanto}px 0 ${canto}, 0 ${alturaCanto + 4}px 10px rgba(0,0,0,0.6), 0 0 14px ${theme === 'lightning' ? 'rgba(90,184,255,0.35)' : 'rgba(212,169,74,0.4)'}, inset 0 2px 0 rgba(255,255,255,0.4), inset 0 -4px 8px rgba(0,0,0,0.45)`,
+        transition: 'transform 0.09s ease, filter 0.09s ease, box-shadow 0.2s',
         touchAction: 'manipulation',
       }}
       onMouseDown={press}
