@@ -36,6 +36,7 @@ function RouletteWheel({
   lightningNumbers = new Map(),
   lightningIntensity = 1,
   zoomed = false,
+  freeSpin = false,   // gira sin resultado (apuestas abiertas, como en el casino)
 }) {
   const N = AMERICAN_WHEEL_ORDER.length; // 38
   const pocketAngle = 360 / N;
@@ -53,23 +54,76 @@ function RouletteWheel({
   const lastTickAngleRef = React.useRef(0);
   // Cuenta de giros para alternar el sentido en cada tirada (como el crupier real)
   const spinCountRef = React.useRef(0);
+  // Posición viva de rueda y bola: el aterrizaje arranca desde donde estén
+  // (necesario porque el giro libre las mueve antes de conocerse el resultado).
+  const wheelRotRef = React.useRef(0);
+  const ballAngleRef = React.useRef(0);
+  const dirRef = React.useRef(1);          // sentido de la tirada en curso
+  const freeSpinRef = React.useRef(false); // ¿venimos de un giro libre?
+
+  // ═══ Giro libre: la rueda corre sin saber el resultado ═══
+  React.useEffect(() => {
+    if (!freeSpin) return;
+    // El sentido se decide acá y lo reutiliza el aterrizaje
+    spinCountRef.current += 1;
+    dirRef.current = spinCountRef.current % 2 === 1 ? 1 : -1;
+    freeSpinRef.current = true;
+    const dir = dirRef.current;
+
+    setBallSeated(false);
+    setBallRadius(1);
+    if (window.AudioEngine) window.AudioEngine.startSpin();
+
+    let raf = null;
+    let last = performance.now();
+    let lastTick = ballAngleRef.current - wheelRotRef.current;
+
+    const loop = (now) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      wheelRotRef.current += dir * 110 * dt;   // rueda ~110°/s
+      ballAngleRef.current -= dir * 560 * dt;  // bola ~560°/s en sentido contrario
+      setWheelRot(wheelRotRef.current);
+      setBallAngle(ballAngleRef.current);
+
+      // Tic de la bolita al pasar cada separador
+      const rel = ballAngleRef.current - wheelRotRef.current;
+      if (Math.abs(rel - lastTick) >= pocketAngle) {
+        if (window.AudioEngine) {
+          window.AudioEngine.tick(0.9);
+          window.AudioEngine.updateSpinIntensity(0.95);
+        }
+        lastTick = rel;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+    // eslint-disable-next-line
+  }, [freeSpin]);
 
   React.useEffect(() => {
     if (!spinning || resultIndex == null) return;
 
     const startTime = performance.now();
     const duration = spinDuration * 1000;
-    const startWheelRot = wheelRot;
-    const startBallAngle = ballAngle;
+    // Arrancamos desde la posición VIVA (puede venir de un giro libre en curso)
+    const startWheelRot = wheelRotRef.current;
+    const startBallAngle = ballAngleRef.current;
 
     // Cuántas vueltas da la rueda y la bola (opuestas)
     const wheelTurns = 6 + Math.random() * 2; // 6-8 vueltas
     const ballTurns = 12 + Math.random() * 4; // 12-16 vueltas (más rápida inicialmente)
 
     // Sentido alterno: una tirada a la derecha, la siguiente a la izquierda.
-    // La bola siempre gira en sentido contrario a la rueda.
-    spinCountRef.current += 1;
-    const dir = spinCountRef.current % 2 === 1 ? 1 : -1;
+    // Si venimos de un giro libre, ya se decidió al arrancar: lo respetamos
+    // para que la rueda no cambie de sentido en mitad de la tirada.
+    if (!freeSpinRef.current) {
+      spinCountRef.current += 1;
+      dirRef.current = spinCountRef.current % 2 === 1 ? 1 : -1;
+    }
+    freeSpinRef.current = false;
+    const dir = dirRef.current;
 
     // Ángulo final: la bola debe quedar en la casilla resultIndex
     // La casilla resultIndex está en el ángulo (resultIndex * pocketAngle) dentro de la rueda.
@@ -130,6 +184,8 @@ function RouletteWheel({
         currentRadius = 0.75 - tt * 0.15;
       }
 
+      wheelRotRef.current = currentWheelRot;
+      ballAngleRef.current = currentBallAngle;
       setWheelRot(currentWheelRot);
       setBallAngle(currentBallAngle);
       setBallRadius(currentRadius);

@@ -24,6 +24,9 @@ const ADS = [
 ];
 const AD_ROTATE_MS = 6000;
 
+// Tiempo con las apuestas abiertas y el cilindro ya girando (como en el casino)
+const OPEN_BETS_MS = 6000;
+
 // Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
 const SPIN_SOUND_OPTIONS = [
   { value: 'clasico', label: 'Clásico', hint: 'Whoosh de aire (original)' },
@@ -199,6 +202,9 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   // Resultado autoritativo del servidor para la ronda en curso (lo llena startSpin,
   // lo consume handleSpinEnd). Contiene { resultNum, win, anyLightning, winDetails, balance }.
   const serverSpinRef = useRef(null);
+  // Apuestas al día: al cerrarse la ventana tomamos las últimas, incluidas
+  // las que el jugador puso con la rueda ya girando.
+  const betsRef = useRef([]);
   // Tras caer la bola mantenemos la rueda visible 5s con el número ganador marcado
   // (en móvil, si no, la vista saltaría al paño y no se llega a ver).
   const [holdWinner, setHoldWinner] = useState(false);
@@ -207,6 +213,8 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     try { return localStorage.getItem('ruleta_spin_sound') || 'clasico'; } catch (e) { return 'clasico'; }
   });
   const [soundMenu, setSoundMenu] = useState(false);
+  // Segundos restantes con las apuestas abiertas y la rueda ya girando
+  const [betCountdown, setBetCountdown] = useState(0);
   // Voz que narra el número ganador (recordada en el navegador)
   const [voiceOn, setVoiceOn] = useState(() => {
     try { return localStorage.getItem('ruleta_voz') !== 'off'; } catch (e) { return true; }
@@ -257,19 +265,22 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   }, [voiceOn]);
 
   const totalBet = bets.reduce((s, b) => s + b.amount, 0);
+  // Se puede apostar con la mesa abierta y también mientras el cilindro
+  // gira, hasta que se canta "no más apuestas".
+  const apuestasAbiertas = phase === 'betting' || phase === 'openbets';
 
   const placeBet = useCallback((bet) => {
-    if (phase !== 'betting') return;
+    if (!apuestasAbiertas) return;
     if (bet.amount > balance) {
       setMessage('Saldo insuficiente');
       return;
     }
     setBalance((b) => b - bet.amount);
     setBets((bs) => [...bs, bet]);
-  }, [phase, balance]);
+  }, [apuestasAbiertas, balance]);
 
   const removeBet = useCallback((type, payload) => {
-    if (phase !== 'betting') return;
+    if (!apuestasAbiertas) return;
     setBets((bs) => {
       // Remueve la última ficha de ese tipo
       const key = betKey(type, payload);
@@ -280,13 +291,13 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
       setBalance((bal) => bal + removed.amount);
       return bs.filter((_, i) => i !== realIdx);
     });
-  }, [phase]);
+  }, [apuestasAbiertas]);
 
   const clearBets = useCallback(() => {
-    if (phase !== 'betting') return;
+    if (!apuestasAbiertas) return;
     setBalance((b) => b + totalBet);
     setBets([]);
-  }, [phase, totalBet]);
+  }, [apuestasAbiertas, totalBet]);
 
 
   // Genera los números Lightning para esta ronda
@@ -351,31 +362,64 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     });
   }, [t.lightningIntensity, t.spinDuration, spawnBolt]);
 
-  const startSpin = useCallback(() => {
-    if (phase !== 'betting' || bets.length === 0) {
-      setMessage('Debes apostar primero');
+  // Cierra la ventana de apuestas: recién acá se consulta al servidor, que
+  // valida y descuenta TODO lo apostado (incluido lo puesto durante el giro),
+  // sortea el número y calcula el premio.
+  const cerrarApuestas = useCallback(() => {
+    const finales = betsRef.current;
+    if (!finales || finales.length === 0) {
+      setPhase('betting');
+      setMessage('Haz tu apuesta');
       return;
     }
-    const betsSnapshot = bets.map(b => ({ ...b }));
-    setLastBets(betsSnapshot);
-    serverSpinRef.current = null;
-
-    // El SERVIDOR resuelve el giro: valida, descuenta, sortea y calcula el premio.
-    setPhase('lightning');
-    setMessage('⚡ GENERANDO MULTIPLICADORES ⚡');
-    window.Api.spin(betsSnapshot.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })))
+    setLastBets(finales.map(b => ({ ...b })));
+    setMessage('¡No más apuestas!');
+    window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })))
       .then((server) => {
         serverSpinRef.current = server;
         if (typeof server.balance === 'number') setBalance(server.balance);
         runSpinAnimation(server);
       })
       .catch((err) => {
-        // Falló (saldo insuficiente / red): volver a apostar y sincronizar saldo real.
+        // Falló (saldo insuficiente / red): volver a apostar y sincronizar saldo.
         setPhase('betting');
         setMessage(err && err.message ? err.message : 'No se pudo girar');
         window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {});
       });
-  }, [phase, bets, runSpinAnimation]);
+  }, [runSpinAnimation]);
+
+  const startSpin = useCallback(() => {
+    if (phase !== 'betting' || bets.length === 0) {
+      setMessage('Debes apostar primero');
+      return;
+    }
+    // El cilindro arranca YA, en giro libre y sin resultado: las apuestas
+    // siguen abiertas unos segundos, como en una mesa real.
+    serverSpinRef.current = null;
+    setLightningNumbers(new Map());
+    setResultIndex(null);
+    setResultNum(null);
+    setCameraZoom(false);
+    setPhase('openbets');
+    setBetCountdown(Math.round(OPEN_BETS_MS / 1000));
+  }, [phase, bets]);
+
+  // Mantener betsRef al día para poder cerrar con las apuestas más recientes
+  useEffect(() => { betsRef.current = bets; }, [bets]);
+
+  // Cuenta regresiva de la ventana de apuestas
+  useEffect(() => {
+    if (phase !== 'openbets') return;
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      const restante = Math.max(0, OPEN_BETS_MS - (Date.now() - t0));
+      const seg = Math.ceil(restante / 1000);
+      setBetCountdown(seg);
+      setMessage(`⏳ APUESTAS ABIERTAS · ${seg}`);
+      if (restante <= 0) { clearInterval(iv); cerrarApuestas(); }
+    }, 200);
+    return () => clearInterval(iv);
+  }, [phase, cerrarApuestas]);
 
   // GIRAR de doble función:
   // - Hay apuestas en mesa → gira la ruleta
@@ -779,6 +823,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
               }}>
                 <RouletteWheel
                   spinning={phase === 'spinning'}
+                  freeSpin={phase === 'openbets'}
                   resultIndex={phase === 'spinning' || phase === 'result' ? resultIndex : null}
                   onSpinEnd={handleSpinEnd}
                   spinDuration={t.spinDuration}
@@ -822,7 +867,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
         )}
 
         {/* RIGHT: betting table + controls — en móvil durante apuestas y resultado */}
-        {(!isMobile || phase === 'betting' || (phase === 'result' && !holdWinner)) && (
+        {(!isMobile || phase === 'betting' || phase === 'openbets' || (phase === 'result' && !holdWinner)) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 10 : 12, minWidth: 0 }}>
             {/* Mesa: en móvil rotada 90° (vertical) con fichas en columna a la izquierda */}
             {(() => {
@@ -843,7 +888,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                       onPlaceBet={placeBet}
                       onRemoveBet={removeBet}
                       selectedChip={selectedChip}
-                      disabled={phase !== 'betting'}
+                      disabled={!apuestasAbiertas}
                       theme={t.theme}
                       lightningNumbers={lightningNumbers}
                       rotateLabels={false}
@@ -905,7 +950,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                         key={v}
                         value={v}
                         selected={selectedChip === v}
-                        disabled={phase !== 'betting' || v > balance}
+                        disabled={!apuestasAbiertas || v > balance}
                         compact
                         onClick={() => {
                           setSelectedChip(v);
@@ -922,7 +967,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                       opacity: 0.5,
                     }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 34, width: '100%', alignItems: 'stretch' }}>
-                      <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0} compact>
+                      <ActionBtn onClick={clearBets} disabled={!apuestasAbiertas || bets.length === 0} compact>
                         LIMPIAR
                       </ActionBtn>
                       <ActionBtn
@@ -1012,7 +1057,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                         onPlaceBet={placeBet}
                         onRemoveBet={removeBet}
                         selectedChip={selectedChip}
-                        disabled={phase !== 'betting'}
+                        disabled={!apuestasAbiertas}
                         theme={t.theme}
                         lightningNumbers={lightningNumbers}
                         rotateLabels={true}
@@ -1040,7 +1085,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                       key={v}
                       value={v}
                       selected={selectedChip === v}
-                      disabled={phase !== 'betting' || v > balance}
+                      disabled={!apuestasAbiertas || v > balance}
                       onClick={() => {
                         setSelectedChip(v);
                         if (window.AudioEngine) window.AudioEngine.chip();
@@ -1049,7 +1094,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                   ))}
                 </div>
                 <div style={{ display: 'flex', gap: 28 }}>
-                  <ActionBtn onClick={clearBets} disabled={phase !== 'betting' || bets.length === 0}>
+                  <ActionBtn onClick={clearBets} disabled={!apuestasAbiertas || bets.length === 0}>
                     LIMPIAR
                   </ActionBtn>
                   <ActionBtn
