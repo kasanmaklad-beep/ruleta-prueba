@@ -244,8 +244,18 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   // chico y flotando, para que el jugador VEA la bolita girando sin perder
   // el paño de vista (el mini no intercepta los toques).
   const miniRueda = isMobile && phase === 'openbets';
-  const MINI_SIZE = 116;
-  const wheelMaxSize = miniRueda ? MINI_SIZE : (isMobile ? Math.min(vw - 24, 460) : 620);
+  // Media luna: se ve solo el arco superior del cilindro (la pista de la bola
+  // y los números), como una franja curva sobre el 0/00.
+  const CRES_W = Math.min(vw - 12, 430);
+  const CRES_H = 58;
+  const cresScale = CRES_W / 520;   // el diámetro del cilindro ocupa todo el ancho
+  // El cilindro vive en un marco fijo durante toda la tirada: primero asoma
+  // como media luna y después BAJA hasta verse entero, sin cambiar de tamaño,
+  // para que se perciba que es la misma ruleta.
+  const ruedaFija = isMobile && (phase === 'openbets' || phase === 'spinning' || (phase === 'result' && holdWinner));
+  const CRES_FULL_H = CRES_W;                                   // diámetro completo
+  const cresTop = miniRueda ? 74 : Math.max(74, Math.round((vh - CRES_FULL_H) / 2));
+  const wheelMaxSize = isMobile ? Math.min(vw - 24, 460) : 620;
   const wheelScale = wheelMaxSize / 620;
   const tableMaxW = isMobile ? vw - 24 : 810;
   const tableScale = Math.min(1, tableMaxW / 810);
@@ -806,39 +816,48 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
             flexDirection: 'column', alignItems: 'center', gap: isMobile ? 10 : 16,
             // En móvil, durante el giro (y los 5s de marcador) la rueda es lo único
             // en pantalla: ocupamos el alto disponible y la centramos.
-            ...(isMobile && (phase === 'spinning' || (phase === 'result' && holdWinner))
-              ? { minHeight: 'calc(100vh - 92px)', justifyContent: 'center' }
-              : {}),
-            // Mini-cilindro flotante: solo visual, deja pasar los toques al paño
-            ...(miniRueda ? {
+            // Marco fijo del cilindro en móvil: de media luna a rueda completa.
+            // Solo cambian la altura de la "ventana" y su posición, así que el
+            // cilindro parece bajar hasta mostrarse entero (mismo tamaño siempre).
+            ...(ruedaFija ? {
               position: 'fixed',
-              top: 78,
-              right: 8,
+              top: cresTop,
+              left: '50%',
+              marginLeft: -CRES_W / 2,
+              width: CRES_W,
+              height: miniRueda ? CRES_H : CRES_FULL_H,
               zIndex: 60,
               gap: 0,
               pointerEvents: 'none',
-              borderRadius: '50%',
-              boxShadow: '0 6px 20px rgba(0,0,0,0.85), 0 0 0 2px rgba(212,169,74,0.75)',
               overflow: 'hidden',
-              width: MINI_SIZE,
-              height: MINI_SIZE,
+              borderRadius: miniRueda ? '0 0 14px 14px' : '50%',
+              borderBottom: miniRueda ? '2px solid rgba(212,169,74,0.8)' : 'none',
+              boxShadow: miniRueda ? '0 8px 22px rgba(0,0,0,0.8)' : '0 18px 44px rgba(0,0,0,0.85)',
+              transition: 'top 950ms cubic-bezier(.22,.75,.25,1), height 950ms cubic-bezier(.22,.75,.25,1), border-radius 700ms ease',
             } : {}),
           }}>
             <div style={{
-              width: wheelMaxSize,
-              height: wheelMaxSize,
+              width: ruedaFija ? CRES_W : wheelMaxSize,
+              height: ruedaFija ? '100%' : wheelMaxSize,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               position: 'relative',
-              overflow: 'visible',
+              overflow: ruedaFija ? 'hidden' : 'visible',
             }}>
               <div style={{
                 width: 620, height: 620,
-                transform: `scale(${wheelScale})`,
-                transformOrigin: 'center center',
+                transform: `scale(${ruedaFija ? cresScale : wheelScale})`,
+                // Anclado ABAJO: la rueda "cuelga" del borde inferior de la
+                // ventana. Al crecer la ventana se va descubriendo entera.
+                transformOrigin: ruedaFija ? 'bottom center' : 'center center',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 position: 'absolute',
-                left: '50%', top: '50%',
-                marginLeft: -310, marginTop: -310,
+                left: '50%',
+                marginLeft: -310,
+                ...(ruedaFija
+                  // El root de la rueda (520) está 50px dentro del box de 620:
+                  // bajamos ese offset para que su borde inferior quede al ras.
+                  ? { bottom: -50 * cresScale, top: 'auto', marginTop: 0 }
+                  : { top: '50%', marginTop: -310 }),
               }}>
                 <RouletteWheel
                   spinning={phase === 'spinning'}
@@ -855,7 +874,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
             </div>
 
             {/* History — se oculta en el mini-cilindro flotante (no cabe) */}
-            <div style={{ display: miniRueda ? 'none' : 'flex', gap: 6, width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: ruedaFija ? 'none' : 'flex', gap: 6, width: '100%', justifyContent: 'center', flexWrap: 'wrap' }}>
               <div style={{ fontSize: 10, letterSpacing: 2, color: '#888', alignSelf: 'center', marginRight: 8 }}>HISTORIAL</div>
               {history.length === 0 && <div style={{ color: '#555', fontSize: 12, fontStyle: 'italic' }}>Aún no hay giros</div>}
               {history.map((h, i) => (
