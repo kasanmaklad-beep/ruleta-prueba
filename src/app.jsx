@@ -1239,19 +1239,27 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
       style={{
         flex: compact ? 1 : 'none',
         padding: compact ? '5px 4px' : '10px 20px',
-        borderRadius: 4,
-        border: primary ? `2px solid ${accent}` : '1px solid #555',
+        borderRadius: 5,
+        // GIRAR: dorado encendido. LIMPIAR: metal claro con filo dorado
+        // (antes era gris casi invisible sobre el fondo oscuro).
+        border: primary ? `2px solid ${accent}` : `1px solid ${theme === 'lightning' ? '#5a8ac8' : '#b08c34'}`,
         background: primary
-          ? `linear-gradient(180deg, ${accent}, ${theme === 'lightning' ? '#2a5a9a' : '#8b6a20'})`
-          : 'linear-gradient(180deg, #333, #111)',
-        color: primary ? '#1a1006' : '#ddd',
+          ? `linear-gradient(180deg, ${theme === 'lightning' ? '#8fd0ff' : '#f0cf72'} 0%, ${accent} 45%, ${theme === 'lightning' ? '#2a5a9a' : '#8b6a20'} 100%)`
+          : 'linear-gradient(180deg, #6a6156 0%, #46403a 55%, #2a2622 100%)',
+        color: primary ? '#1a1006' : '#fff8e6',
         fontFamily: 'Georgia, serif',
         fontWeight: 900,
         fontSize: compact ? 9 : 13,
         letterSpacing: compact ? 0.5 : 2,
+        textShadow: primary
+          ? '0 1px 0 rgba(255,255,255,0.45)'
+          : '0 0 6px rgba(255,216,74,0.55), 0 1px 2px rgba(0,0,0,0.9)',
         cursor: disabled ? 'not-allowed' : 'pointer',
-        opacity: disabled ? 0.35 : 1,
-        boxShadow: primary ? `0 4px 10px rgba(0,0,0,0.6), 0 0 20px ${accent}55` : '0 3px 6px rgba(0,0,0,0.5)',
+        opacity: disabled ? 0.55 : 1,
+        boxShadow: primary
+          // halo dorado + brillo interior superior (efecto botón iluminado)
+          ? `0 4px 12px rgba(0,0,0,0.6), 0 0 26px ${accent}aa, inset 0 1px 0 rgba(255,255,255,0.75), inset 0 -3px 6px rgba(0,0,0,0.35)`
+          : `0 3px 8px rgba(0,0,0,0.6), 0 0 14px ${theme === 'lightning' ? 'rgba(90,184,255,0.35)' : 'rgba(212,169,74,0.4)'}, inset 0 1px 0 rgba(255,255,255,0.35), inset 0 -3px 6px rgba(0,0,0,0.4)`,
         transition: 'transform 0.1s, box-shadow 0.2s',
         touchAction: 'manipulation',
       }}
