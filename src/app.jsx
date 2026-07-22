@@ -319,31 +319,37 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
     const ltg = new Map((server.lightning || []).map(([n, m]) => [n === '00' ? '00' : Number(n), m]));
     const resultNum = server.resultNum === '00' ? '00' : Number(server.resultNum);
 
-    setPhase('lightning');
-    setMessage('⚡ GENERANDO MULTIPLICADORES ⚡');
-    setLightningNumbers(ltg);
+    // El giro arranca YA: los Lightning no se muestran de antemano, se van
+    // encendiendo uno a uno mientras la bolita corre (efecto sorpresa).
+    setLightningNumbers(new Map());
+    setPhase('spinning');
+    setCameraZoom(true);
+    setMessage('¡No más apuestas!');
+    if (window.Voice) window.Voice.anunciarNoMasApuestas();
+    setResultIndex(server.resultIndex);
+    setResultNum(resultNum);
 
-    // Sonidos de truenos escalonados
+    // Revelado progresivo, repartido en la primera mitad del giro para que
+    // todos estén a la vista bastante antes de que caiga la bola.
     const intensity = t.lightningIntensity / 100;
-    const keys = [...ltg.keys()];
-    keys.forEach((_, i) => {
+    const entradas = [...ltg.entries()];
+    const spinMs = (t.spinDuration || 7) * 1000;
+    const inicio = Math.min(1000, spinMs * 0.18);
+    const ventana = Math.max(0, spinMs * 0.55 - inicio);
+    const paso = entradas.length > 1 ? ventana / (entradas.length - 1) : 0;
+
+    entradas.forEach(([n, m], i) => {
       setTimeout(() => {
+        setLightningNumbers((prev) => {
+          const next = new Map(prev);
+          next.set(n, m);
+          return next;
+        });
         if (window.AudioEngine) window.AudioEngine.thunder(0.5 + intensity * 0.8);
         spawnBolt();
-      }, 300 + i * 400);
+      }, inicio + i * paso);
     });
-
-    // Después de la fase Lightning, lanzar el giro hacia el resultado del servidor.
-    const totalLtgTime = 500 + keys.length * 400 + 800;
-    setTimeout(() => {
-      setPhase('spinning');
-      setCameraZoom(true);
-      setMessage('¡No más apuestas!');
-      if (window.Voice) window.Voice.anunciarNoMasApuestas();
-      setResultIndex(server.resultIndex);
-      setResultNum(resultNum);
-    }, totalLtgTime);
-  }, [t.lightningIntensity, spawnBolt]);
+  }, [t.lightningIntensity, t.spinDuration, spawnBolt]);
 
   const startSpin = useCallback(() => {
     if (phase !== 'betting' || bets.length === 0) {
