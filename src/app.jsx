@@ -16,8 +16,8 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
 // ═══════════════════════════════════════════════════════════════
 const ADS = [
   {
-    id: 'fiestaanimal',
-    title: 'FIESTA ANIMAL',
+    id: 'catatumbo',
+    title: 'CATATUMBO',
     color: '#ff0000',      // rojo puro
     glow: 'rgba(255,0,0,0.55)',
   },
@@ -1042,7 +1042,6 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                           overflow: 'hidden',
                           padding: '5px 2px',
                         }}>
-                          <div style={{ fontSize: 8, letterSpacing: 1, color: '#7a6a4a' }}>AD</div>
                           {/* Letrero de neón vertical — solo el nombre */}
                           <div key={ad.id} style={{
                             flex: 1,
@@ -1054,8 +1053,8 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                               transform: 'rotate(180deg)',
                               fontFamily: 'Georgia, serif',
                               fontWeight: 900,
-                              fontSize: 16,
-                              letterSpacing: 1,
+                              fontSize: 21,
+                              letterSpacing: 2,
                               color: '#fff',
                               whiteSpace: 'nowrap',
                               overflow: 'hidden',
@@ -1232,7 +1231,7 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
   // Canto inferior sólido: da el volumen de tecla física
   const canto = primary
     ? (theme === 'lightning' ? '#1d3f6b' : '#6b5010')
-    : '#15120f';
+    : '#5a0d13';   // canto del rojo de LIMPIAR
   const alturaCanto = compact ? 5 : 6;
   // Al presionar el botón "se hunde" contra su canto
   const press = (e) => {
@@ -1251,29 +1250,30 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
       disabled={disabled}
       style={{
         flex: compact ? 1 : 'none',
-        padding: compact ? '13px 4px' : '16px 24px',
+        padding: compact ? '13px 3px' : '16px 24px',
         minHeight: compact ? 42 : 52,
         borderRadius: 5,
         // GIRAR: dorado encendido. LIMPIAR: metal claro con filo dorado
         // (antes era gris casi invisible sobre el fondo oscuro).
-        border: primary ? `2px solid ${accent}` : `1px solid ${theme === 'lightning' ? '#5a8ac8' : '#b08c34'}`,
+        border: primary ? `2px solid ${accent}` : '1px solid #f0737d',
         background: primary
           ? `linear-gradient(180deg, ${theme === 'lightning' ? '#8fd0ff' : '#f0cf72'} 0%, ${accent} 45%, ${theme === 'lightning' ? '#2a5a9a' : '#8b6a20'} 100%)`
-          : 'linear-gradient(180deg, #6a6156 0%, #46403a 55%, #2a2622 100%)',
-        color: primary ? '#1a1006' : '#fff8e6',
+          // LIMPIAR en rojo encendido: se distingue del dorado de GIRAR
+          : 'linear-gradient(180deg, #e04b57 0%, #b52633 55%, #7d1119 100%)',
+        color: primary ? '#1a1006' : '#ffffff',
         fontFamily: 'Georgia, serif',
         fontWeight: 900,
-        fontSize: compact ? 9 : 13,
-        letterSpacing: compact ? 0.5 : 2,
+        fontSize: compact ? 8 : 13,
+        letterSpacing: compact ? 0 : 2,
         textShadow: primary
           ? '0 1px 0 rgba(255,255,255,0.45)'
-          : '0 0 6px rgba(255,216,74,0.55), 0 1px 2px rgba(0,0,0,0.9)',
+          : '0 0 8px rgba(255,255,255,0.7), 0 1px 2px rgba(0,0,0,0.85)',
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.55 : 1,
         boxShadow: primary
           // canto sólido (volumen) + halo dorado + brillo interior superior
           ? `0 ${alturaCanto}px 0 ${canto}, 0 ${alturaCanto + 5}px 12px rgba(0,0,0,0.65), 0 0 26px ${accent}aa, inset 0 2px 0 rgba(255,255,255,0.8), inset 0 -4px 8px rgba(0,0,0,0.35)`
-          : `0 ${alturaCanto}px 0 ${canto}, 0 ${alturaCanto + 4}px 10px rgba(0,0,0,0.6), 0 0 14px ${theme === 'lightning' ? 'rgba(90,184,255,0.35)' : 'rgba(212,169,74,0.4)'}, inset 0 2px 0 rgba(255,255,255,0.4), inset 0 -4px 8px rgba(0,0,0,0.45)`,
+          : `0 ${alturaCanto}px 0 ${canto}, 0 ${alturaCanto + 4}px 10px rgba(0,0,0,0.6), 0 0 16px rgba(224,75,87,0.55), inset 0 2px 0 rgba(255,255,255,0.5), inset 0 -4px 8px rgba(0,0,0,0.4)`,
         transition: 'transform 0.09s ease, filter 0.09s ease, box-shadow 0.2s',
         touchAction: 'manipulation',
       }}
