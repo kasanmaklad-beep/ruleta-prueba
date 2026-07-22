@@ -833,7 +833,9 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
               borderRadius: miniRueda ? '0 0 14px 14px' : '50%',
               borderBottom: miniRueda ? '2px solid rgba(212,169,74,0.8)' : 'none',
               boxShadow: miniRueda ? '0 8px 22px rgba(0,0,0,0.8)' : '0 18px 44px rgba(0,0,0,0.85)',
-              transition: 'top 950ms cubic-bezier(.22,.75,.25,1), height 950ms cubic-bezier(.22,.75,.25,1), border-radius 700ms ease',
+              // Descenso lento y con suspenso: arranca despacio, toma cuerpo y
+              // se asienta con calma (la bola recién cae a los ~7s, hay margen).
+              transition: 'top 2100ms cubic-bezier(.42,.02,.28,1), height 2100ms cubic-bezier(.42,.02,.28,1), border-radius 1600ms ease-in-out',
             } : {}),
           }}>
             <div style={{
