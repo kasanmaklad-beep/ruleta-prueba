@@ -9,6 +9,21 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "autoSpin": false
 }/*EDITMODE-END*/;
 
+// ═══════════════════════════════════════════════════════════════
+//  PUBLICIDAD — banner vertical bajo el botón GIRAR (columna móvil).
+//  Para agregar o quitar avisos, editá este array. Rotan solos.
+//  (Solo visual: no son enlaces.)
+// ═══════════════════════════════════════════════════════════════
+const ADS = [
+  {
+    id: 'fiestaanimal',
+    title: 'FIESTA ANIMAL',
+    color: '#ff0000',      // rojo puro
+    glow: 'rgba(255,0,0,0.55)',
+  },
+];
+const AD_ROTATE_MS = 6000;
+
 // Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
 const SPIN_SOUND_OPTIONS = [
   { value: 'clasico', label: 'Clásico', hint: 'Whoosh de aire (original)' },
@@ -196,6 +211,13 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
   const [voiceOn, setVoiceOn] = useState(() => {
     try { return localStorage.getItem('ruleta_voz') !== 'off'; } catch (e) { return true; }
   });
+  // Publicidad rotativa del banner vertical (bajo GIRAR)
+  const [adIndex, setAdIndex] = useState(0);
+  useEffect(() => {
+    if (ADS.length < 2) return;
+    const iv = setInterval(() => setAdIndex((i) => (i + 1) % ADS.length), AD_ROTATE_MS);
+    return () => clearInterval(iv);
+  }, []);
 
   // Viewport / responsive
   const [vw, setVw] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
@@ -868,6 +890,9 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                     alignSelf: 'stretch',
                     flexShrink: 0,
                     width: 56,
+                    // El paño puede ser más alto que la pantalla; acotamos la columna
+                    // para que el letrero de abajo quede siempre visible.
+                    maxHeight: 'calc(100vh - 78px)',
                   }}>
                     {CHIP_VALUES.map((v) => (
                       <Chip
@@ -905,6 +930,55 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                         {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
                       </ActionBtn>
                     </div>
+
+                    {/* ═══ Publicidad — banner vertical bajo GIRAR ═══ */}
+                    {(() => {
+                      const ad = ADS[adIndex % ADS.length];
+                      return (
+                        <div style={{
+                          // Ocupa todo el hueco libre debajo de GIRAR
+                          flex: 1,
+                          minHeight: 120,
+                          width: '100%',
+                          marginTop: 10,
+                          borderRadius: 6,
+                          border: `1px solid ${ad.color}66`,
+                          background: 'linear-gradient(180deg, rgba(20,0,4,0.75), rgba(0,0,0,0.4))',
+                          animation: 'neonTube 2.6s ease-in-out infinite',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 4,
+                          overflow: 'hidden',
+                          padding: '5px 2px',
+                        }}>
+                          <div style={{ fontSize: 8, letterSpacing: 1, color: '#7a6a4a' }}>AD</div>
+                          {/* Letrero de neón vertical — solo el nombre */}
+                          <div key={ad.id} style={{
+                            flex: 1,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            minHeight: 0, width: '100%',
+                          }}>
+                            <div style={{
+                              writingMode: 'vertical-rl',
+                              transform: 'rotate(180deg)',
+                              fontFamily: 'Georgia, serif',
+                              fontWeight: 900,
+                              fontSize: 19,
+                              letterSpacing: 1.5,
+                              color: '#fff',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxHeight: '100%',
+                              // Neón: solo la respiración del brillo (sin parpadeo)
+                              animation: 'neonBreath 2.8s ease-in-out infinite',
+                            }}>{ad.title}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                   {/* Paño rotado — full screen con escalado NO-UNIFORME */}
                   <div style={{

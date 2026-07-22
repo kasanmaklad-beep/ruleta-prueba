@@ -51,6 +51,8 @@ function RouletteWheel({
 
   const animRef = React.useRef(null);
   const lastTickAngleRef = React.useRef(0);
+  // Cuenta de giros para alternar el sentido en cada tirada (como el crupier real)
+  const spinCountRef = React.useRef(0);
 
   React.useEffect(() => {
     if (!spinning || resultIndex == null) return;
@@ -64,19 +66,22 @@ function RouletteWheel({
     const wheelTurns = 6 + Math.random() * 2; // 6-8 vueltas
     const ballTurns = 12 + Math.random() * 4; // 12-16 vueltas (más rápida inicialmente)
 
+    // Sentido alterno: una tirada a la derecha, la siguiente a la izquierda.
+    // La bola siempre gira en sentido contrario a la rueda.
+    spinCountRef.current += 1;
+    const dir = spinCountRef.current % 2 === 1 ? 1 : -1;
+
     // Ángulo final: la bola debe quedar en la casilla resultIndex
     // La casilla resultIndex está en el ángulo (resultIndex * pocketAngle) dentro de la rueda.
-    // Ángulo absoluto de esa casilla al final = startWheelRot + wheelTurns*360 + finalSlotAngle (mod 360)
+    // Ángulo absoluto de esa casilla al final = startWheelRot + dir*wheelTurns*360 + finalSlotAngle (mod 360)
     // La bola debe llegar a ese ángulo absoluto (dirección opuesta).
     const slotAngleInWheel = resultIndex * pocketAngle;
-    const finalWheelRot = startWheelRot + wheelTurns * 360;
+    const finalWheelRot = startWheelRot + dir * wheelTurns * 360;
     const finalBallAbsAngle = finalWheelRot + slotAngleInWheel;
 
-    // La bola va en sentido opuesto (-). Su ángulo absoluto final debe igualar finalBallAbsAngle.
-    // Elegimos finalBallAngle tal que gira -ballTurns*360 desde startBallAngle y termina en finalBallAbsAngle.
-    // finalBallAngle = startBallAngle - ballTurns*360 + delta
-    // Queremos finalBallAngle ≡ finalBallAbsAngle (mod 360)
-    const rawBall = startBallAngle - ballTurns * 360;
+    // La bola va en sentido opuesto a la rueda. Su ángulo absoluto final debe
+    // igualar finalBallAbsAngle, así que ajustamos con el resto (mod 360).
+    const rawBall = startBallAngle - dir * ballTurns * 360;
     const need = finalBallAbsAngle;
     const deltaMod = ((need - rawBall) % 360 + 360) % 360;
     // Si deltaMod > 180, ajustar para que no retroceda mucho
