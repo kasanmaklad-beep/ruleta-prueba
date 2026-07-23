@@ -1,98 +1,162 @@
-# Despliegue — Usuarios, Saldos y Admin (D1 + Worker)
+# Despliegue — Ruleta Catatumbo (Worker + D1)
 
-Esta función agrega backend (Cloudflare Worker + D1) al juego estático existente.
-El juego sigue sirviéndose desde `public/`; el Worker (`worker/index.js`) atiende `/api/*`.
+El juego se sirve desde `public/`; el Worker (`worker/`) atiende `/api/*` y las
+rutas de la SPA (`/admin`, `/taquilla`, `/billetera`).
 
 ## Arquitectura
 
 ```
 Navegador ──► Worker (worker/index.js)
-                ├── /api/*          → API (auth JWT, saldo, admin) → D1 (ruleta-db)
-                └── resto / /admin  → assets estáticos de ./public (juego React)
+                ├── /api/*                              → API → D1 (ruleta-db)
+                ├── /admin · /taquilla · /billetera      → index.html (SPA)
+                └── resto                                → assets estáticos de ./public
 ```
 
-- **Auth:** usuario + contraseña, hash PBKDF2 (WebCrypto), JWT HMAC-SHA256 con expiración 24h.
-- **Saldo autoritativo:** el balance vive en D1. El front lo lee de `/api/me` y sincroniza
-  cada apuesta (`/api/game/bet`) y ganancia (`/api/game/win`).
-- **Admin:** el primer usuario llamado `admin` se marca `is_admin=1` al registrarse.
-  Las rutas `/api/admin/*` exigen `is_admin=1` (re-validado contra la DB).
+Módulos del Worker:
+
+| Archivo | Qué hace |
+|---|---|
+| `worker/index.js` | Ruteo + lógica del juego (`/api/game/spin`) con topes de apuesta y premio |
+| `worker/lib.js` | Utilidades compartidas: auth, validación, cripto, JWT, configuración |
+| `worker/accounts.js` | Registro, ingreso, perfil, roles, bloqueo, ajustes, configuración |
+| `worker/cashiers.js` | Taquilleros y cupo prepago |
+| `worker/payments.js` | Recargas (topups) y retiros (withdrawals) |
+| `worker/reports.js` | Tablero, cierre diario, reporte por taquillero y alertas |
+
+- **Auth:** usuario + contraseña, hash PBKDF2 (WebCrypto), JWT HMAC-SHA256, 24h.
+- **Roles:** `player` · `cashier` · `admin`, en la columna `users.role`. Se re-valida
+  contra la base en cada request (el token no es la autoridad).
+- **Saldo autoritativo:** vive en D1. El giro completo lo resuelve el servidor.
+- **Saldo disponible** = `balance − held_balance`. Lo congelado por un retiro
+  pendiente no se puede jugar.
 
 ## Requisitos previos (una sola vez)
 
 ```bash
-cd ~/ruleta-deploy
-npm install            # ya incluye wrangler en devDependencies
-npx wrangler login     # abre el navegador para autorizar tu cuenta de Cloudflare
+cd ~/ruleta-deploy && npm install && npx wrangler login
 ```
 
-## 1. Crear la base de datos D1
+## Migraciones
+
+Se aplican **en orden** y son acumulativas. La 002 solo agrega columnas y tablas
+nuevas: no borra ni modifica datos existentes.
 
 ```bash
-npx wrangler d1 create ruleta-db
-```
-
-Copiá el `database_id` que imprime y pegalo en `wrangler.jsonc` reemplazando
-`REEMPLAZAR_CON_ID_DE_D1`.
-
-## 2. Aplicar el schema
-
-```bash
-# Producción (remoto):
 npx wrangler d1 execute ruleta-db --remote --file=./migrations/001_init.sql
-
-# (Local, para 'npm run dev:worker'):
-npx wrangler d1 execute ruleta-db --local --file=./migrations/001_init.sql
+npx wrangler d1 execute ruleta-db --remote --file=./migrations/002_admin_system.sql
 ```
 
-## 3. Configurar el secret JWT (producción)
+Para la base local de desarrollo, lo mismo con `--local`.
+
+> **Importante:** la 002 tiene que aplicarse **antes** de desplegar el código nuevo.
+> Si el código sale primero, la API falla porque busca columnas que todavía no existen.
+
+## Secret JWT (una sola vez)
 
 ```bash
-# Generá un secreto fuerte y guardalo en Cloudflare (NO va en el repo):
 openssl rand -base64 32 | npx wrangler secret put JWT_SECRET
 ```
 
-> Para desarrollo local, el secret se lee de `.dev.vars` (ya creado, gitignored).
+En local se lee de `.dev.vars` (gitignored).
 
-## 4. Desplegar
+## Desplegar
 
 ```bash
-npm run deploy        # = npm run build && wrangler deploy
+npm run deploy
 ```
 
 Producción: https://ruleta-git.kasanmaklad.workers.dev
 
-## 5. Crear el administrador
-
-Entrá a la web, tocá **Registrate** y creá el usuario con nombre exacto `admin`
-(la contraseña que quieras). Ese primer `admin` queda como administrador.
-Luego entrá a `/admin` para cargar saldo a los jugadores.
-
----
-
-## Desarrollo local (full-stack)
+Para probar sin tocar producción:
 
 ```bash
-npm run dev:worker    # build + wrangler dev (Worker + D1 local + assets) en localhost:8787
+npx wrangler versions upload
 ```
 
-El `npm run dev` original (python http.server) sigue existiendo, pero **no** levanta la API.
+Devuelve una URL de preview con el código nuevo, contra la misma base de datos.
+
+## Desarrollo local
+
+```bash
+npm run dev:worker    # build + wrangler dev en localhost:8787 (D1 local)
+```
 
 ## Endpoints
 
-| Método | Ruta | Auth | Descripción |
+### Cuenta
+| Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
-| POST | `/api/auth/register` | — | Crea usuario (balance 0) y devuelve token |
+| POST | `/api/auth/register` | — | Crea jugador (requiere teléfono) |
 | POST | `/api/auth/login` | — | Devuelve token |
-| GET | `/api/me` | jugador | Usuario actual (incl. balance) |
-| POST | `/api/game/bet` | jugador | Descuenta apuesta (atómico, valida saldo) |
-| POST | `/api/game/win` | jugador | Acredita ganancia |
-| GET | `/api/admin/users` | admin | Lista de usuarios |
-| GET | `/api/admin/transactions` | admin | Últimas 50 transacciones |
-| POST | `/api/admin/deposit` | admin | Carga saldo a un usuario por username |
+| GET | `/api/me` | cualquiera | Usuario actual + límites vigentes |
+| PUT | `/api/me` | cualquiera | Teléfono, cédula y datos de cobro |
+| POST | `/api/me/password` | cualquiera | Cambio de contraseña propia |
+
+### Juego
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| POST | `/api/game/spin` | jugador | Valida, aplica topes, sortea y acredita |
+
+### Billetera
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/api/wallet/info` | jugador | Datos de las cuentas, límites y avance de juego |
+| GET | `/api/wallet/history` | jugador | Movimientos, recargas y retiros propios |
+| POST | `/api/wallet/topup` | jugador | Informa una transferencia hecha |
+| POST | `/api/wallet/withdraw` | jugador | Pide un retiro (congela el saldo) |
+
+### Taquilla
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/api/cashier/summary` | taquillero | Cupo, cargas del día, sus jugadores |
+| POST | `/api/cashier/load` | taquillero | Carga saldo descontando del cupo |
+
+### Panel del dueño
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/admin/summary` | Tablero: pendientes y día de hoy |
+| GET | `/api/admin/users` | Lista con filtros `search` y `role` |
+| POST | `/api/admin/users/:id/role` | Cambia rol y comisión |
+| POST | `/api/admin/users/:id/status` | Bloquea o activa |
+| POST | `/api/admin/users/:id/password` | Reset de contraseña |
+| GET | `/api/admin/transactions` | Movimientos (filtros `type`, `user_id`, `limit`) |
+| POST | `/api/admin/deposit` | Carga manual (cuenta como recarga) |
+| POST | `/api/admin/adjust` | Ajuste +/− con motivo (no cuenta como recarga) |
+| GET·PUT | `/api/admin/settings` | Configuración del negocio |
+| GET | `/api/admin/cashiers` | Taquilleros con cupo y totales |
+| POST | `/api/admin/cashiers/credit` | Vende cupo |
+| POST | `/api/admin/cashiers/adjust` | Ajusta cupo con motivo |
+| GET | `/api/admin/credit-ledger` | Movimientos de cupo |
+| GET | `/api/admin/topups` | Cola de recargas (`status`) |
+| POST | `/api/admin/topups/:id/approve` | Aprueba (permite corregir el monto) |
+| POST | `/api/admin/topups/:id/reject` | Rechaza con motivo |
+| GET | `/api/admin/withdrawals` | Cola de retiros (`status`) |
+| POST | `/api/admin/withdrawals/:id/pay` | Marca pagado (`paid_by`: owner/cashier) |
+| POST | `/api/admin/withdrawals/:id/reject` | Rechaza y descongela el saldo |
+| GET | `/api/admin/report/daily` | Cierre diario (`from`, `to`) |
+| GET | `/api/admin/report/cashiers` | Reporte por taquillero |
+| GET | `/api/admin/report/player/:id` | Historial completo de un jugador |
+| GET | `/api/admin/report/alerts` | Alertas |
+
+## Configuración del negocio
+
+Vive en la tabla `settings` y se edita desde `/admin` → Configuración. Se aplica
+al instante, sin volver a desplegar.
+
+| Clave | Qué controla |
+|---|---|
+| `rate_usd` | Bolívares por dólar (Zelle / Binance) |
+| `max_bet_per_spin` | Apuesta máxima total por giro |
+| `max_win_per_spin` | **Techo de premio por giro** — la protección contra el 500x |
+| `min_topup` / `min_withdrawal` | Mínimos de recarga y retiro |
+| `wager_pct_required` | % de lo recargado que hay que jugar para poder retirar |
+| `registration_open` | 1 = registro abierto, 0 = solo el taquillero crea cuentas |
+| `bank_*` | Datos de cobro que ve el jugador por cada método |
 
 ## Notas
 
-- `database_id` en `wrangler.jsonc` debe quedar con el id real antes de desplegar.
-- Si cambiás `is_admin` de un usuario directamente en la DB, surte efecto al re-loguear
-  (el flag viaja en el JWT, pero `/api/admin/*` igual lo re-valida contra la DB).
-- Reset/seed manual de saldo: `npx wrangler d1 execute ruleta-db --remote --command "UPDATE users SET balance=0"`
+- La primera cuenta llamada `admin` queda como administrador al registrarse.
+- El README dice que un `git push origin main` dispara deploy automático:
+  **confirmar antes de pushear a main.**
+- Consistencia del dinero: las operaciones que mueven saldo usan `UPDATE`
+  con guardia (`WHERE ... >= ?`) y `batch()` de D1, con reversión si algo falla.

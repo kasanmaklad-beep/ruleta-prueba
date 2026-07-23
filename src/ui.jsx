@@ -1,0 +1,249 @@
+// Piezas visuales compartidas por el panel, la taquilla y la billetera.
+// Expone window.UI. Mantiene el mismo aire que el juego: dorado sobre negro.
+(function () {
+  const { useState } = React;
+
+  const GOLD = '#d4a94a';
+  const BORDER = '#8b6a20';
+
+  // Bolívares con separador de miles. Los montos son siempre enteros.
+  function bs(n) {
+    const v = Number(n || 0);
+    return v.toLocaleString('es-VE', { maximumFractionDigits: 0 });
+  }
+
+  // Fecha corta legible: "23/07 14:35" a partir de "2026-07-23 18:35:00" (UTC).
+  function fecha(sql, conHora = true) {
+    if (!sql) return '';
+    const iso = String(sql).replace(' ', 'T') + (String(sql).endsWith('Z') ? '' : 'Z');
+    const d = new Date(iso);
+    if (isNaN(d)) return String(sql);
+    const p = (n) => String(n).padStart(2, '0');
+    // Se muestra en hora de Venezuela (UTC-4).
+    const ve = new Date(d.getTime() - 4 * 3600 * 1000);
+    const dia = `${p(ve.getUTCDate())}/${p(ve.getUTCMonth() + 1)}`;
+    return conHora ? `${dia} ${p(ve.getUTCHours())}:${p(ve.getUTCMinutes())}` : dia;
+  }
+
+  const styles = {
+    page: {
+      minHeight: '100vh',
+      background: 'radial-gradient(ellipse at center, #2a1a08 0%, #120a02 60%, #050200 100%)',
+      color: '#fff', fontFamily: 'Georgia, serif', padding: '16px 12px',
+    },
+    card: {
+      background: 'linear-gradient(180deg, #1a1410, #100a06)',
+      border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16,
+    },
+    input: {
+      padding: '11px 12px', borderRadius: 6, border: `1px solid ${BORDER}`,
+      background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 15,
+      fontFamily: 'Georgia, serif', outline: 'none', boxSizing: 'border-box', width: '100%',
+    },
+    label: { fontSize: 11, color: '#999', letterSpacing: 1, display: 'block', marginBottom: 4 },
+    th: {
+      textAlign: 'left', padding: '8px 10px', color: '#888', fontSize: 11,
+      letterSpacing: 1, borderBottom: '1px solid #3a2a10', whiteSpace: 'nowrap',
+    },
+    td: { padding: '8px 10px', borderBottom: '1px solid #221a0c', fontSize: 14 },
+    titulo: { fontSize: 15, fontWeight: 900, letterSpacing: 1, color: GOLD, marginBottom: 12 },
+  };
+
+  function Boton({ children, onClick, tono = 'oro', chico, disabled, type, style }) {
+    const tonos = {
+      oro:   { bg: 'linear-gradient(180deg, #d4a94a, #8b6a20)', bd: GOLD,      fg: '#1a1006' },
+      verde: { bg: 'linear-gradient(180deg, #2a8a2a, #155015)', bd: '#2a8a2a', fg: '#fff' },
+      rojo:  { bg: 'linear-gradient(180deg, #b8101a, #6a0a10)', bd: '#b8101a', fg: '#fff' },
+      gris:  { bg: 'linear-gradient(180deg, #333, #111)',       bd: '#555',    fg: '#ddd' },
+    };
+    const t = tonos[tono] || tonos.oro;
+    return (
+      <button
+        type={type || 'button'}
+        onClick={onClick}
+        disabled={disabled}
+        style={{
+          padding: chico ? '5px 11px' : '11px 16px',
+          borderRadius: 6, border: `${chico ? 1 : 2}px solid ${t.bd}`,
+          background: t.bg, color: t.fg, fontWeight: 900,
+          fontSize: chico ? 12 : 14, letterSpacing: 1,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          fontFamily: 'Georgia, serif', opacity: disabled ? 0.45 : 1,
+          whiteSpace: 'nowrap', ...style,
+        }}
+      >{children}</button>
+    );
+  }
+
+  // Aviso de resultado (verde) o de error (rojo).
+  function Aviso({ msg, onClose }) {
+    if (!msg) return null;
+    const ok = msg.kind === 'ok';
+    return (
+      <div
+        onClick={onClose}
+        style={{
+          marginBottom: 14, padding: '10px 14px', borderRadius: 6, fontSize: 14,
+          cursor: onClose ? 'pointer' : 'default',
+          background: ok ? 'rgba(46,138,46,0.2)' : 'rgba(180,16,26,0.2)',
+          border: `1px solid ${ok ? '#2a8a2a' : '#b8101a'}`,
+          color: ok ? '#9ff0a0' : '#ff9a9a',
+        }}
+      >{msg.text}</div>
+    );
+  }
+
+  // Recuadro con un número grande: la unidad mínima de todos los tableros.
+  function Dato({ titulo, valor, detalle, color, chico }) {
+    return (
+      <div style={{
+        background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
+        borderRadius: 8, padding: chico ? '10px 12px' : '14px 16px', minWidth: 0,
+      }}>
+        <div style={{ fontSize: 10, color: '#999', letterSpacing: 1, textTransform: 'uppercase' }}>{titulo}</div>
+        <div style={{
+          fontSize: chico ? 18 : 24, fontWeight: 900, color: color || '#fff',
+          marginTop: 4, wordBreak: 'break-word',
+        }}>{valor}</div>
+        {detalle && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{detalle}</div>}
+      </div>
+    );
+  }
+
+  // Encabezado común: título, quién está en sesión y botón de salida.
+  function Encabezado({ titulo, subtitulo, acciones }) {
+    return (
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        borderBottom: `1px solid ${BORDER}`, paddingBottom: 12, marginBottom: 16,
+        gap: 10, flexWrap: 'wrap',
+      }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: GOLD }}>{titulo}</div>
+          {subtitulo && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{subtitulo}</div>}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{acciones}</div>
+      </div>
+    );
+  }
+
+  // Barra de pestañas con contador opcional (para pendientes).
+  function Pestanas({ tabs, activa, onChange }) {
+    return (
+      <div style={{
+        display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap',
+        borderBottom: '1px solid #2a1f10', paddingBottom: 10,
+      }}>
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => onChange(t.id)}
+            style={{
+              padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
+              fontFamily: 'Georgia, serif', fontSize: 13, fontWeight: 700, letterSpacing: 1,
+              border: `1px solid ${activa === t.id ? GOLD : '#3a2a10'}`,
+              background: activa === t.id ? 'rgba(212,169,74,0.18)' : 'rgba(0,0,0,0.3)',
+              color: activa === t.id ? GOLD : '#999',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            {t.label}
+            {t.badge > 0 && (
+              <span style={{
+                background: '#b8101a', color: '#fff', borderRadius: 10,
+                padding: '1px 7px', fontSize: 11, fontWeight: 900,
+              }}>{t.badge}</span>
+            )}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  // Tabla con scroll horizontal: en el celular no rompe el ancho de la página.
+  function Tabla({ columnas, children, vacio }) {
+    return (
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: columnas.length * 90 }}>
+          <thead>
+            <tr>{columnas.map((c, i) => <th key={i} style={styles.th}>{c}</th>)}</tr>
+          </thead>
+          <tbody>
+            {React.Children.count(children) === 0
+              ? <tr><td style={{ ...styles.td, color: '#777' }} colSpan={columnas.length}>{vacio || 'Sin datos'}</td></tr>
+              : children}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  // Etiqueta de estado: pendiente / aprobado / rechazado / pagado.
+  function Estado({ v }) {
+    const map = {
+      pending:  ['ESPERANDO', '#ffd84a', 'rgba(255,216,74,0.15)'],
+      approved: ['APROBADA', '#7ee08a', 'rgba(46,138,46,0.2)'],
+      paid:     ['PAGADO', '#7ee08a', 'rgba(46,138,46,0.2)'],
+      rejected: ['RECHAZADA', '#ff9a9a', 'rgba(180,16,26,0.2)'],
+      active:   ['ACTIVO', '#7ee08a', 'rgba(46,138,46,0.2)'],
+      blocked:  ['BLOQUEADO', '#ff9a9a', 'rgba(180,16,26,0.2)'],
+    };
+    const [txt, color, bg] = map[v] || [String(v || '').toUpperCase(), '#aaa', 'rgba(255,255,255,0.06)'];
+    return (
+      <span style={{
+        background: bg, color, border: `1px solid ${color}44`,
+        borderRadius: 4, padding: '2px 8px', fontSize: 11, fontWeight: 900, letterSpacing: 1,
+      }}>{txt}</span>
+    );
+  }
+
+  // Ventana de confirmación: se usa antes de tocar plata.
+  function Confirmar({ abierto, titulo, texto, onSi, onNo, tonoSi = 'verde', textoSi = 'CONFIRMAR' }) {
+    if (!abierto) return null;
+    return (
+      <div
+        onClick={onNo}
+        style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+        }}
+      >
+        <div onClick={(e) => e.stopPropagation()} style={{ ...styles.card, maxWidth: 420, width: '100%' }}>
+          <div style={{ ...styles.titulo, marginBottom: 10 }}>{titulo}</div>
+          <div style={{ fontSize: 15, color: '#ddd', lineHeight: 1.5, marginBottom: 18 }}>{texto}</div>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <Boton tono="gris" onClick={onNo}>CANCELAR</Boton>
+            <Boton tono={tonoSi} onClick={onSi}>{textoSi}</Boton>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Campo de formulario con etiqueta.
+  function Campo({ label, children }) {
+    return <div style={{ minWidth: 0 }}><label style={styles.label}>{label}</label>{children}</div>;
+  }
+
+  // Hook chico para formularios: valores y setter por clave.
+  function useForm(inicial) {
+    const [v, setV] = useState(inicial);
+    return [v, (k, val) => setV((p) => ({ ...p, [k]: val })), () => setV(inicial)];
+  }
+
+  const METODOS = [
+    ['pago_movil', 'Pago Móvil'],
+    ['transferencia', 'Transferencia'],
+    ['zelle', 'Zelle'],
+    ['binance', 'Binance'],
+  ];
+  function nombreMetodo(m) {
+    const f = METODOS.find((x) => x[0] === m);
+    return f ? f[1] : (m || '—');
+  }
+
+  window.UI = {
+    GOLD, BORDER, bs, fecha, styles, METODOS, nombreMetodo,
+    Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm,
+  };
+})();

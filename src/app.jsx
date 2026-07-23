@@ -181,7 +181,7 @@ function WinCelebration({ amount, lightning, isMobile }) {
   );
 }
 
-function RouletteApp({ user, onLogout, onOpenAdmin }) {
+function RouletteApp({ user, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   // Estado del juego — el saldo es autoritativo del servidor (cae a STARTING_BALANCE solo sin sesión)
@@ -486,7 +486,13 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
 
     if (total > 0) {
       if (window.AudioEngine) window.AudioEngine.win(total >= 500 || anyLightning);
-      setMessage(anyLightning ? `⚡ ¡LIGHTNING WIN! $${total.toLocaleString()} ⚡` : `¡Ganaste $${total.toLocaleString()}!`);
+      // Si el premio tocó el techo por giro, se avisa para que no parezca un error.
+      const tope = server.capped
+        ? ` (tope máximo por giro; el premio completo era $${Number(server.grossWin).toLocaleString()})`
+        : '';
+      setMessage(
+        (anyLightning ? `⚡ ¡LIGHTNING WIN! $${total.toLocaleString()} ⚡` : `¡Ganaste $${total.toLocaleString()}!`) + tope
+      );
     } else {
       if (window.AudioEngine) window.AudioEngine.lose();
       const a = (window.ANIMALS || {})[resultNum];
@@ -677,7 +683,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
               </>
             )}
           </div>
-          {(onOpenAdmin || onLogout) && (
+          {(onOpenAdmin || onOpenCashier || onOpenWallet || onLogout) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
               {user && (
                 <div style={{ fontSize: isMobile ? 8 : 10, color: '#888', letterSpacing: 1, maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -685,6 +691,22 @@ function RouletteApp({ user, onLogout, onOpenAdmin }) {
                 </div>
               )}
               <div style={{ display: 'flex', gap: 6 }}>
+                {onOpenWallet && (
+                  <button onClick={onOpenWallet} style={{
+                    padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
+                    border: '1px solid #2a8a2a', background: 'rgba(42,138,42,0.25)', color: '#9ff0a0',
+                    fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
+                    letterSpacing: 1, cursor: 'pointer',
+                  }}>CAJA</button>
+                )}
+                {onOpenCashier && (
+                  <button onClick={onOpenCashier} style={{
+                    padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
+                    border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.4)', color: '#d4a94a',
+                    fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
+                    letterSpacing: 1, cursor: 'pointer',
+                  }}>TAQUILLA</button>
+                )}
                 {onOpenAdmin && (
                   <button onClick={onOpenAdmin} style={{
                     padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
@@ -1342,12 +1364,26 @@ function generateBoltPath(seed) {
   return d;
 }
 
-// ═══ Raíz: gate de autenticación + ruteo /admin ═══
+// ═══ Raíz: gate de autenticación + ruteo /admin, /taquilla y /billetera ═══
 function AppRoot() {
-  const [status, setStatus] = useState('loading'); // loading | login | game | admin
+  const [status, setStatus] = useState('loading'); // loading | login | game | admin | taquilla | billetera
   const [user, setUser] = useState(null);
 
-  const isAdminRoute = () => window.location.pathname.replace(/\/+$/, '') === '/admin';
+  const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
+
+  // A qué pantalla mandar según la URL y lo que el usuario tiene permitido.
+  const pantallaPara = (u) => {
+    const ruta = rutaActual();
+    if (ruta === '/admin' && u.role === 'admin') return 'admin';
+    if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
+    if (ruta === '/billetera') return 'billetera';
+    return 'game';
+  };
+
+  const ir = (ruta, pantalla) => {
+    window.history.pushState({}, '', ruta);
+    setStatus(pantalla);
+  };
 
   useEffect(() => {
     if (!window.Api || !window.Api.getToken()) { setStatus('login'); return; }
@@ -1355,10 +1391,17 @@ function AppRoot() {
       .then((d) => {
         const u = d.user;
         setUser(u);
-        setStatus(isAdminRoute() && u.is_admin ? 'admin' : 'game');
+        setStatus(pantallaPara(u));
       })
       .catch(() => { window.Api.logout(); setStatus('login'); });
   }, []);
+
+  // Refresca el usuario al volver al juego: el saldo pudo cambiar en la billetera.
+  const volverAlJuego = () => {
+    window.history.pushState({}, '', '/');
+    setStatus('game');
+    window.Api.me().then((d) => d && d.user && setUser(d.user)).catch(() => {});
+  };
 
   if (status === 'loading') {
     return (
@@ -1371,20 +1414,22 @@ function AppRoot() {
   }
 
   if (status === 'login') {
-    return <LoginScreen onAuth={(u) => {
-      setUser(u);
-      setStatus(isAdminRoute() && u.is_admin ? 'admin' : 'game');
-    }} />;
+    return <LoginScreen onAuth={(u) => { setUser(u); setStatus(pantallaPara(u)); }} />;
   }
 
-  if (status === 'admin') {
-    return <AdminPanel user={user} onExit={() => { window.history.pushState({}, '', '/'); setStatus('game'); }} />;
-  }
+  if (status === 'admin')     return <AdminPanel user={user} onExit={volverAlJuego} />;
+  if (status === 'taquilla')  return <CashierPanel user={user} onExit={volverAlJuego} />;
+  if (status === 'billetera') return <WalletPanel user={user} onExit={volverAlJuego} />;
+
+  const esAdmin = user && user.role === 'admin';
+  const esTaquillero = user && (user.role === 'cashier' || user.role === 'admin');
 
   return <RouletteApp
     user={user}
     onLogout={() => { window.Api.logout(); setUser(null); window.history.pushState({}, '', '/'); setStatus('login'); }}
-    onOpenAdmin={user && user.is_admin ? () => { window.history.pushState({}, '', '/admin'); setStatus('admin'); } : null}
+    onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}
+    onOpenCashier={esTaquillero ? () => ir('/taquilla', 'taquilla') : null}
+    onOpenWallet={() => ir('/billetera', 'billetera')}
   />;
 }
 

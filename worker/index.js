@@ -1,14 +1,49 @@
 // ════════════════════════════════════════════════════════════════
-//  Worker de Ruleta Catatumbo — API de usuarios, saldos y juego
+//  Worker de Ruleta Catatumbo — API del juego y del sistema administrativo
 //  Sirve la API en /api/* y delega el resto a los assets estáticos.
 //  Bindings (wrangler.jsonc): DB (D1), ASSETS (static), JWT_SECRET (secret)
+//
+//  Este archivo tiene el ruteo y la lógica del juego. Lo demás vive en:
+//    lib.js       — utilidades compartidas (auth, validación, configuración)
+//    accounts.js  — registro, ingreso, perfil y gestión de usuarios
+//    cashiers.js  — taquilleros y cupo prepago
+//    payments.js  — recargas y retiros
+//    reports.js   — cierre diario, reportes y alertas
 // ════════════════════════════════════════════════════════════════
+
+import {
+  json, readJson, str, toPositiveInt, requireAuth, requireAdmin,
+  getSettings, settingNum,
+} from './lib.js';
+
+import {
+  register, login, me, updateProfile, changePassword,
+  adminUsers, adminSetRole, adminSetStatus, adminResetPassword,
+  adminDeposit, adminAdjust, adminGetSettings, adminPutSettings,
+} from './accounts.js';
+
+import {
+  adminCashiers, adminSellCredit, adminAdjustCredit, adminCreditLedger,
+  cashierLoad, cashierSummary,
+} from './cashiers.js';
+
+import {
+  walletInfo, walletHistory, createTopup, createWithdrawal,
+  adminTopups, adminApproveTopup, adminRejectTopup,
+  adminWithdrawals, adminPayWithdrawal, adminRejectWithdrawal,
+} from './payments.js';
+
+import {
+  adminSummary, reportDaily, reportCashiers, reportPlayer, reportAlerts,
+} from './reports.js';
+
+// Rutas de la SPA que no son archivos: hay que servirles el index.html.
+const SPA_ROUTES = ['/admin', '/taquilla', '/billetera'];
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Rutas de API
     if (url.pathname.startsWith('/api/')) {
       try {
         return await handleApi(request, env, url);
@@ -17,8 +52,8 @@ export default {
       }
     }
 
-    // /admin no es un archivo: servir el shell de la SPA (index.html)
-    if (url.pathname === '/admin' || url.pathname === '/admin/') {
+    const clean = url.pathname.replace(/\/+$/, '') || '/';
+    if (SPA_ROUTES.includes(clean)) {
       return env.ASSETS.fetch(new Request(new URL('/', url), request));
     }
 
@@ -32,87 +67,115 @@ export default {
 async function handleApi(request, env, url) {
   const path = url.pathname;
   const method = request.method;
+  let m;
 
+  // ── Cuenta ──
   if (method === 'POST' && path === '/api/auth/register') return register(request, env);
   if (method === 'POST' && path === '/api/auth/login')    return login(request, env);
   if (method === 'GET'  && path === '/api/me')            return me(request, env);
+  if (method === 'PUT'  && path === '/api/me')            return updateProfile(request, env);
+  if (method === 'POST' && path === '/api/me/password')   return changePassword(request, env);
+
+  // ── Juego ──
   if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
-  if (method === 'GET'  && path === '/api/admin/users')         return adminUsers(request, env);
-  if (method === 'GET'  && path === '/api/admin/transactions')  return adminTransactions(request, env);
-  if (method === 'POST' && path === '/api/admin/deposit')       return adminDeposit(request, env);
+
+  // ── Billetera del jugador ──
+  if (method === 'GET'  && path === '/api/wallet/info')     return walletInfo(request, env);
+  if (method === 'GET'  && path === '/api/wallet/history')  return walletHistory(request, env);
+  if (method === 'POST' && path === '/api/wallet/topup')    return createTopup(request, env);
+  if (method === 'POST' && path === '/api/wallet/withdraw') return createWithdrawal(request, env);
+
+  // ── Taquilla ──
+  if (method === 'GET'  && path === '/api/cashier/summary') return cashierSummary(request, env);
+  if (method === 'POST' && path === '/api/cashier/load')    return cashierLoad(request, env);
+
+  // ── Panel: tablero y usuarios ──
+  if (method === 'GET'  && path === '/api/admin/summary')      return adminSummary(request, env);
+  if (method === 'GET'  && path === '/api/admin/users')        return adminUsers(request, env, url);
+  if (method === 'GET'  && path === '/api/admin/transactions') return adminTransactions(request, env, url);
+  if (method === 'POST' && path === '/api/admin/deposit')      return adminDeposit(request, env);
+  if (method === 'POST' && path === '/api/admin/adjust')       return adminAdjust(request, env);
+  if (method === 'GET'  && path === '/api/admin/settings')     return adminGetSettings(request, env);
+  if (method === 'PUT'  && path === '/api/admin/settings')     return adminPutSettings(request, env);
+
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/role$/)))
+    return adminSetRole(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/status$/)))
+    return adminSetStatus(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/password$/)))
+    return adminResetPassword(request, env, Number(m[1]));
+
+  // ── Panel: taquilleros ──
+  if (method === 'GET'  && path === '/api/admin/cashiers')        return adminCashiers(request, env);
+  if (method === 'POST' && path === '/api/admin/cashiers/credit') return adminSellCredit(request, env);
+  if (method === 'POST' && path === '/api/admin/cashiers/adjust') return adminAdjustCredit(request, env);
+  if (method === 'GET'  && path === '/api/admin/credit-ledger')   return adminCreditLedger(request, env, url);
+
+  // ── Panel: recargas ──
+  if (method === 'GET'  && path === '/api/admin/topups') return adminTopups(request, env, url);
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/topups\/(\d+)\/approve$/)))
+    return adminApproveTopup(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/topups\/(\d+)\/reject$/)))
+    return adminRejectTopup(request, env, Number(m[1]));
+
+  // ── Panel: retiros ──
+  if (method === 'GET'  && path === '/api/admin/withdrawals') return adminWithdrawals(request, env, url);
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/withdrawals\/(\d+)\/pay$/)))
+    return adminPayWithdrawal(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/withdrawals\/(\d+)\/reject$/)))
+    return adminRejectWithdrawal(request, env, Number(m[1]));
+
+  // ── Panel: reportes ──
+  if (method === 'GET' && path === '/api/admin/report/daily')    return reportDaily(request, env, url);
+  if (method === 'GET' && path === '/api/admin/report/cashiers') return reportCashiers(request, env, url);
+  if (method === 'GET' && path === '/api/admin/report/alerts')   return reportAlerts(request, env, url);
+  if (method === 'GET' && (m = path.match(/^\/api\/admin\/report\/player\/(\d+)$/)))
+    return reportPlayer(request, env, Number(m[1]));
 
   return json({ error: 'No encontrado' }, 404);
 }
 
-// ─────────────────────────────── Endpoints ────────────────────────────────
+// ─────────────────────────────── Movimientos ──────────────────────────────
 
-async function register(request, env) {
-  const body = await readJson(request);
-  const username = normalizeUsername(body.username);
-  const password = String(body.password || '');
-
-  const uErr = validateUsername(username);
-  if (uErr) return json({ error: uErr }, 400);
-  if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
-
-  const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
-  if (existing) return json({ error: 'Ese usuario ya existe' }, 409);
-
-  const password_hash = await hashPassword(password);
-  // El primer usuario llamado "admin" se vuelve administrador automáticamente.
-  const isAdmin = username === 'admin' ? 1 : 0;
-
-  const res = await env.DB.prepare(
-    'INSERT INTO users (username, password_hash, balance, is_admin) VALUES (?, ?, 0, ?)'
-  ).bind(username, password_hash, isAdmin).run();
-
-  const user = {
-    id: res.meta.last_row_id,
-    username,
-    balance: 0,
-    is_admin: isAdmin,
-  };
-  const token = await signJwt({ sub: user.id, username, is_admin: isAdmin }, env);
-  return json({ token, user });
-}
-
-async function login(request, env) {
-  const body = await readJson(request);
-  const username = normalizeUsername(body.username);
-  const password = String(body.password || '');
-
-  const row = await env.DB.prepare(
-    'SELECT id, username, password_hash, balance, is_admin FROM users WHERE username = ?'
-  ).bind(username).first();
-
-  if (!row || !(await verifyPassword(password, row.password_hash))) {
-    return json({ error: 'Usuario o contraseña incorrectos' }, 401);
-  }
-
-  const user = { id: row.id, username: row.username, balance: row.balance, is_admin: row.is_admin };
-  const token = await signJwt({ sub: user.id, username: user.username, is_admin: user.is_admin }, env);
-  return json({ token, user });
-}
-
-async function me(request, env) {
-  const auth = await requireAuth(request, env);
+async function adminTransactions(request, env, url) {
+  const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
-  const row = await env.DB.prepare(
-    'SELECT id, username, balance, is_admin FROM users WHERE id = ?'
-  ).bind(auth.userId).first();
-  if (!row) return json({ error: 'Usuario no encontrado' }, 404);
-  return json({ user: row });
+
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 50, 500);
+  const type = str(url.searchParams.get('type'), 20);
+  const userId = Number(url.searchParams.get('user_id')) || null;
+
+  const where = [];
+  const binds = [];
+  if (type) { where.push('t.type = ?'); binds.push(type); }
+  if (userId) { where.push('t.user_id = ?'); binds.push(userId); }
+  const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const rows = await env.DB.prepare(
+    `SELECT t.id, t.user_id, u.username, t.type, t.amount, t.note, t.source, t.created_at,
+            a.username AS actor
+       FROM transactions t
+       JOIN users u ON u.id = t.user_id
+       LEFT JOIN users a ON a.id = t.actor_id
+      ${clause}
+      ORDER BY t.created_at DESC, t.id DESC
+      LIMIT ?`
+  ).bind(...binds, limit).all();
+
+  return json({ transactions: rows.results || [] });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
 //  GAME SPIN — el SERVIDOR es la autoridad del juego.
 //  El cliente manda solo las apuestas; el servidor:
 //   1. valida y reconstruye cada apuesta (no confía en 'numbers' del cliente),
-//   2. descuenta la apuesta de forma atómica (no permite saldo negativo),
-//   3. genera los números Lightning y el resultado con RNG del servidor,
-//   4. calcula el premio y lo acredita,
-//   5. devuelve todo para que el cliente solo ANIME el resultado.
-//  Así el jugador nunca decide cuánto gana.
+//   2. aplica el TOPE DE APUESTA configurado,
+//   3. descuenta del saldo DISPONIBLE de forma atómica (lo congelado en
+//      retiros pendientes no se puede jugar),
+//   4. genera los números Lightning y el resultado con RNG del servidor,
+//   5. calcula el premio, lo recorta al TECHO DE PREMIO y lo acredita.
+//  Así el jugador nunca decide cuánto gana, y un Lightning de 500x no puede
+//  vaciar la caja de un solo giro.
 // ═══════════════════════════════════════════════════════════════════════
 async function gameSpin(request, env) {
   const auth = await requireAuth(request, env);
@@ -137,25 +200,43 @@ async function gameSpin(request, env) {
   }
   if (stake <= 0 || stake > 1e12) return json({ error: 'Apuesta total inválida' }, 400);
 
-  // 2. Descontar la apuesta de forma atómica.
+  // 2. Tope de apuesta por giro.
+  const settings = await getSettings(env);
+  const maxBet = settingNum(settings, 'max_bet_per_spin');
+  const maxWin = settingNum(settings, 'max_win_per_spin');
+  if (stake > maxBet) {
+    return json({
+      error: `El máximo por giro es ${maxBet.toLocaleString('es-VE')}. Estás apostando ${stake.toLocaleString('es-VE')}.`,
+      max_bet_per_spin: maxBet,
+    }, 400);
+  }
+
+  // 3. Descontar del saldo DISPONIBLE de forma atómica.
   const upd = await env.DB.prepare(
-    'UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?'
-  ).bind(stake, auth.userId, stake).run();
+    'UPDATE users SET balance = balance - ?, wagered_total = wagered_total + ? WHERE id = ? AND balance - held_balance >= ?'
+  ).bind(stake, stake, auth.userId, stake).run();
   if (upd.meta.changes === 0) {
-    const cur = await env.DB.prepare('SELECT balance FROM users WHERE id = ?').bind(auth.userId).first();
-    return json({ error: 'Saldo insuficiente', balance: cur ? cur.balance : 0 }, 400);
+    const cur = await env.DB.prepare('SELECT balance, held_balance FROM users WHERE id = ?')
+      .bind(auth.userId).first();
+    const disponible = cur ? cur.balance - cur.held_balance : 0;
+    return json({
+      error: cur && cur.held_balance > 0
+        ? `Saldo insuficiente: tenés ${disponible} disponible (${cur.held_balance} está retenido por un retiro pendiente)`
+        : 'Saldo insuficiente',
+      balance: cur ? cur.balance : 0,
+    }, 400);
   }
   await env.DB.prepare(
-    'INSERT INTO transactions (user_id, type, amount, note) VALUES (?, ?, ?, ?)'
-  ).bind(auth.userId, 'bet', stake, `Apuesta ronda (${bets.length} fichas)`).run();
+    "INSERT INTO transactions (user_id, type, amount, note, source) VALUES (?, 'bet', ?, ?, 'game')"
+  ).bind(auth.userId, stake, `Apuesta ronda (${bets.length} fichas)`).run();
 
-  // 3. Generar Lightning y resultado con RNG del servidor.
+  // 4. Generar Lightning y resultado con RNG del servidor.
   const lightning = generateLightning();       // Array<[num, mult]>
   const ltgMap = new Map(lightning);
   const resultIndex = randInt(AMERICAN_WHEEL_ORDER.length);
   const resultNum = AMERICAN_WHEEL_ORDER[resultIndex];
 
-  // 4. Calcular premio (autoritativo).
+  // 5. Calcular premio (autoritativo).
   let win = 0;
   let anyLightning = false;
   let winDetails = null;
@@ -168,15 +249,26 @@ async function gameSpin(request, env) {
     }
   }
 
+  // 6. Techo de premio por giro: la protección contra el 500x.
+  const grossWin = win;
+  const capped = win > maxWin;
+  if (capped) win = maxWin;
+
   if (win > 0) {
     await env.DB.prepare('UPDATE users SET balance = balance + ? WHERE id = ?')
       .bind(win, auth.userId).run();
     await env.DB.prepare(
-      'INSERT INTO transactions (user_id, type, amount, note) VALUES (?, ?, ?, ?)'
-    ).bind(auth.userId, 'win', win, `Ganancia ronda (salió ${resultNum})`).run();
+      "INSERT INTO transactions (user_id, type, amount, note, source) VALUES (?, 'win', ?, ?, 'game')"
+    ).bind(
+      auth.userId, win,
+      capped
+        ? `Ganancia ronda (salió ${resultNum}) — limitada al techo de ${maxWin}, bruto ${grossWin}`
+        : `Ganancia ronda (salió ${resultNum})`
+    ).run();
   }
 
-  const cur = await env.DB.prepare('SELECT balance FROM users WHERE id = ?').bind(auth.userId).first();
+  const cur = await env.DB.prepare('SELECT balance, held_balance FROM users WHERE id = ?')
+    .bind(auth.userId).first();
   // Enviamos resultNum y las claves Lightning en su tipo original (int o '00')
   // para que el cliente reconstruya el Map con las mismas claves que la rueda.
   return json({
@@ -184,57 +276,14 @@ async function gameSpin(request, env) {
     resultNum,
     lightning,        // Array<[int|'00', mult]>
     win,
+    grossWin,
+    capped,
+    maxWin,
     anyLightning,
     winDetails,
     balance: cur.balance,
+    held_balance: cur.held_balance,
   });
-}
-
-async function adminUsers(request, env) {
-  const auth = await requireAdmin(request, env);
-  if (auth.error) return auth.response;
-  const rows = await env.DB.prepare(
-    'SELECT id, username, balance, is_admin, created_at FROM users ORDER BY created_at DESC'
-  ).all();
-  return json({ users: rows.results || [] });
-}
-
-async function adminTransactions(request, env) {
-  const auth = await requireAdmin(request, env);
-  if (auth.error) return auth.response;
-  const rows = await env.DB.prepare(
-    `SELECT t.id, t.user_id, u.username, t.type, t.amount, t.note, t.created_at
-       FROM transactions t JOIN users u ON u.id = t.user_id
-      ORDER BY t.created_at DESC, t.id DESC
-      LIMIT 50`
-  ).all();
-  return json({ transactions: rows.results || [] });
-}
-
-async function adminDeposit(request, env) {
-  const auth = await requireAdmin(request, env);
-  if (auth.error) return auth.response;
-
-  const body = await readJson(request);
-  const username = normalizeUsername(body.username);
-  const amount = toPositiveInt(body.amount);
-  if (!username) return json({ error: 'Falta el usuario' }, 400);
-  if (amount === null) return json({ error: 'Monto inválido' }, 400);
-
-  const target = await env.DB.prepare('SELECT id, username FROM users WHERE username = ?')
-    .bind(username).first();
-  if (!target) return json({ error: 'Usuario no encontrado' }, 404);
-
-  await env.DB.prepare('UPDATE users SET balance = balance + ? WHERE id = ?')
-    .bind(amount, target.id).run();
-  await env.DB.prepare(
-    'INSERT INTO transactions (user_id, type, amount, note) VALUES (?, ?, ?, ?)'
-  ).bind(target.id, 'deposit', amount, body.note ? String(body.note).slice(0, 200) : `Carga admin (${auth.username})`).run();
-
-  const updated = await env.DB.prepare(
-    'SELECT id, username, balance, is_admin, created_at FROM users WHERE id = ?'
-  ).bind(target.id).first();
-  return json({ user: updated });
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -364,148 +413,4 @@ function calcWin(bet, result, ltgMap) {
     win = 0;
   }
   return { win, multiplier, isLightningHit };
-}
-
-// ─────────────────────────────── Auth helpers ─────────────────────────────
-
-async function requireAuth(request, env) {
-  const header = request.headers.get('Authorization') || '';
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
-  if (!token) return { error: true, response: json({ error: 'No autenticado' }, 401) };
-  const payload = await verifyJwt(token, env);
-  if (!payload) return { error: true, response: json({ error: 'Sesión inválida o expirada' }, 401) };
-  return { error: false, userId: payload.sub, username: payload.username };
-}
-
-async function requireAdmin(request, env) {
-  const auth = await requireAuth(request, env);
-  if (auth.error) return auth;
-  // Releer de la DB para no confiar solo en el claim del token.
-  const row = await env.DB.prepare('SELECT is_admin FROM users WHERE id = ?').bind(auth.userId).first();
-  if (!row || !row.is_admin) return { error: true, response: json({ error: 'Acceso denegado' }, 403) };
-  return auth;
-}
-
-// ─────────────────────────────── Validación ───────────────────────────────
-
-function normalizeUsername(u) {
-  return String(u || '').trim().toLowerCase();
-}
-function validateUsername(u) {
-  if (!u) return 'Falta el nombre de usuario';
-  if (u.length < 3 || u.length > 32) return 'El usuario debe tener entre 3 y 32 caracteres';
-  if (!/^[a-z0-9_]+$/.test(u)) return 'Solo letras, números y guion bajo';
-  return null;
-}
-function toPositiveInt(v) {
-  const n = Number(v);
-  if (!Number.isInteger(n) || n <= 0 || n > 1e12) return null;
-  return n;
-}
-
-// ─────────────────────────────── Cripto ───────────────────────────────────
-
-async function hashPassword(password) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iterations = 100000;
-  const bits = await deriveBits(password, salt, iterations);
-  return `pbkdf2$${iterations}$${b64(salt)}$${b64(bits)}`;
-}
-async function verifyPassword(password, stored) {
-  const parts = String(stored || '').split('$');
-  if (parts.length !== 4 || parts[0] !== 'pbkdf2') return false;
-  const iterations = parseInt(parts[1], 10);
-  const salt = unb64(parts[2]);
-  const bits = await deriveBits(password, salt, iterations);
-  return timingSafeEqual(b64(bits), parts[3]);
-}
-async function deriveBits(password, salt, iterations) {
-  const key = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256
-  );
-  return new Uint8Array(bits);
-}
-
-async function signJwt(payload, env) {
-  const secret = getSecret(env);
-  const now = Math.floor(Date.now() / 1000);
-  const full = { ...payload, iat: now, exp: now + 24 * 60 * 60 }; // 24h
-  const header = b64url(new TextEncoder().encode(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));
-  const bodyEnc = b64url(new TextEncoder().encode(JSON.stringify(full)));
-  const data = `${header}.${bodyEnc}`;
-  const sig = await hmac(data, secret);
-  return `${data}.${b64urlBytes(sig)}`;
-}
-async function verifyJwt(token, env) {
-  const secret = getSecret(env);
-  const parts = String(token || '').split('.');
-  if (parts.length !== 3) return null;
-  const data = `${parts[0]}.${parts[1]}`;
-  const expected = b64urlBytes(await hmac(data, secret));
-  if (!timingSafeEqual(expected, parts[2])) return null;
-  let payload;
-  try {
-    payload = JSON.parse(new TextDecoder().decode(unb64url(parts[1])));
-  } catch (e) {
-    return null;
-  }
-  if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) return null;
-  return payload;
-}
-async function hmac(data, secret) {
-  const key = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
-  );
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data));
-  return new Uint8Array(sig);
-}
-function getSecret(env) {
-  if (!env.JWT_SECRET) throw new Error('Falta JWT_SECRET (configurar con: wrangler secret put JWT_SECRET)');
-  return env.JWT_SECRET;
-}
-
-// Comparación en tiempo constante (sobre strings ya codificados)
-function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let out = 0;
-  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return out === 0;
-}
-
-// ─────────────────────────────── Base64 ───────────────────────────────────
-
-function b64(bytes) {
-  let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s);
-}
-function unb64(str) {
-  const bin = atob(str);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-function b64url(bytes) { return b64urlBytes(bytes); }
-function b64urlBytes(bytes) {
-  return b64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-function unb64url(str) {
-  str = str.replace(/-/g, '+').replace(/_/g, '/');
-  while (str.length % 4) str += '=';
-  return unb64(str);
-}
-
-// ─────────────────────────────── Utilidades ───────────────────────────────
-
-async function readJson(request) {
-  try { return await request.json(); } catch (e) { return {}; }
-}
-function json(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { 'Content-Type': 'application/json; charset=utf-8' },
-  });
 }

@@ -7,6 +7,7 @@
     const [mode, setMode] = useState('login'); // 'login' | 'register'
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [phone, setPhone] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -16,11 +17,16 @@
       const u = username.trim().toLowerCase();
       if (u.length < 3) { setError('El usuario debe tener al menos 3 caracteres'); return; }
       if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+      // El teléfono es a donde se le paga cuando retira: se pide desde el registro.
+      if (mode === 'register' && phone.replace(/\D/g, '').length < 7) {
+        setError('Poné tu teléfono: es a donde te vamos a pagar cuando retires');
+        return;
+      }
       setLoading(true);
       try {
         const res = mode === 'login'
           ? await window.Api.login(u, password)
-          : await window.Api.register(u, password);
+          : await window.Api.register(u, password, phone.trim());
         window.Api.setToken(res.token);
         onAuth(res.user);
       } catch (err) {
@@ -76,6 +82,21 @@
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
+            {mode === 'register' && (
+              <div>
+                <input
+                  style={inputStyle}
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="Teléfono (ej: 04141234567)"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                <div style={{ fontSize: 11, color: '#888', marginTop: -6, marginBottom: 12 }}>
+                  Es a donde te mandamos la plata cuando retires.
+                </div>
+              </div>
+            )}
 
             {error && (
               <div style={{

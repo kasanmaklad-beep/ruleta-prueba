@@ -32,27 +32,104 @@
     return data;
   }
 
+  // Arma "?a=1&b=2" salteando lo vacío.
+  function qs(params) {
+    const p = new URLSearchParams();
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') p.set(k, v);
+    });
+    const s = p.toString();
+    return s ? '?' + s : '';
+  }
+
+  const POST = (path, body) => req(path, { method: 'POST', body: body || {} });
+  const PUT = (path, body) => req(path, { method: 'PUT', body: body || {} });
+
   window.Api = {
     getToken,
     setToken,
     logout() { setToken(null); },
 
-    register(username, password) {
-      return req('/api/auth/register', { method: 'POST', body: { username, password } });
+    // ── Cuenta ──
+    register(username, password, phone) {
+      return POST('/api/auth/register', { username, password, phone });
     },
     login(username, password) {
-      return req('/api/auth/login', { method: 'POST', body: { username, password } });
+      return POST('/api/auth/login', { username, password });
     },
     me() { return req('/api/me'); },
-
-    // El servidor resuelve el giro completo: recibe las apuestas y devuelve
-    // { resultIndex, resultNum, lightning, win, anyLightning, winDetails, balance }.
-    spin(bets) { return req('/api/game/spin', { method: 'POST', body: { bets } }); },
-
-    adminUsers() { return req('/api/admin/users'); },
-    adminTransactions() { return req('/api/admin/transactions'); },
-    adminDeposit(username, amount, note) {
-      return req('/api/admin/deposit', { method: 'POST', body: { username, amount, note } });
+    updateProfile(data) { return PUT('/api/me', data); },
+    changePassword(current_password, new_password) {
+      return POST('/api/me/password', { current_password, new_password });
     },
+
+    // ── Juego ──
+    // El servidor resuelve el giro completo: recibe las apuestas y devuelve
+    // { resultIndex, resultNum, lightning, win, capped, winDetails, balance }.
+    spin(bets) { return POST('/api/game/spin', { bets }); },
+
+    // ── Billetera del jugador ──
+    walletInfo() { return req('/api/wallet/info'); },
+    walletHistory() { return req('/api/wallet/history'); },
+    createTopup(data) { return POST('/api/wallet/topup', data); },
+    createWithdrawal(data) { return POST('/api/wallet/withdraw', data); },
+
+    // ── Taquilla ──
+    cashierSummary() { return req('/api/cashier/summary'); },
+    cashierLoad(username, amount, note) {
+      return POST('/api/cashier/load', { username, amount, note });
+    },
+
+    // ── Panel: tablero, usuarios y movimientos ──
+    adminSummary() { return req('/api/admin/summary'); },
+    adminUsers(params) { return req('/api/admin/users' + qs(params)); },
+    adminTransactions(params) { return req('/api/admin/transactions' + qs(params)); },
+    adminDeposit(username, amount, note) {
+      return POST('/api/admin/deposit', { username, amount, note });
+    },
+    adminAdjust(username, amount, note) {
+      return POST('/api/admin/adjust', { username, amount, note });
+    },
+    adminSetRole(id, role, commission_pct) {
+      return POST(`/api/admin/users/${id}/role`, { role, commission_pct });
+    },
+    adminSetStatus(id, status) { return POST(`/api/admin/users/${id}/status`, { status }); },
+    adminResetPassword(id, new_password) {
+      return POST(`/api/admin/users/${id}/password`, { new_password });
+    },
+
+    // ── Panel: configuración ──
+    adminGetSettings() { return req('/api/admin/settings'); },
+    adminPutSettings(settings) { return PUT('/api/admin/settings', { settings }); },
+
+    // ── Panel: taquilleros ──
+    adminCashiers() { return req('/api/admin/cashiers'); },
+    adminSellCredit(username, amount, paid_amount, note) {
+      return POST('/api/admin/cashiers/credit', { username, amount, paid_amount, note });
+    },
+    adminAdjustCredit(username, amount, note) {
+      return POST('/api/admin/cashiers/adjust', { username, amount, note });
+    },
+    adminCreditLedger(params) { return req('/api/admin/credit-ledger' + qs(params)); },
+
+    // ── Panel: recargas ──
+    adminTopups(status) { return req('/api/admin/topups' + qs({ status })); },
+    adminApproveTopup(id, amount, note) {
+      return POST(`/api/admin/topups/${id}/approve`, { amount, note });
+    },
+    adminRejectTopup(id, note) { return POST(`/api/admin/topups/${id}/reject`, { note }); },
+
+    // ── Panel: retiros ──
+    adminWithdrawals(status) { return req('/api/admin/withdrawals' + qs({ status })); },
+    adminPayWithdrawal(id, paid_by, payer_username, note) {
+      return POST(`/api/admin/withdrawals/${id}/pay`, { paid_by, payer_username, note });
+    },
+    adminRejectWithdrawal(id, note) { return POST(`/api/admin/withdrawals/${id}/reject`, { note }); },
+
+    // ── Panel: reportes ──
+    reportDaily(params) { return req('/api/admin/report/daily' + qs(params)); },
+    reportCashiers(params) { return req('/api/admin/report/cashiers' + qs(params)); },
+    reportPlayer(id) { return req(`/api/admin/report/player/${id}`); },
+    reportAlerts() { return req('/api/admin/report/alerts'); },
   };
 })();

@@ -1,0 +1,276 @@
+// ════════════════════════════════════════════════════════════════════════
+//  Taquilleros y cupo prepago.
+//
+//  El dueño le vende cupo al taquillero: éste paga (por ejemplo 9.000) y
+//  recibe cupo (10.000). Esa diferencia ES su comisión y se la cobra en el
+//  acto. Después el taquillero carga saldo a sus jugadores y cada carga le
+//  descuenta del cupo, así que nunca puede cargar más de lo que ya pagó.
+// ════════════════════════════════════════════════════════════════════════
+
+import {
+  json, readJson, str, toPositiveInt, normalizeUsername,
+  requireAdmin, requireCashier, VE_OFFSET, todayVE,
+} from './lib.js';
+import { getUser } from './accounts.js';
+
+// ─────────────────────────── Panel del dueño ──────────────────────────────
+
+// Lista de taquilleros con su cupo actual y lo que movieron.
+export async function adminCashiers(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const rows = await env.DB.prepare(
+    `SELECT u.id, u.username, u.phone, u.status, u.credit_balance, u.commission_pct, u.created_at,
+            COALESCE(p.comprado, 0)   AS cupo_comprado,
+            COALESCE(p.pagado, 0)     AS total_pagado,
+            COALESCE(l.cargado, 0)    AS total_cargado,
+            COALESCE(j.jugadores, 0)  AS jugadores
+       FROM users u
+       LEFT JOIN (SELECT cashier_id, SUM(amount) AS comprado, SUM(COALESCE(paid_amount, 0)) AS pagado
+                    FROM credit_ledger WHERE type = 'purchase' GROUP BY cashier_id) p ON p.cashier_id = u.id
+       LEFT JOIN (SELECT cashier_id, SUM(-amount) AS cargado
+                    FROM credit_ledger WHERE type = 'load' GROUP BY cashier_id) l ON l.cashier_id = u.id
+       LEFT JOIN (SELECT cashier_id, COUNT(*) AS jugadores
+                    FROM users WHERE cashier_id IS NOT NULL GROUP BY cashier_id) j ON j.cashier_id = u.id
+      WHERE u.role = 'cashier'
+      ORDER BY u.username`
+  ).all();
+
+  const cashiers = (rows.results || []).map((c) => ({
+    ...c,
+    // Lo que ganó el taquillero: la diferencia entre el cupo que recibió y lo que pagó.
+    comision_generada: (c.cupo_comprado || 0) - (c.total_pagado || 0),
+  }));
+  return json({ cashiers });
+}
+
+// Venta de cupo. `amount` es el cupo que recibe; `paid_amount` lo que pagó.
+export async function adminSellCredit(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const username = normalizeUsername(body.username);
+  const amount = toPositiveInt(body.amount);
+  if (!username) return json({ error: 'Falta el taquillero' }, 400);
+  if (amount === null) return json({ error: 'Monto de cupo inválido' }, 400);
+
+  const cashier = await env.DB.prepare(
+    'SELECT id, username, role, commission_pct FROM users WHERE username = ?'
+  ).bind(username).first();
+  if (!cashier) return json({ error: 'Usuario no encontrado' }, 404);
+  if (cashier.role !== 'cashier') return json({ error: `${cashier.username} no es taquillero. Cambiale el rol primero.` }, 400);
+
+  // Si no dicen cuánto pagó, se calcula con su comisión: 10% → paga 90%.
+  let paid;
+  if (body.paid_amount === undefined || body.paid_amount === null || body.paid_amount === '') {
+    paid = Math.round(amount * (1 - (cashier.commission_pct || 0) / 100));
+  } else {
+    const p = Number(body.paid_amount);
+    if (!Number.isInteger(p) || p < 0 || p > amount) {
+      return json({ error: 'Lo pagado tiene que ser un entero entre 0 y el cupo entregado' }, 400);
+    }
+    paid = p;
+  }
+
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .bind(amount, cashier.id),
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
+       VALUES (?, 'purchase', ?, ?, ?, ?)`
+    ).bind(cashier.id, amount, paid, str(body.note, 200) || `Venta de cupo (${auth.username})`, auth.userId),
+  ]);
+
+  const updated = await getUser(env, cashier.id);
+  return json({
+    cashier: updated,
+    comision: amount - paid,
+  });
+}
+
+// Ajuste de cupo a mano (corrección de errores). Puede ser negativo.
+export async function adminAdjustCredit(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const username = normalizeUsername(body.username);
+  const amount = Number(body.amount);
+  const note = str(body.note, 200);
+
+  if (!username) return json({ error: 'Falta el taquillero' }, 400);
+  if (!Number.isInteger(amount) || amount === 0) return json({ error: 'Monto inválido' }, 400);
+  if (!note) return json({ error: 'Poné el motivo del ajuste' }, 400);
+
+  const cashier = await env.DB.prepare(
+    "SELECT id, username, credit_balance FROM users WHERE username = ? AND role = 'cashier'"
+  ).bind(username).first();
+  if (!cashier) return json({ error: 'Taquillero no encontrado' }, 404);
+  if (amount < 0 && cashier.credit_balance + amount < 0) {
+    return json({ error: `Ese taquillero solo tiene ${cashier.credit_balance} de cupo` }, 400);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .bind(amount, cashier.id),
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, note, actor_id)
+       VALUES (?, 'adjust', ?, ?, ?)`
+    ).bind(cashier.id, amount, `${note} (${auth.username})`, auth.userId),
+  ]);
+
+  return json({ cashier: await getUser(env, cashier.id) });
+}
+
+// Movimientos de cupo de un taquillero (o de todos si no se indica).
+export async function adminCreditLedger(request, env, url) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const cashierId = Number(url.searchParams.get('cashier_id')) || null;
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 100, 500);
+
+  const rows = await env.DB.prepare(
+    `SELECT l.*, c.username AS cashier_username, p.username AS player_username
+       FROM credit_ledger l
+       JOIN users c ON c.id = l.cashier_id
+       LEFT JOIN users p ON p.id = l.player_id
+      ${cashierId ? 'WHERE l.cashier_id = ?' : ''}
+      ORDER BY l.created_at DESC, l.id DESC
+      LIMIT ?`
+  ).bind(...(cashierId ? [cashierId, limit] : [limit])).all();
+
+  return json({ ledger: rows.results || [] });
+}
+
+// ─────────────────────────── Panel del taquillero ─────────────────────────
+
+// Carga de saldo a un jugador descontando del cupo.
+export async function cashierLoad(request, env) {
+  const auth = await requireCashier(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const username = normalizeUsername(body.username);
+  const amount = toPositiveInt(body.amount);
+  const note = str(body.note, 200);
+  if (!username) return json({ error: 'Falta el jugador' }, 400);
+  if (amount === null) return json({ error: 'Monto inválido' }, 400);
+
+  const player = await env.DB.prepare(
+    'SELECT id, username, role, status FROM users WHERE username = ?'
+  ).bind(username).first();
+  if (!player) return json({ error: 'Ese jugador no existe' }, 404);
+  if (player.id === auth.userId) return json({ error: 'No podés cargarte saldo a vos mismo' }, 400);
+  if (player.role !== 'player') return json({ error: `${player.username} no es un jugador` }, 400);
+  if (player.status === 'blocked') return json({ error: 'Esa cuenta está bloqueada' }, 400);
+
+  // El dueño no gasta cupo: carga directo desde la casa.
+  const usaCupo = auth.role === 'cashier';
+
+  if (usaCupo) {
+    // Descuento del cupo con guardia: si no alcanza, no se toca nada.
+    const debit = await env.DB.prepare(
+      `UPDATE users SET credit_balance = credit_balance - ?
+        WHERE id = ? AND role = 'cashier' AND credit_balance >= ?`
+    ).bind(amount, auth.userId, amount).run();
+
+    if (debit.meta.changes === 0) {
+      const cur = await env.DB.prepare('SELECT credit_balance FROM users WHERE id = ?')
+        .bind(auth.userId).first();
+      return json({
+        error: `No te alcanza el cupo. Tenés ${cur ? cur.credit_balance : 0} y querés cargar ${amount}.`,
+        credit_balance: cur ? cur.credit_balance : 0,
+      }, 400);
+    }
+  }
+
+  try {
+    const stmts = [
+      env.DB.prepare(
+        'UPDATE users SET balance = balance + ?, deposited_total = deposited_total + ? WHERE id = ?'
+      ).bind(amount, amount, player.id),
+      env.DB.prepare(
+        `INSERT INTO transactions (user_id, type, amount, note, actor_id, source)
+         VALUES (?, 'deposit', ?, ?, ?, ?)`
+      ).bind(
+        player.id, amount,
+        note || (usaCupo ? `Carga de taquilla (${auth.username})` : `Carga de la casa (${auth.username})`),
+        auth.userId, usaCupo ? 'cashier' : 'admin'
+      ),
+      // El jugador queda asociado al primer taquillero que le cargó.
+      env.DB.prepare('UPDATE users SET cashier_id = ? WHERE id = ? AND cashier_id IS NULL')
+        .bind(auth.userId, player.id),
+    ];
+    if (usaCupo) {
+      stmts.push(env.DB.prepare(
+        `INSERT INTO credit_ledger (cashier_id, type, amount, player_id, note, actor_id)
+         VALUES (?, 'load', ?, ?, ?, ?)`
+      ).bind(auth.userId, -amount, player.id, note || `Carga a ${player.username}`, auth.userId));
+    }
+    await env.DB.batch(stmts);
+  } catch (err) {
+    // Si la carga falló después de descontar, se devuelve el cupo.
+    if (usaCupo) {
+      await env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+        .bind(amount, auth.userId).run();
+    }
+    throw err;
+  }
+
+  const updatedPlayer = await env.DB.prepare(
+    'SELECT id, username, balance FROM users WHERE id = ?'
+  ).bind(player.id).first();
+  const self = await env.DB.prepare('SELECT credit_balance FROM users WHERE id = ?')
+    .bind(auth.userId).first();
+
+  return json({
+    player: updatedPlayer,
+    credit_balance: self ? self.credit_balance : 0,
+  });
+}
+
+// Resumen del taquillero: su cupo, lo que cargó hoy y sus jugadores.
+export async function cashierSummary(request, env) {
+  const auth = await requireCashier(request, env);
+  if (auth.error) return auth.response;
+
+  const self = await getUser(env, auth.userId);
+
+  const hoy = await env.DB.prepare(
+    `SELECT COUNT(*) AS cargas, COALESCE(SUM(-amount), 0) AS total
+       FROM credit_ledger
+      WHERE cashier_id = ? AND type = 'load'
+        AND date(created_at, ?) = ?`
+  ).bind(auth.userId, VE_OFFSET, todayVE()).first();
+
+  const players = await env.DB.prepare(
+    `SELECT u.id, u.username, u.balance, u.held_balance, u.phone, u.status, u.created_at,
+            COALESCE(d.total, 0) AS total_recargado
+       FROM users u
+       LEFT JOIN (SELECT user_id, SUM(amount) AS total FROM transactions
+                   WHERE type = 'deposit' GROUP BY user_id) d ON d.user_id = u.id
+      WHERE u.cashier_id = ?
+      ORDER BY u.created_at DESC
+      LIMIT 200`
+  ).bind(auth.userId).all();
+
+  const movs = await env.DB.prepare(
+    `SELECT l.id, l.type, l.amount, l.paid_amount, l.note, l.created_at,
+            p.username AS player_username
+       FROM credit_ledger l
+       LEFT JOIN users p ON p.id = l.player_id
+      WHERE l.cashier_id = ?
+      ORDER BY l.created_at DESC, l.id DESC
+      LIMIT 50`
+  ).bind(auth.userId).all();
+
+  return json({
+    cashier: self,
+    hoy: { cargas: hoy?.cargas || 0, total: hoy?.total || 0 },
+    players: players.results || [],
+    ledger: movs.results || [],
+  });
+}
