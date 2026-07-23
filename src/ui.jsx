@@ -94,7 +94,12 @@
   }
 
   // Recuadro con un número grande: la unidad mínima de todos los tableros.
+  // Los montos largos se achican en vez de partirse: "-1.003.376" tiene que
+  // leerse de un saque, no cortado en dos renglones.
   function Dato({ titulo, valor, detalle, color, chico }) {
+    const largo = String(valor).length;
+    const base = chico ? 18 : 24;
+    const size = largo > 12 ? base - 8 : largo > 9 ? base - 5 : base;
     return (
       <div style={{
         background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
@@ -102,8 +107,8 @@
       }}>
         <div style={{ fontSize: 10, color: '#999', letterSpacing: 1, textTransform: 'uppercase' }}>{titulo}</div>
         <div style={{
-          fontSize: chico ? 18 : 24, fontWeight: 900, color: color || '#fff',
-          marginTop: 4, wordBreak: 'break-word',
+          fontSize: size, fontWeight: 900, color: color || '#fff',
+          marginTop: 4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>{valor}</div>
         {detalle && <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>{detalle}</div>}
       </div>
