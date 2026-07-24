@@ -6,7 +6,7 @@
 //
 //  Retiro: el jugador lo pide, el saldo queda CONGELADO (held_balance) para
 //  que no pueda jugarlo mientras espera, y el dueño decide si lo paga él o
-//  se lo pasa a un taquillero (a quien se le repone el cupo).
+//  se lo pasa a un socio (a quien se le repone el cupo).
 // ════════════════════════════════════════════════════════════════════════
 
 import {
@@ -347,7 +347,7 @@ export async function adminWithdrawals(request, env, url) {
 }
 
 // Marcar un retiro como pagado. `paid_by` decide de dónde salió la plata:
-// 'owner' = de la cuenta principal, 'cashier' = lo pagó un taquillero y se
+// 'owner' = de la cuenta principal, 'cashier' = lo pagó un socio y se
 // le repone el mismo monto en cupo.
 export async function adminPayWithdrawal(request, env, wdId) {
   const auth = await requireAdmin(request, env);
@@ -364,11 +364,11 @@ export async function adminPayWithdrawal(request, env, wdId) {
   let payer = null;
   if (paidBy === 'cashier') {
     const username = normalizeUsername(body.payer_username);
-    if (!username) return json({ error: 'Elegí qué taquillero lo pagó' }, 400);
+    if (!username) return json({ error: 'Elegí qué socio lo pagó' }, 400);
     payer = await env.DB.prepare(
       "SELECT id, username FROM users WHERE username = ? AND role = 'cashier'"
     ).bind(username).first();
-    if (!payer) return json({ error: 'Taquillero no encontrado' }, 404);
+    if (!payer) return json({ error: 'Socio no encontrado' }, 404);
   }
 
   // Reclamar el retiro primero: evita pagarlo dos veces desde dos pestañas.
@@ -394,7 +394,7 @@ export async function adminPayWithdrawal(request, env, wdId) {
       ),
     ];
     if (payer) {
-      // El taquillero puso la plata: se le devuelve en cupo.
+      // El socio puso la plata: se le devuelve en cupo.
       stmts.push(
         env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
           .bind(wd.amount, payer.id),

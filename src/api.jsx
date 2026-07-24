@@ -102,8 +102,12 @@
     adminGetSettings() { return req('/api/admin/settings'); },
     adminPutSettings(settings) { return PUT('/api/admin/settings', { settings }); },
 
-    // ── Panel: taquilleros ──
+    // ── Panel: socios ──
     adminCashiers() { return req('/api/admin/cashiers'); },
+    adminCreateCashier(datos) { return POST('/api/admin/cashiers', datos); },
+    adminSetRefCode(id, referral_code) {
+      return POST(`/api/admin/users/${id}/ref-code`, { referral_code });
+    },
     adminSellCredit(username, amount, paid_amount, note) {
       return POST('/api/admin/cashiers/credit', { username, amount, paid_amount, note });
     },

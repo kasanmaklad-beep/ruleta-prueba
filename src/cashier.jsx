@@ -1,7 +1,7 @@
-// Panel del taquillero — expone window.CashierPanel
+// Panel del socio — expone window.CashierPanel
 // Props: { user, onExit(), onLogout() }
 //
-// Lo único que hace un taquillero: cargarle saldo a sus jugadores usando el
+// Lo único que hace un socio: cargarle saldo a sus jugadores usando el
 // cupo que ya le compró al dueño. No puede aprobar retiros ni tocar la
 // configuración.
 (function () {
@@ -98,10 +98,15 @@
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
                 <Dato titulo="Cargado hoy" valor={bs(data.hoy.total)} color="#7ee08a" chico />
                 <Dato titulo="Cargas de hoy" valor={bs(data.hoy.cargas)} chico />
-                <Dato titulo="Tus jugadores" valor={bs(data.players.length)} chico />
+                <Dato titulo="Tus afiliados" valor={bs(data.players.length)} chico />
                 <Dato titulo="Tu comisión" valor={`${data.cashier.commission_pct || 0}%`} chico
                       detalle="descuento al comprar cupo" />
               </div>
+
+              {/* Código de referencia: lo que reparte para sumar afiliados. */}
+              {data.cashier.referral_code && (
+                <CodigoDeReferencia codigo={data.cashier.referral_code} setMsg={setMsg} />
+              )}
 
               {/* Cargar saldo */}
               <div style={S.card}>
@@ -189,6 +194,48 @@
               </div>
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  // Código de referencia y enlace para repartir. Quien entre por acá queda
+  // adjudicado a la cuenta de este socio.
+  function CodigoDeReferencia({ codigo, setMsg }) {
+    const enlace = `${window.location.origin}/?ref=${codigo}`;
+
+    const copiar = (texto, que) => {
+      const ok = () => setMsg({ kind: 'ok', text: `${que} copiado. Ya lo podés pegar donde quieras.` });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(ok).catch(() => {});
+      } else {
+        // Respaldo para navegadores viejos.
+        const t = document.createElement('textarea');
+        t.value = texto; document.body.appendChild(t); t.select();
+        try { document.execCommand('copy'); ok(); } catch (e) { /* nada */ }
+        document.body.removeChild(t);
+      }
+    };
+
+    return (
+      <div style={{ ...S.card, background: 'linear-gradient(180deg, #12200f, #080f06)', borderColor: '#2a8a2a' }}>
+        <div style={{ ...S.titulo, color: '#9ff0a0' }}>TU CÓDIGO PARA SUMAR AFILIADOS</div>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{
+            fontSize: 32, fontWeight: 900, letterSpacing: 3, color: '#ffd84a',
+            fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)',
+            padding: '8px 18px', borderRadius: 8, border: '1px dashed #8b6a20',
+          }}>{codigo}</div>
+          <Boton chico tono="gris" onClick={() => copiar(codigo, 'El código')}>COPIAR CÓDIGO</Boton>
+          <Boton chico tono="verde" onClick={() => copiar(enlace, 'El enlace')}>COPIAR ENLACE</Boton>
+        </div>
+        <div style={{
+          marginTop: 12, fontSize: 12, color: '#9a9a9a', fontFamily: 'monospace',
+          wordBreak: 'break-all', background: 'rgba(0,0,0,0.3)', padding: '8px 10px', borderRadius: 6,
+        }}>{enlace}</div>
+        <div style={{ fontSize: 12, color: '#888', marginTop: 10, lineHeight: 1.6 }}>
+          Mandá el enlace por WhatsApp: quien se registre por ahí queda como afiliado tuyo, sin
+          tener que escribir nada. Si prefieren entrar solos, que pongan el código en el registro.
         </div>
       </div>
     );

@@ -9,7 +9,39 @@ import {
   requireAuth, requireAdmin, validMethod, USER_FIELDS, nowSql,
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
   normalizeNombre, normalizeDocumento, normalizeEmail,
+  normalizeRefCode, refCodeDeId,
 } from './lib.js';
+
+// ─────────────────────── Ficha de datos personales ────────────────────────
+// La usan el registro del jugador y el alta de socios desde el panel, para
+// que a nadie le falten datos según por dónde haya entrado.
+// Devuelve { perfil } o { error }.
+function parsePerfil(body) {
+  const firstName = normalizeNombre(body.first_name);
+  const lastName = normalizeNombre(body.last_name);
+  const doc = normalizeDocumento(body.doc_type, body.cedula);
+  const phone = normalizePhone(body.phone);
+  const email = normalizeEmail(body.email);
+  const bank = str(body.bank, 60);
+
+  if (!firstName) return { error: 'Poné el nombre (solo letras)' };
+  if (!lastName) return { error: 'Poné el apellido (solo letras)' };
+  if (!doc) return { error: 'El documento no es válido para el tipo que elegiste' };
+  if (!phone) return { error: 'Poné un teléfono válido: es a donde se paga' };
+  if (!email) return { error: 'Poné un correo válido' };
+  if (!bank) return { error: 'Elegí el banco' };
+
+  return { perfil: { firstName, lastName, doc, phone, email, bank } };
+}
+
+// Chequea que el usuario y el documento no estén tomados.
+async function libreONull(env, username, documento) {
+  const u = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
+  if (u) return 'Ese usuario ya existe';
+  const d = await env.DB.prepare('SELECT id FROM users WHERE cedula = ?').bind(documento).first();
+  if (d) return `Ya hay una cuenta registrada con el documento ${documento}`;
+  return null;
+}
 
 // ─────────────────────────── Registro e ingreso ───────────────────────────
 
@@ -17,35 +49,34 @@ export async function register(request, env) {
   const body = await readJson(request);
   const username = normalizeUsername(body.username);
   const password = String(body.password || '');
-  const phone = normalizePhone(body.phone);
-  const firstName = normalizeNombre(body.first_name);
-  const lastName = normalizeNombre(body.last_name);
-  const doc = normalizeDocumento(body.doc_type, body.cedula);
-  const email = normalizeEmail(body.email);
-  const bank = str(body.bank, 60);
 
   const settings = await getSettings(env);
   if (settingNum(settings, 'registration_open') !== 1) {
-    return json({ error: 'El registro está cerrado. Pedile una cuenta a tu taquillero.' }, 403);
+    return json({ error: 'El registro está cerrado. Pedile una cuenta a tu socio.' }, 403);
   }
 
   const uErr = validateUsername(username);
   if (uErr) return json({ error: uErr }, 400);
   if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
-  if (!firstName) return json({ error: 'Poné tu nombre (solo letras)' }, 400);
-  if (!lastName) return json({ error: 'Poné tu apellido (solo letras)' }, 400);
-  if (!doc) return json({ error: 'El documento no es válido para el tipo que elegiste' }, 400);
-  if (!phone) return json({ error: 'Poné un teléfono válido: es a donde te vamos a pagar' }, 400);
-  if (!email) return json({ error: 'Poné un correo válido' }, 400);
-  if (!bank) return json({ error: 'Elegí tu banco: es a donde te vamos a pagar' }, 400);
 
-  const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
-  if (existing) return json({ error: 'Ese usuario ya existe' }, 409);
+  const { perfil, error } = parsePerfil(body);
+  if (error) return json({ error }, 400);
 
-  // Un documento, una cuenta.
-  const dupDoc = await env.DB.prepare('SELECT id FROM users WHERE cedula = ?')
-    .bind(doc.documento).first();
-  if (dupDoc) return json({ error: `Ya hay una cuenta registrada con el documento ${doc.documento}` }, 409);
+  const tomado = await libreONull(env, username, perfil.doc.documento);
+  if (tomado) return json({ error: tomado }, 409);
+
+  // Código de socio: si viene, el jugador queda adjudicado a esa cuenta.
+  let cashierId = null;
+  let affiliatedAt = null;
+  const ref = normalizeRefCode(body.ref);
+  if (ref) {
+    const socio = await env.DB.prepare(
+      "SELECT id FROM users WHERE referral_code = ? AND role = 'cashier' AND status = 'active'"
+    ).bind(ref).first();
+    if (!socio) return json({ error: `El código de socio "${ref}" no existe` }, 400);
+    cashierId = socio.id;
+    affiliatedAt = nowSql();
+  }
 
   const password_hash = await hashPassword(password);
   // El primer usuario llamado "admin" se vuelve administrador automáticamente.
@@ -55,14 +86,88 @@ export async function register(request, env) {
   const res = await env.DB.prepare(
     `INSERT INTO users (username, password_hash, balance, is_admin, role,
                         phone, first_name, last_name, cedula, doc_type, email, bank,
-                        payout_method, payout_details)
-     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?)`
-  ).bind(username, password_hash, isAdmin, role, phone, firstName, lastName,
-         doc.documento, doc.doc_type, email, bank, `${bank} ${phone}`).run();
+                        payout_method, payout_details, cashier_id, affiliated_at)
+     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?)`
+  ).bind(username, password_hash, isAdmin, role, perfil.phone, perfil.firstName,
+         perfil.lastName, perfil.doc.documento, perfil.doc.doc_type, perfil.email,
+         perfil.bank, `${perfil.bank} ${perfil.phone}`, cashierId, affiliatedAt).run();
 
   const user = await getUser(env, res.meta.last_row_id);
   const token = await signJwt({ sub: user.id, username, is_admin: isAdmin, role }, env);
   return json({ token, user });
+}
+
+// ─────────────────────── Alta de socios (solo la casa) ────────────────────
+// El socio no se registra solo: lo da de alta la casa matriz con su ficha
+// completa, su comisión y su código de referencia.
+export async function adminCreateCashier(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const username = normalizeUsername(body.username);
+  const password = String(body.password || '');
+
+  const uErr = validateUsername(username);
+  if (uErr) return json({ error: uErr }, 400);
+  if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
+
+  const { perfil, error } = parsePerfil(body);
+  if (error) return json({ error }, 400);
+
+  const tomado = await libreONull(env, username, perfil.doc.documento);
+  if (tomado) return json({ error: tomado }, 409);
+
+  const comision = Number(body.commission_pct);
+  if (!Number.isFinite(comision) || comision < 0 || comision > 90) {
+    return json({ error: 'La comisión debe estar entre 0 y 90%' }, 400);
+  }
+
+  // Código propuesto por el dueño, o generado con el id después de insertar.
+  let code = null;
+  if (body.referral_code) {
+    code = normalizeRefCode(body.referral_code);
+    if (!code) return json({ error: 'El código debe tener entre 3 y 12 letras o números' }, 400);
+    const dup = await env.DB.prepare('SELECT id FROM users WHERE referral_code = ?').bind(code).first();
+    if (dup) return json({ error: `El código ${code} ya está usado por otro socio` }, 409);
+  }
+
+  const password_hash = await hashPassword(password);
+  const res = await env.DB.prepare(
+    `INSERT INTO users (username, password_hash, balance, is_admin, role, commission_pct,
+                        phone, first_name, last_name, cedula, doc_type, email, bank,
+                        payout_method, payout_details, created_by)
+     VALUES (?, ?, 0, 0, 'cashier', ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?)`
+  ).bind(username, password_hash, comision, perfil.phone, perfil.firstName,
+         perfil.lastName, perfil.doc.documento, perfil.doc.doc_type, perfil.email,
+         perfil.bank, `${perfil.bank} ${perfil.phone}`, auth.userId).run();
+
+  const id = res.meta.last_row_id;
+  await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?')
+    .bind(code || refCodeDeId(id), id).run();
+
+  return json({ cashier: await getUser(env, id) });
+}
+
+// Cambiar el código de referencia de un socio.
+export async function adminSetRefCode(request, env, userId) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const code = normalizeRefCode(body.referral_code);
+  if (!code) return json({ error: 'El código debe tener entre 3 y 12 letras o números' }, 400);
+
+  const target = await getUser(env, userId);
+  if (!target) return json({ error: 'Socio no encontrado' }, 404);
+  if (target.role !== 'cashier') return json({ error: 'Solo los socios tienen código' }, 400);
+
+  const dup = await env.DB.prepare('SELECT id FROM users WHERE referral_code = ? AND id != ?')
+    .bind(code, userId).first();
+  if (dup) return json({ error: `El código ${code} ya está usado por otro socio` }, 409);
+
+  await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?').bind(code, userId).run();
+  return json({ cashier: await getUser(env, userId) });
 }
 
 export async function login(request, env) {
@@ -227,7 +332,7 @@ export async function adminUsers(request, env, url) {
   return json({ users: rows.results || [] });
 }
 
-// Cambia el rol de un usuario. Al volverlo taquillero se le fija su comisión.
+// Cambia el rol de un usuario. Al volverlo socio se le fija su comisión.
 export async function adminSetRole(request, env, userId) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
@@ -244,9 +349,9 @@ export async function adminSetRole(request, env, userId) {
     const admins = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").first();
     if ((admins?.n || 0) <= 1) return json({ error: 'No podés quitar el último administrador' }, 400);
   }
-  // Un taquillero con cupo cargado no puede dejar de serlo sin liquidarlo.
+  // Un socio con cupo cargado no puede dejar de serlo sin liquidarlo.
   if (target.role === 'cashier' && role !== 'cashier' && target.credit_balance > 0) {
-    return json({ error: `Ese taquillero todavía tiene ${target.credit_balance} de cupo sin usar. Liquidalo antes de cambiarle el rol.` }, 400);
+    return json({ error: `Ese socio todavía tiene ${target.credit_balance} de cupo sin usar. Liquidalo antes de cambiarle el rol.` }, 400);
   }
 
   let commission = target.commission_pct;
@@ -259,6 +364,12 @@ export async function adminSetRole(request, env, userId) {
   await env.DB.prepare(
     'UPDATE users SET role = ?, is_admin = ?, commission_pct = ? WHERE id = ?'
   ).bind(role, role === 'admin' ? 1 : 0, commission, userId).run();
+
+  // Al volverse socio necesita su código de referencia.
+  if (role === 'cashier' && !target.referral_code) {
+    await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?')
+      .bind(refCodeDeId(userId), userId).run();
+  }
 
   return json({ user: await getUser(env, userId) });
 }
@@ -299,7 +410,7 @@ export async function adminResetPassword(request, env, userId) {
 
 // ─────────────────────────── Movimientos manuales ─────────────────────────
 
-// Carga manual de saldo del dueño (sin pasar por cupo de taquillero).
+// Carga manual de saldo del dueño (sin pasar por cupo de socio).
 export async function adminDeposit(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;

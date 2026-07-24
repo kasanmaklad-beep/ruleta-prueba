@@ -6,7 +6,7 @@
 //  Este archivo tiene el ruteo y la lógica del juego. Lo demás vive en:
 //    lib.js       — utilidades compartidas (auth, validación, configuración)
 //    accounts.js  — registro, ingreso, perfil y gestión de usuarios
-//    cashiers.js  — taquilleros y cupo prepago
+//    cashiers.js  — socios y cupo prepago
 //    payments.js  — recargas y retiros
 //    reports.js   — cierre diario, reportes y alertas
 // ════════════════════════════════════════════════════════════════
@@ -20,6 +20,7 @@ import {
   register, login, me, updateProfile, changePassword,
   adminUsers, adminSetRole, adminSetStatus, adminResetPassword,
   adminDeposit, adminAdjust, adminGetSettings, adminPutSettings,
+  adminCreateCashier, adminSetRefCode,
 } from './accounts.js';
 
 import {
@@ -105,9 +106,12 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/password$/)))
     return adminResetPassword(request, env, Number(m[1]));
 
-  // ── Panel: taquilleros ──
+  // ── Panel: socios ──
   if (method === 'GET'  && path === '/api/admin/cashiers')        return adminCashiers(request, env);
+  if (method === 'POST' && path === '/api/admin/cashiers')        return adminCreateCashier(request, env);
   if (method === 'POST' && path === '/api/admin/cashiers/credit') return adminSellCredit(request, env);
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/ref-code$/)))
+    return adminSetRefCode(request, env, Number(m[1]));
   if (method === 'POST' && path === '/api/admin/cashiers/adjust') return adminAdjustCredit(request, env);
   if (method === 'GET'  && path === '/api/admin/credit-ledger')   return adminCreditLedger(request, env, url);
 

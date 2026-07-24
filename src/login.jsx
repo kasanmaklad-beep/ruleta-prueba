@@ -12,10 +12,19 @@
   const ejemploDoc = (window.UI && window.UI.ejemploDoc) || (() => '12345678');
 
   function LoginScreen({ onAuth }) {
-    const [mode, setMode] = useState('login'); // 'login' | 'register'
+    const [mode, setMode] = useState(() =>
+      new URLSearchParams(window.location.search).get('ref') ? 'register' : 'login');
+    // El código de socio puede venir en el enlace que reparte el socio:
+    // .../?ref=S0009 — así el jugador no tiene que escribirlo.
+    const refDeLaUrl = (() => {
+      try { return new URLSearchParams(window.location.search).get('ref') || ''; }
+      catch (e) { return ''; }
+    })();
+
     const [f, setF] = useState({
       username: '', password: '', first_name: '', last_name: '',
       doc_type: 'V', cedula: '', phone: '', email: '', bank: '',
+      ref: refDeLaUrl.toUpperCase(),
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -52,6 +61,7 @@
               phone: f.phone.trim(),
               email: f.email.trim(),
               bank: f.bank,
+              ref: f.ref.trim(),
             });
         window.Api.setToken(res.token);
         onAuth(res.user);
@@ -150,6 +160,13 @@
                 <input style={inputStyle} type="email" inputMode="email"
                        placeholder="Correo electrónico"
                        value={f.email} onChange={set('email')} />
+                <input style={{ ...inputStyle, textTransform: 'uppercase' }} type="text"
+                       placeholder="Código de tu socio (opcional)"
+                       value={f.ref}
+                       onChange={(e) => setF((p) => ({ ...p, ref: e.target.value.toUpperCase() }))} />
+                <div style={ayuda}>
+                  Si alguien te invitó, poné acá su código. Si entraste por su enlace, ya viene puesto.
+                </div>
               </>
             )}
 

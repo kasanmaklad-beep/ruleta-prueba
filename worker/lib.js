@@ -175,6 +175,20 @@ export function normalizeDocumento(tipo, numero) {
   return { doc_type: t, documento: `${t}-${n}` };
 }
 
+// Código de referencia del socio: letras y números, 3 a 12, en mayúscula.
+export function normalizeRefCode(v) {
+  const s = str(v, 20);
+  if (!s) return null;
+  const c = s.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (c.length < 3 || c.length > 12) return null;
+  return c;
+}
+
+// Código por defecto a partir del id: S0009.
+export function refCodeDeId(id) {
+  return `S${String(id).padStart(4, '0')}`;
+}
+
 export function normalizeEmail(v) {
   const s = str(v, 120);
   if (!s) return null;
@@ -212,7 +226,7 @@ export function todayVE() {
 // Campos del usuario que se devuelven al cliente (nunca el hash de la clave).
 export const USER_FIELDS =
   'id, username, balance, held_balance, is_admin, role, status, phone, cedula, doc_type, ' +
-  'first_name, last_name, email, bank, ' +
+  'first_name, last_name, email, bank, referral_code, created_by, affiliated_at, ' +
   'payout_method, payout_details, credit_balance, commission_pct, cashier_id, ' +
   'wagered_total, deposited_total, created_at';
 
@@ -258,7 +272,7 @@ export function requireAdmin(request, env) {
   return requireRole(request, env, ['admin']);
 }
 
-// El dueño puede hacer todo lo que hace un taquillero.
+// El dueño puede hacer todo lo que hace un socio.
 export function requireCashier(request, env) {
   return requireRole(request, env, ['cashier', 'admin']);
 }

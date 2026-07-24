@@ -52,7 +52,7 @@ export async function adminSummary(request, env) {
     env.DB.prepare(
       `SELECT
          (SELECT COUNT(*) FROM users WHERE role = 'player')  AS jugadores,
-         (SELECT COUNT(*) FROM users WHERE role = 'cashier') AS taquilleros,
+         (SELECT COUNT(*) FROM users WHERE role = 'cashier') AS socios,
          (SELECT COALESCE(SUM(balance), 0)      FROM users WHERE role = 'player') AS saldo_jugadores,
          (SELECT COALESCE(SUM(held_balance), 0) FROM users WHERE role = 'player') AS saldo_congelado`
     ).first(),
@@ -116,7 +116,7 @@ export async function reportDaily(request, env, url) {
   return json({ from, to, dias, total });
 }
 
-// ─────────────────────────── Reporte por taquillero ───────────────────────
+// ─────────────────────────── Reporte por socio ───────────────────────
 
 export async function reportCashiers(request, env, url) {
   const auth = await requireAdmin(request, env);
@@ -140,12 +140,12 @@ export async function reportCashiers(request, env, url) {
       ORDER BY cargado DESC, c.username`
   ).bind(VE_OFFSET, from, to).all();
 
-  const taquilleros = (rows.results || []).map((c) => ({
+  const socios = (rows.results || []).map((c) => ({
     ...c,
     comision: c.cupo_comprado - c.pagado,
   }));
 
-  return json({ from, to, taquilleros });
+  return json({ from, to, socios });
 }
 
 // ─────────────────────────── Historial de un jugador ──────────────────────

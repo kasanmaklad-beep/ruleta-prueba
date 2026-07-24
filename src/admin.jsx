@@ -1,7 +1,7 @@
 // Panel de administración — expone window.AdminPanel
 // Props: { user, onExit(), onLogout() }  — onExit vuelve al juego
 //
-// Pestañas: Resumen · Jugadores · Taquilleros · Recargas · Retiros ·
+// Pestañas: Resumen · Jugadores · Socios · Recargas · Retiros ·
 //           Reportes · Configuración
 (function () {
   const { useState, useEffect, useCallback, useRef } = React;
@@ -37,7 +37,7 @@
     const tabs = [
       { id: 'resumen', label: 'RESUMEN' },
       { id: 'jugadores', label: 'JUGADORES' },
-      { id: 'taquilleros', label: 'TAQUILLEROS' },
+      { id: 'socios', label: 'SOCIOS' },
       { id: 'recargas', label: 'RECARGAS', badge: pend.recargas_pendientes },
       { id: 'retiros', label: 'RETIROS', badge: pend.retiros_pendientes },
       { id: 'reportes', label: 'REPORTES' },
@@ -86,7 +86,7 @@
 
           {tab === 'resumen'     && <TabResumen resumen={resumen} {...props} irA={setTab} />}
           {tab === 'jugadores'   && <TabJugadores {...props} />}
-          {tab === 'taquilleros' && <TabTaquilleros {...props} />}
+          {tab === 'socios' && <TabSocios {...props} />}
           {tab === 'recargas'    && <TabRecargas {...props} />}
           {tab === 'retiros'     && <TabRetiros {...props} />}
           {tab === 'reportes'    && <TabReportes {...props} />}
@@ -133,12 +133,12 @@
           <div style={S.titulo}>EL NEGOCIO EN NÚMEROS</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Dato titulo="Jugadores" valor={bs(t.jugadores)} chico />
-            <Dato titulo="Taquilleros" valor={bs(t.taquilleros)} chico />
+            <Dato titulo="Socios" valor={bs(t.socios)} chico />
             <Dato titulo="Saldo en manos de jugadores" valor={bs(t.saldo_jugadores)} chico color="#ffd84a"
                   detalle="lo que te podrían pedir" />
             <Dato titulo="Congelado en retiros" valor={bs(t.saldo_congelado)} chico color="#ff9a9a" />
             <Dato titulo="Cupo en la calle" valor={bs(t.cupo_en_calle)} chico
-                  detalle="cupo sin usar de taquilleros" />
+                  detalle="cupo sin usar de socios" />
           </div>
         </div>
 
@@ -229,13 +229,13 @@
             <select style={{ ...S.input, flex: '0 1 150px' }} value={rol} onChange={(e) => setRol(e.target.value)}>
               <option value="">Todos los roles</option>
               <option value="player">Jugadores</option>
-              <option value="cashier">Taquilleros</option>
+              <option value="cashier">Socios</option>
               <option value="admin">Administradores</option>
             </select>
           </div>
 
           <Tabla
-            columnas={['USUARIO', 'TELÉFONO', 'SALDO', 'DISPONIBLE', 'ROL', 'ESTADO', 'TAQUILLERO', '']}
+            columnas={['USUARIO', 'TELÉFONO', 'SALDO', 'DISPONIBLE', 'ROL', 'ESTADO', 'SOCIO', '']}
             vacio={cargando ? 'Cargando…' : 'Sin resultados'}
           >
             {users.map((u) => (
@@ -258,7 +258,7 @@
                   {u.held_balance > 0 && <span style={{ fontSize: 11 }}> ({bs(u.held_balance)} ret.)</span>}
                 </td>
                 <td style={{ ...S.td, fontSize: 13 }}>
-                  {u.role === 'admin' ? '👑 dueño' : u.role === 'cashier' ? '🎟 taquillero' : 'jugador'}
+                  {u.role === 'admin' ? '👑 dueño' : u.role === 'cashier' ? '🎟 socio' : 'jugador'}
                   {u.role === 'cashier' && (
                     <div style={{ fontSize: 11, color: '#888' }}>
                       cupo {bs(u.credit_balance)} · {u.commission_pct}%
@@ -374,7 +374,7 @@
       try {
         if (tipo === 'rol') {
           await window.Api.adminSetRole(user.id, rol, Number(comision));
-          onHecho(`${user.username} ahora es ${rol === 'admin' ? 'dueño' : rol === 'cashier' ? 'taquillero' : 'jugador'}.`);
+          onHecho(`${user.username} ahora es ${rol === 'admin' ? 'dueño' : rol === 'cashier' ? 'socio' : 'jugador'}.`);
         } else if (tipo === 'estado') {
           const nuevo = user.status === 'blocked' ? 'active' : 'blocked';
           await window.Api.adminSetStatus(user.id, nuevo);
@@ -392,7 +392,7 @@
         <Campo label="ROL">
           <select style={S.input} value={rol} onChange={(e) => setRol(e.target.value)}>
             <option value="player">Jugador</option>
-            <option value="cashier">Taquillero</option>
+            <option value="cashier">Socio</option>
             <option value="admin">Dueño (acceso total)</option>
           </select>
         </Campo>
@@ -474,7 +474,7 @@
                     <div style={{ fontSize: 12, color: '#888' }}>
                       {d.user.bank || 'sin banco'}
                       {d.user.email ? ` · ${d.user.email}` : ''}
-                      {d.user.cashier_username ? ` · taquillero: ${d.user.cashier_username}` : ''}
+                      {d.user.cashier_username ? ` · socio: ${d.user.cashier_username}` : ''}
                       {' · desde '}{fecha(d.user.created_at, false)}
                     </div>
                   </div>
@@ -541,9 +541,121 @@
     );
   }
 
-  // ═════════════════════════════ Taquilleros ══════════════════════════════
+  // ═════════════════════════════ Socios ══════════════════════════════
 
-  function TabTaquilleros({ setMsg, recargarResumen }) {
+  // Alta de un socio nuevo. No se registra solo: lo da de alta la casa.
+  function FormNuevoSocio({ setMsg, onHecho }) {
+    const vacio = {
+      first_name: '', last_name: '', doc_type: 'V', cedula: '', phone: '',
+      email: '', bank: '', username: '', password: '', commission_pct: '10',
+      referral_code: '',
+    };
+    const [f, setF] = useState(vacio);
+    const [abierto, setAbierto] = useState(false);
+    const [enviando, setEnviando] = useState(false);
+    const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+    const crear = async (e) => {
+      e.preventDefault();
+      setEnviando(true);
+      try {
+        const res = await window.Api.adminCreateCashier({
+          ...f,
+          commission_pct: Number(f.commission_pct),
+          referral_code: f.referral_code.trim() || undefined,
+        });
+        setMsg({
+          kind: 'ok',
+          text: `Socio ${res.cashier.username} creado. Su código de referencia es ${res.cashier.referral_code}. Ya le podés vender cupo.`,
+        });
+        setF(vacio); setAbierto(false);
+        onHecho();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+      finally { setEnviando(false); }
+    };
+
+    if (!abierto) {
+      return (
+        <div style={S.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ ...S.titulo, marginBottom: 4 }}>SOCIOS</div>
+              <div style={{ fontSize: 12, color: '#888' }}>
+                Los socios los das de alta vos, con su ficha completa. Cada uno recibe un código
+                de referencia para que sus jugadores queden adjudicados a su cuenta.
+              </div>
+            </div>
+            <Boton tono="verde" onClick={() => setAbierto(true)}>+ NUEVO SOCIO</Boton>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={S.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <div style={{ ...S.titulo, marginBottom: 0 }}>NUEVO SOCIO</div>
+          <Boton chico tono="gris" onClick={() => setAbierto(false)}>CANCELAR</Boton>
+        </div>
+        <form onSubmit={crear} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <Campo label="NOMBRE">
+            <input style={S.input} value={f.first_name} onChange={set('first_name')} required />
+          </Campo>
+          <Campo label="APELLIDO">
+            <input style={S.input} value={f.last_name} onChange={set('last_name')} required />
+          </Campo>
+          <Campo label="DOCUMENTO">
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 6 }}>
+              <select style={S.input} value={f.doc_type} onChange={set('doc_type')}>
+                {U.DOCS.map(([id, label]) => <option key={id} value={id}>{id}</option>)}
+              </select>
+              <input style={S.input} placeholder={U.ejemploDoc(f.doc_type)}
+                     value={f.cedula} onChange={set('cedula')} required />
+            </div>
+          </Campo>
+          <Campo label="TELÉFONO">
+            <input style={S.input} placeholder="04141234567" value={f.phone} onChange={set('phone')} required />
+          </Campo>
+          <Campo label="BANCO">
+            <select style={S.input} value={f.bank} onChange={set('bank')} required>
+              <option value="">Elegí…</option>
+              {U.BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </Campo>
+          <Campo label="CORREO">
+            <input style={S.input} type="email" value={f.email} onChange={set('email')} required />
+          </Campo>
+          <Campo label="USUARIO PARA ENTRAR">
+            <input style={S.input} value={f.username} onChange={set('username')} required />
+          </Campo>
+          <Campo label="CONTRASEÑA">
+            <input style={S.input} value={f.password} onChange={set('password')}
+                   placeholder="mínimo 6 caracteres" required />
+          </Campo>
+          <Campo label="COMISIÓN (%)">
+            <input style={S.input} type="number" min="0" max="90"
+                   value={f.commission_pct} onChange={set('commission_pct')} required />
+          </Campo>
+          <Campo label="CÓDIGO (opcional)">
+            <input style={{ ...S.input, textTransform: 'uppercase' }}
+                   placeholder="se genera solo"
+                   value={f.referral_code}
+                   onChange={(e) => setF((p) => ({ ...p, referral_code: e.target.value.toUpperCase() }))} />
+          </Campo>
+          <div style={{ display: 'flex', alignItems: 'end' }}>
+            <Boton type="submit" tono="verde" disabled={enviando} style={{ width: '100%' }}>
+              {enviando ? 'CREANDO...' : 'CREAR SOCIO'}
+            </Boton>
+          </div>
+        </form>
+        <div style={{ fontSize: 12, color: '#888', marginTop: 12 }}>
+          Pasale el usuario y la contraseña por un medio seguro. Él las puede cambiar después desde su panel.
+        </div>
+      </div>
+    );
+  }
+
+  function TabSocios({ setMsg, recargarResumen }) {
     const [cashiers, setCashiers] = useState([]);
     const [ledger, setLedger] = useState([]);
     const [username, setUsername] = useState('');
@@ -596,18 +708,21 @@
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <FormNuevoSocio setMsg={setMsg} onHecho={() => { cargar(); recargarResumen(); }} />
+
         <div style={S.card}>
           <div style={S.titulo}>VENDER CUPO</div>
           <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
-            El taquillero te paga primero y ahí le cargás el cupo. Nunca puede cargar más de lo que ya te pagó.
-            Para convertir a alguien en taquillero, andá a Jugadores → ROL.
+            El socio te paga primero y ahí le cargás el cupo. Nunca puede cargar más de lo que ya te pagó.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, alignItems: 'end' }}>
-            <Campo label="TAQUILLERO">
+            <Campo label="SOCIO">
               <select style={S.input} value={username} onChange={(e) => setUsername(e.target.value)}>
                 <option value="">Elegí…</option>
                 {cashiers.map((c) => (
-                  <option key={c.id} value={c.username}>{c.username} ({c.commission_pct}%)</option>
+                  <option key={c.id} value={c.username}>
+                    {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.username} — {c.username} ({c.commission_pct}%)
+                  </option>
                 ))}
               </select>
             </Campo>
@@ -644,14 +759,20 @@
         />
 
         <div style={S.card}>
-          <div style={S.titulo}>TAQUILLEROS ({cashiers.length})</div>
+          <div style={S.titulo}>SOCIOS ({cashiers.length})</div>
           <Tabla
-            columnas={['TAQUILLERO', 'CUPO SIN USAR', 'COMISIÓN', 'CUPO COMPRADO', 'TE PAGÓ', 'CARGÓ', 'SU COMISIÓN', 'JUGADORES', 'ESTADO']}
-            vacio="Todavía no tenés taquilleros. Convertí a alguien desde Jugadores → ROL."
+            columnas={['SOCIO', 'CÓDIGO', 'CUPO SIN USAR', 'COMISIÓN', 'CUPO COMPRADO', 'TE PAGÓ', 'CARGÓ', 'SU COMISIÓN', 'AFILIADOS', 'ESTADO']}
+            vacio="Todavía no tenés socios. Tocá “+ NUEVO SOCIO” arriba para dar de alta al primero."
           >
             {cashiers.map((c) => (
               <tr key={c.id}>
-                <td style={{ ...S.td, fontWeight: 700 }}>{c.username}</td>
+                <td style={{ ...S.td, fontWeight: 700 }}>
+                  {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.username}
+                  <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>{c.username}</div>
+                </td>
+                <td style={{ ...S.td, fontFamily: 'monospace', color: U.GOLD, fontWeight: 700 }}>
+                  {c.referral_code || '—'}
+                </td>
                 <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(c.credit_balance)}</td>
                 <td style={S.td}>{c.commission_pct}%</td>
                 <td style={S.td}>{bs(c.cupo_comprado)}</td>
@@ -667,7 +788,7 @@
 
         <div style={S.card}>
           <div style={S.titulo}>MOVIMIENTOS DE CUPO</div>
-          <Tabla columnas={['FECHA', 'TAQUILLERO', 'MOVIMIENTO', 'CUPO', 'PAGÓ', 'JUGADOR', 'NOTA']} vacio="Sin movimientos">
+          <Tabla columnas={['FECHA', 'SOCIO', 'MOVIMIENTO', 'CUPO', 'PAGÓ', 'JUGADOR', 'NOTA']} vacio="Sin movimientos">
             {ledger.map((l) => {
               const [txt, color] = LTIPO[l.type] || [l.type, '#aaa'];
               return (
@@ -838,7 +959,7 @@
     const [cargando, setCargando] = useState(true);
     const [accion, setAccion] = useState(null); // { tipo:'pagar'|'rechazar', item }
     const [quienPaga, setQuienPaga] = useState('owner');
-    const [taquillero, setTaquillero] = useState('');
+    const [socio, setSocio] = useState('');
     const [nota, setNota] = useState('');
     const [enviando, setEnviando] = useState(false);
 
@@ -860,7 +981,7 @@
     const abrir = (tipo, item) => {
       setAccion({ tipo, item });
       setQuienPaga('owner');
-      setTaquillero(item.cashier_username || '');
+      setSocio(item.cashier_username || '');
       setNota('');
     };
 
@@ -869,14 +990,14 @@
       setEnviando(true);
       try {
         if (tipo === 'pagar') {
-          if (quienPaga === 'cashier' && !taquillero) {
-            setMsg({ kind: 'err', text: 'Elegí qué taquillero lo pagó' }); setEnviando(false); return;
+          if (quienPaga === 'cashier' && !socio) {
+            setMsg({ kind: 'err', text: 'Elegí qué socio lo pagó' }); setEnviando(false); return;
           }
-          await window.Api.adminPayWithdrawal(item.id, quienPaga, taquillero || undefined, nota.trim() || undefined);
+          await window.Api.adminPayWithdrawal(item.id, quienPaga, socio || undefined, nota.trim() || undefined);
           setMsg({
             kind: 'ok',
             text: quienPaga === 'cashier'
-              ? `Retiro pagado. Le repusimos ${bs(item.amount)} Bs de cupo a ${taquillero}.`
+              ? `Retiro pagado. Le repusimos ${bs(item.amount)} Bs de cupo a ${socio}.`
               : `Retiro de ${bs(item.amount)} Bs marcado como pagado.`,
           });
         } else {
@@ -988,12 +1109,12 @@
                   <Campo label="¿QUIÉN PONE LA PLATA?">
                     <select style={S.input} value={quienPaga} onChange={(e) => setQuienPaga(e.target.value)}>
                       <option value="owner">Vos, desde la cuenta principal</option>
-                      <option value="cashier">Un taquillero (se le repone en cupo)</option>
+                      <option value="cashier">Un socio (se le repone en cupo)</option>
                     </select>
                   </Campo>
                   {quienPaga === 'cashier' && (
-                    <Campo label="TAQUILLERO QUE PAGA">
-                      <select style={S.input} value={taquillero} onChange={(e) => setTaquillero(e.target.value)}>
+                    <Campo label="SOCIO QUE PAGA">
+                      <select style={S.input} value={socio} onChange={(e) => setSocio(e.target.value)}>
                         <option value="">Elegí…</option>
                         {cashiers.map((c) => (
                           <option key={c.id} value={c.username}>
@@ -1108,10 +1229,10 @@
         </div>
 
         <div style={S.card}>
-          <div style={S.titulo}>POR TAQUILLERO (EN EL PERÍODO)</div>
-          <Tabla columnas={['TAQUILLERO', 'CUPO COMPRADO', 'TE PAGÓ', 'SU COMISIÓN', 'CARGÓ', 'CARGAS', 'RETIROS QUE PAGÓ', 'CUPO ACTUAL', 'JUGADORES']}
-                 vacio="Sin movimientos de taquilleros">
-            {(cash ? cash.taquilleros : []).map((c) => (
+          <div style={S.titulo}>POR SOCIO (EN EL PERÍODO)</div>
+          <Tabla columnas={['SOCIO', 'CUPO COMPRADO', 'TE PAGÓ', 'SU COMISIÓN', 'CARGÓ', 'CARGAS', 'RETIROS QUE PAGÓ', 'CUPO ACTUAL', 'JUGADORES']}
+                 vacio="Sin movimientos de socios">
+            {(cash ? cash.socios : []).map((c) => (
               <tr key={c.id}>
                 <td style={{ ...S.td, fontWeight: 700 }}>{c.username}</td>
                 <td style={S.td}>{bs(c.cupo_comprado)}</td>
@@ -1217,7 +1338,7 @@
     { key: 'wager_pct_required', label: 'Hay que jugar el (%) de lo recargado', tipo: 'number',
       ayuda: 'Para poder retirar. Con 50%, quien recargó 1.000 tiene que haber apostado 500. Poné 0 para desactivarlo.' },
     { key: 'registration_open', label: '¿Registro abierto? (1 = sí, 0 = no)', tipo: 'number',
-      ayuda: 'Con 0, nadie puede crearse cuenta solo: las cuentas las crea el taquillero o vos.' },
+      ayuda: 'Con 0, nadie puede crearse cuenta solo: las cuentas las crea el socio o vos.' },
     { key: 'bank_pago_movil', label: 'Datos de tu Pago Móvil', tipo: 'text',
       ayuda: 'Lo ve el jugador cuando elige pagar por Pago Móvil. Ej: Banco, cédula y teléfono.' },
     { key: 'bank_transferencia', label: 'Datos de tu cuenta bancaria', tipo: 'text' },
