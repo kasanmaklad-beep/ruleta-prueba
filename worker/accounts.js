@@ -8,7 +8,7 @@ import {
   toPositiveInt, hashPassword, verifyPassword, signJwt, getSettings, settingNum,
   requireAuth, requireAdmin, validMethod, USER_FIELDS, nowSql,
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
-  normalizeNombre, normalizeCedula, normalizeEmail,
+  normalizeNombre, normalizeDocumento, normalizeEmail,
 } from './lib.js';
 
 // ─────────────────────────── Registro e ingreso ───────────────────────────
@@ -20,7 +20,7 @@ export async function register(request, env) {
   const phone = normalizePhone(body.phone);
   const firstName = normalizeNombre(body.first_name);
   const lastName = normalizeNombre(body.last_name);
-  const cedula = normalizeCedula(body.cedula);
+  const doc = normalizeDocumento(body.doc_type, body.cedula);
   const email = normalizeEmail(body.email);
   const bank = str(body.bank, 60);
 
@@ -34,7 +34,7 @@ export async function register(request, env) {
   if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
   if (!firstName) return json({ error: 'Poné tu nombre (solo letras)' }, 400);
   if (!lastName) return json({ error: 'Poné tu apellido (solo letras)' }, 400);
-  if (!cedula) return json({ error: 'Poné una cédula válida (por ejemplo V12345678)' }, 400);
+  if (!doc) return json({ error: 'El documento no es válido para el tipo que elegiste' }, 400);
   if (!phone) return json({ error: 'Poné un teléfono válido: es a donde te vamos a pagar' }, 400);
   if (!email) return json({ error: 'Poné un correo válido' }, 400);
   if (!bank) return json({ error: 'Elegí tu banco: es a donde te vamos a pagar' }, 400);
@@ -42,9 +42,10 @@ export async function register(request, env) {
   const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
   if (existing) return json({ error: 'Ese usuario ya existe' }, 409);
 
-  // Una cédula, una cuenta.
-  const dupCedula = await env.DB.prepare('SELECT id FROM users WHERE cedula = ?').bind(cedula).first();
-  if (dupCedula) return json({ error: 'Ya hay una cuenta registrada con esa cédula' }, 409);
+  // Un documento, una cuenta.
+  const dupDoc = await env.DB.prepare('SELECT id FROM users WHERE cedula = ?')
+    .bind(doc.documento).first();
+  if (dupDoc) return json({ error: `Ya hay una cuenta registrada con el documento ${doc.documento}` }, 409);
 
   const password_hash = await hashPassword(password);
   // El primer usuario llamado "admin" se vuelve administrador automáticamente.
@@ -53,11 +54,11 @@ export async function register(request, env) {
 
   const res = await env.DB.prepare(
     `INSERT INTO users (username, password_hash, balance, is_admin, role,
-                        phone, first_name, last_name, cedula, email, bank,
+                        phone, first_name, last_name, cedula, doc_type, email, bank,
                         payout_method, payout_details)
-     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?)`
+     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?)`
   ).bind(username, password_hash, isAdmin, role, phone, firstName, lastName,
-         cedula, email, bank, `${bank} ${phone}`).run();
+         doc.documento, doc.doc_type, email, bank, `${bank} ${phone}`).run();
 
   const user = await getUser(env, res.meta.last_row_id);
   const token = await signJwt({ sub: user.id, username, is_admin: isAdmin, role }, env);
@@ -125,12 +126,13 @@ export async function updateProfile(request, env) {
     fields.push('phone = ?'); values.push(phone);
   }
   if (body.cedula !== undefined) {
-    const cedula = normalizeCedula(body.cedula);
-    if (!cedula) return json({ error: 'Cédula inválida (por ejemplo V12345678)' }, 400);
+    const doc = normalizeDocumento(body.doc_type, body.cedula);
+    if (!doc) return json({ error: 'El documento no es válido para el tipo que elegiste' }, 400);
     const dup = await env.DB.prepare('SELECT id FROM users WHERE cedula = ? AND id != ?')
-      .bind(cedula, auth.userId).first();
-    if (dup) return json({ error: 'Ya hay una cuenta registrada con esa cédula' }, 409);
-    fields.push('cedula = ?'); values.push(cedula);
+      .bind(doc.documento, auth.userId).first();
+    if (dup) return json({ error: 'Ya hay una cuenta registrada con ese documento' }, 409);
+    fields.push('cedula = ?'); values.push(doc.documento);
+    fields.push('doc_type = ?'); values.push(doc.doc_type);
   }
   if (body.first_name !== undefined) {
     const n = normalizeNombre(body.first_name);

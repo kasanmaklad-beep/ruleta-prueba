@@ -12,7 +12,7 @@
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAuth, requireAdmin, getSettings, settingNum, validMethod,
-  FX_METHODS, nowSql, checkMultiplo, redondearArriba, normalizeCedula,
+  FX_METHODS, nowSql, checkMultiplo, redondearArriba, normalizeDocumento,
 } from './lib.js';
 import { getUser } from './accounts.js';
 
@@ -126,12 +126,10 @@ export async function createWithdrawal(request, env) {
   const amount = toPositiveInt(body.amount);
   const method = validMethod(body.method);
   const destination = str(body.destination, 200);
-  const cedula = normalizeCedula(body.cedula);
 
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
   if (!method) return json({ error: 'Elegí cómo querés cobrar' }, 400);
   if (!destination) return json({ error: 'Poné a dónde te mandamos la plata (teléfono, cuenta o correo)' }, 400);
-  if (!cedula) return json({ error: 'Poné una cédula válida (por ejemplo V12345678)' }, 400);
 
   const s = await getSettings(env);
   const min = settingNum(s, 'min_withdrawal');
@@ -146,17 +144,19 @@ export async function createWithdrawal(request, env) {
     return json({ error: `Solo tenés ${disponible} Bs disponibles` }, 400);
   }
 
-  // La plata sale a nombre del titular de la cuenta: no se cobra con la cédula
-  // de otro. Si la de la cuenta está mal, la corrige el dueño desde el panel.
-  if (user.cedula && user.cedula !== cedula) {
-    return json({
-      error: `Esa cédula no es la de tu cuenta (${user.cedula}). Si está mal cargada, pedile al administrador que la corrija.`,
-    }, 400);
-  }
-  if (!user.cedula) {
+  // La plata sale a nombre del titular: el documento es el que tiene cargado
+  // la cuenta, no uno que se escriba en el momento. Las cuentas viejas que no
+  // lo tengan lo cargan acá una única vez.
+  let cedula = user.cedula;
+  if (!cedula) {
+    const doc = normalizeDocumento(body.doc_type, body.cedula);
+    if (!doc) return json({ error: 'Poné tu documento (por ejemplo V-12345678)' }, 400);
     const dup = await env.DB.prepare('SELECT id FROM users WHERE cedula = ? AND id != ?')
-      .bind(cedula, auth.userId).first();
-    if (dup) return json({ error: 'Ya hay otra cuenta registrada con esa cédula' }, 409);
+      .bind(doc.documento, auth.userId).first();
+    if (dup) return json({ error: 'Ya hay otra cuenta registrada con ese documento' }, 409);
+    cedula = doc.documento;
+    await env.DB.prepare('UPDATE users SET cedula = ?, doc_type = ? WHERE id = ?')
+      .bind(doc.documento, doc.doc_type, auth.userId).run();
   }
 
   // Regla anti casa-de-cambio: hay que haber jugado parte de lo recargado.
@@ -189,8 +189,8 @@ export async function createWithdrawal(request, env) {
 
     // Se guardan los datos de cobro para que no los cargue de nuevo la próxima vez.
     await env.DB.prepare(
-      'UPDATE users SET cedula = ?, payout_method = ?, payout_details = ? WHERE id = ?'
-    ).bind(cedula, method, destination, auth.userId).run();
+      'UPDATE users SET payout_method = ?, payout_details = ? WHERE id = ?'
+    ).bind(method, destination, auth.userId).run();
 
     const wd = await env.DB.prepare('SELECT * FROM withdrawals WHERE id = ?')
       .bind(res.meta.last_row_id).first();

@@ -8,12 +8,14 @@
   const { useState } = React;
 
   const BANCOS = (window.UI && window.UI.BANCOS) || ['Otro'];
+  const DOCS = (window.UI && window.UI.DOCS) || [['V', 'V — Cédula', '12345678']];
+  const ejemploDoc = (window.UI && window.UI.ejemploDoc) || (() => '12345678');
 
   function LoginScreen({ onAuth }) {
     const [mode, setMode] = useState('login'); // 'login' | 'register'
     const [f, setF] = useState({
       username: '', password: '', first_name: '', last_name: '',
-      cedula: '', phone: '', email: '', bank: '',
+      doc_type: 'V', cedula: '', phone: '', email: '', bank: '',
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -30,7 +32,7 @@
       if (mode === 'register') {
         if (f.first_name.trim().length < 2) { setError('Poné tu nombre'); return; }
         if (f.last_name.trim().length < 2) { setError('Poné tu apellido'); return; }
-        if (f.cedula.replace(/\D/g, '').length < 6) { setError('Poné tu cédula (por ejemplo V12345678)'); return; }
+        if (f.cedula.trim().length < 4) { setError('Poné el número de tu documento'); return; }
         if (f.phone.replace(/\D/g, '').length < 7) { setError('Poné tu teléfono: es a donde te vamos a pagar'); return; }
         if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(f.email.trim())) { setError('Poné un correo válido'); return; }
         if (!f.bank) { setError('Elegí tu banco'); return; }
@@ -45,6 +47,7 @@
               password: f.password,
               first_name: f.first_name.trim(),
               last_name: f.last_name.trim(),
+              doc_type: f.doc_type,
               cedula: f.cedula.trim(),
               phone: f.phone.trim(),
               email: f.email.trim(),
@@ -102,9 +105,15 @@
 
             {registro && (
               <>
-                <input style={inputStyle} type="text" placeholder="Cédula (ej: V12345678)"
-                       value={f.cedula} onChange={set('cedula')} />
-                <div style={ayuda}>Una cédula, una cuenta.</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 10 }}>
+                  <select style={inputStyle} value={f.doc_type} onChange={set('doc_type')}>
+                    {DOCS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                  <input style={inputStyle} type="text" inputMode={f.doc_type === 'P' || f.doc_type === 'OTRO' ? 'text' : 'numeric'}
+                         placeholder={`Número (ej: ${ejemploDoc(f.doc_type)})`}
+                         value={f.cedula} onChange={set('cedula')} />
+                </div>
+                <div style={ayuda}>Un documento, una cuenta. Solo el número: el tipo va aparte.</div>
               </>
             )}
 

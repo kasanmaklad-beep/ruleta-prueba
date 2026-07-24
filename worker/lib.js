@@ -141,14 +141,38 @@ export function normalizeNombre(v) {
     (m, sep, letra) => sep + letra.toUpperCase());
 }
 
-// Cédula venezolana: V/E/J + 6 a 9 dígitos. Se guarda normalizada (V12345678).
-export function normalizeCedula(v) {
-  const s = str(v, 20);
-  if (!s) return null;
-  const limpio = s.toUpperCase().replace(/[^VEJPG0-9]/g, '');
-  const m = limpio.match(/^([VEJPG]?)(\d{6,9})$/);
-  if (!m) return null;
-  return `${m[1] || 'V'}${m[2]}`;
+// Tipos de documento aceptados.
+export const DOC_TYPES = {
+  V:    { label: 'V — Cédula venezolana',    re: /^\d{6,9}$/,        ej: '12345678' },
+  E:    { label: 'E — Cédula de extranjero', re: /^\d{6,9}$/,        ej: '84123456' },
+  J:    { label: 'J — RIF jurídico',         re: /^\d{8,10}$/,       ej: '401234567' },
+  G:    { label: 'G — RIF gubernamental',    re: /^\d{8,10}$/,       ej: '200012345' },
+  P:    { label: 'P — Pasaporte',            re: /^[A-Z0-9]{5,15}$/, ej: 'AB123456' },
+  OTRO: { label: 'Otro documento',           re: /^[A-Z0-9]{4,20}$/, ej: 'ABC1234' },
+};
+
+// Normaliza un documento a "V-12345678". Acepta el tipo aparte o pegado al
+// número ("V12345678"), con puntos, guiones o espacios de por medio.
+// Devuelve { doc_type, documento } o null si no es válido.
+export function normalizeDocumento(tipo, numero) {
+  let n = str(numero, 30);
+  if (!n) return null;
+  n = n.toUpperCase().replace(/[\s.\-_/]/g, '');
+
+  let t = String(tipo || '').toUpperCase().trim();
+
+  if (!t) {
+    // Sin tipo explícito: si el número arranca con una letra conocida, esa manda.
+    const m = n.match(/^([VEJGP])(\d.*)$/);
+    if (m) { t = m[1]; n = m[2]; } else { t = 'V'; }
+  } else if (['V', 'E', 'J', 'G'].includes(t) && n[0] === t && /^\d+$/.test(n.slice(1))) {
+    // Vino el tipo aparte y además pegado al número: se saca la letra repetida.
+    n = n.slice(1);
+  }
+
+  const def = DOC_TYPES[t];
+  if (!def || !def.re.test(n)) return null;
+  return { doc_type: t, documento: `${t}-${n}` };
 }
 
 export function normalizeEmail(v) {
@@ -187,7 +211,7 @@ export function todayVE() {
 
 // Campos del usuario que se devuelven al cliente (nunca el hash de la clave).
 export const USER_FIELDS =
-  'id, username, balance, held_balance, is_admin, role, status, phone, cedula, ' +
+  'id, username, balance, held_balance, is_admin, role, status, phone, cedula, doc_type, ' +
   'first_name, last_name, email, bank, ' +
   'payout_method, payout_details, credit_balance, commission_pct, cashier_id, ' +
   'wagered_total, deposited_total, created_at';

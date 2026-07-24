@@ -236,6 +236,20 @@
     return [v, (k, val) => setV((p) => ({ ...p, [k]: val })), () => setV(inicial)];
   }
 
+  // Tipos de documento. Debe coincidir con DOC_TYPES en worker/lib.js.
+  const DOCS = [
+    ['V', 'V — Cédula', '12345678'],
+    ['E', 'E — Extranjero', '84123456'],
+    ['J', 'J — RIF', '401234567'],
+    ['G', 'G — Gubernamental', '200012345'],
+    ['P', 'P — Pasaporte', 'AB123456'],
+    ['OTRO', 'Otro documento', 'ABC1234'],
+  ];
+  function ejemploDoc(tipo) {
+    const d = DOCS.find((x) => x[0] === tipo);
+    return d ? d[2] : '12345678';
+  }
+
   // Bancos venezolanos con Pago Móvil, por código. El código es lo que el
   // jugador dicta cuando le vas a transferir.
   const BANCOS = [
@@ -278,7 +292,7 @@
   }
 
   window.UI = {
-    GOLD, BORDER, bs, fecha, styles, METODOS, BANCOS, nombreMetodo,
+    GOLD, BORDER, bs, fecha, styles, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
     Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm,
   };
 })();

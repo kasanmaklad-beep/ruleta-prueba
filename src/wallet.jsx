@@ -7,7 +7,7 @@
   const { useState, useEffect, useCallback } = React;
   const U = window.UI;
   const { bs, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Pestanas,
-          Tabla, Estado, Campo, METODOS, nombreMetodo } = U;
+          Tabla, Estado, Campo, METODOS, DOCS, ejemploDoc, nombreMetodo } = U;
 
   function WalletPanel({ user, onExit, onLogout, onBalance }) {
     const [tab, setTab] = useState('recargar');
@@ -228,7 +228,9 @@
     const [destino, setDestino] = useState(
       u.payout_details || [u.bank, u.phone].filter(Boolean).join(' ') || ''
     );
-    const [cedula, setCedula] = useState(u.cedula || '');
+    const [cedula, setCedula] = useState('');
+    const [docTipo, setDocTipo] = useState('V');
+    const yaTieneDoc = !!u.cedula;   // lo cargó al registrarse: no se pide de nuevo
     const [enviando, setEnviando] = useState(false);
 
     const m = Number(monto) || 0;
@@ -240,7 +242,8 @@
       setEnviando(true);
       try {
         await window.Api.createWithdrawal({
-          amount: m, method: metodo, destination: destino.trim(), cedula: cedula.trim(),
+          amount: m, method: metodo, destination: destino.trim(),
+          doc_type: docTipo, cedula: cedula.trim(),
         });
         setMsg({
           kind: 'ok',
@@ -253,7 +256,8 @@
     };
 
     const listo = m >= info.limites.min_withdrawal && m <= info.disponible
-      && destino.trim() && cedula.trim() && faltaJugar === 0 && multiploOk;
+      && destino.trim() && (yaTieneDoc || cedula.trim().length >= 4)
+      && faltaJugar === 0 && multiploOk;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -298,10 +302,31 @@
                      value={destino} onChange={(e) => setDestino(e.target.value)} />
             </Campo>
 
-            <Campo label="TU CÉDULA">
-              <input style={S.input} placeholder="V12345678" value={cedula}
-                     onChange={(e) => setCedula(e.target.value)} />
-            </Campo>
+            {yaTieneDoc ? (
+              <div style={{
+                background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
+                borderRadius: 6, padding: '10px 12px', fontSize: 13, color: '#aaa',
+              }}>
+                Te pagamos a nombre de{' '}
+                <b style={{ color: '#ddd' }}>
+                  {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.username}
+                </b>
+                , documento <b style={{ color: '#ddd' }}>{u.cedula}</b>.
+                <div style={{ fontSize: 11, color: '#777', marginTop: 3 }}>
+                  Si algo de esto está mal, avisale al administrador antes de pedir el retiro.
+                </div>
+              </div>
+            ) : (
+              <Campo label="TU DOCUMENTO">
+                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 8 }}>
+                  <select style={S.input} value={docTipo} onChange={(e) => setDocTipo(e.target.value)}>
+                    {DOCS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                  <input style={S.input} placeholder={`Número (ej: ${ejemploDoc(docTipo)})`}
+                         value={cedula} onChange={(e) => setCedula(e.target.value)} />
+                </div>
+              </Campo>
+            )}
 
             {m > info.disponible && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
