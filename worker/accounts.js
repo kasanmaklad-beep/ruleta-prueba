@@ -7,7 +7,7 @@ import {
   json, readJson, str, normalizePhone, normalizeUsername, validateUsername,
   toPositiveInt, hashPassword, verifyPassword, signJwt, getSettings, settingNum,
   requireAuth, requireAdmin, validMethod, USER_FIELDS, nowSql,
-  NUMERIC_SETTINGS, DEFAULT_SETTINGS,
+  NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
 } from './lib.js';
 
 // ─────────────────────────── Registro e ingreso ───────────────────────────
@@ -261,6 +261,12 @@ export async function adminDeposit(request, env) {
   const amount = toPositiveInt(body.amount);
   if (!username) return json({ error: 'Falta el usuario' }, 400);
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
+
+  // La carga manual también va en cifras redondas. Para corregir un error con
+  // un monto exacto está el ajuste, que no tiene esta restricción.
+  const s = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
 
   const target = await env.DB.prepare('SELECT id, username FROM users WHERE username = ?')
     .bind(username).first();

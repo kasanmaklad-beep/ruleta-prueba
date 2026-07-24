@@ -29,6 +29,9 @@ export const DEFAULT_SETTINGS = {
   min_withdrawal: '500',
   wager_pct_required: '50',
   registration_open: '1',
+  // Todo monto que se convierte en saldo va redondeado a este múltiplo, para
+  // que no circulen cifras raras. Poner 1 lo desactiva.
+  monto_multiplo: '100',
   bank_pago_movil: '',
   bank_transferencia: '',
   bank_zelle: '',
@@ -44,6 +47,7 @@ export const NUMERIC_SETTINGS = {
   min_withdrawal:     { min: 0,    max: 1e12, integer: true },
   wager_pct_required: { min: 0,    max: 1000, integer: false },
   registration_open:  { min: 0,    max: 1,    integer: true },
+  monto_multiplo:     { min: 1,    max: 100000, integer: true },
 };
 
 export async function getSettings(env) {
@@ -100,6 +104,28 @@ export function normalizePhone(v) {
   const cleaned = s.replace(/[^\d+]/g, '');
   if (cleaned.replace(/\D/g, '').length < 7) return null;
   return cleaned;
+}
+
+// ── Múltiplos ─────────────────────────────────────────────────────────────
+// Los montos que se vuelven saldo se manejan en cifras redondas (por defecto
+// múltiplos de 100) para que nadie ande con números raros. La casa absorbe la
+// diferencia de comisiones bancarias, así que redondear siempre juega a favor
+// del jugador.
+
+// Devuelve un mensaje de error si el monto no es múltiplo, o null si está bien.
+export function checkMultiplo(amount, multiplo) {
+  if (!multiplo || multiplo <= 1) return null;
+  if (amount % multiplo === 0) return null;
+  const abajo = Math.floor(amount / multiplo) * multiplo;
+  const arriba = abajo + multiplo;
+  return `Los montos van en múltiplos de ${multiplo}. Probá con ${abajo > 0 ? abajo.toLocaleString('es-VE') + ' o ' : ''}${arriba.toLocaleString('es-VE')}.`;
+}
+
+// Redondea hacia arriba al múltiplo (se usa al convertir divisas: lo que sobra
+// lo pone la casa).
+export function redondearArriba(amount, multiplo) {
+  if (!multiplo || multiplo <= 1) return amount;
+  return Math.ceil(amount / multiplo) * multiplo;
 }
 
 export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'zelle', 'binance'];

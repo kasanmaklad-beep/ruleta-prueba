@@ -1427,16 +1427,25 @@ function AppRoot() {
     return <LoginScreen onAuth={(u) => { setUser(u); setStatus(pantallaPara(u)); }} />;
   }
 
-  if (status === 'admin')     return <AdminPanel user={user} onExit={volverAlJuego} />;
-  if (status === 'taquilla')  return <CashierPanel user={user} onExit={volverAlJuego} />;
-  if (status === 'billetera') return <WalletPanel user={user} onExit={volverAlJuego} />;
+  // Cerrar sesión tiene que estar a mano desde cualquier pantalla: el dueño no
+  // debería pasar por la mesa de juego solo para salir.
+  const salir = () => {
+    window.Api.logout();
+    setUser(null);
+    window.history.pushState({}, '', '/');
+    setStatus('login');
+  };
+
+  if (status === 'admin')     return <AdminPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
+  if (status === 'taquilla')  return <CashierPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
+  if (status === 'billetera') return <WalletPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
 
   const esAdmin = user && user.role === 'admin';
   const esTaquillero = user && (user.role === 'cashier' || user.role === 'admin');
 
   return <RouletteApp
     user={user}
-    onLogout={() => { window.Api.logout(); setUser(null); window.history.pushState({}, '', '/'); setStatus('login'); }}
+    onLogout={salir}
     onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}
     onOpenCashier={esTaquillero ? () => ir('/taquilla', 'taquilla') : null}
     onOpenWallet={() => ir('/billetera', 'billetera')}

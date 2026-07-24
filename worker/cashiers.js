@@ -10,6 +10,7 @@
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAdmin, requireCashier, VE_OFFSET, todayVE,
+  getSettings, settingNum, checkMultiplo,
 } from './lib.js';
 import { getUser } from './accounts.js';
 
@@ -55,6 +56,12 @@ export async function adminSellCredit(request, env) {
   const amount = toPositiveInt(body.amount);
   if (!username) return json({ error: 'Falta el taquillero' }, 400);
   if (amount === null) return json({ error: 'Monto de cupo inválido' }, 400);
+
+  // El cupo entregado va en cifras redondas; lo que el taquillero pagó no,
+  // porque ahí manda la comisión (10% de 5.000 son 4.500, pero 7% son 4.650).
+  const s = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
 
   const cashier = await env.DB.prepare(
     'SELECT id, username, role, commission_pct FROM users WHERE username = ?'
@@ -158,6 +165,10 @@ export async function cashierLoad(request, env) {
   const note = str(body.note, 200);
   if (!username) return json({ error: 'Falta el jugador' }, 400);
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
+
+  const settings = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(settings, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
 
   const player = await env.DB.prepare(
     'SELECT id, username, role, status FROM users WHERE username = ?'

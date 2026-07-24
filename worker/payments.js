@@ -12,7 +12,7 @@
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAuth, requireAdmin, getSettings, settingNum, validMethod,
-  FX_METHODS, nowSql,
+  FX_METHODS, nowSql, checkMultiplo, redondearArriba,
 } from './lib.js';
 import { getUser } from './accounts.js';
 
@@ -43,6 +43,7 @@ export async function walletInfo(request, env) {
       min_withdrawal: settingNum(s, 'min_withdrawal'),
       rate_usd: settingNum(s, 'rate_usd'),
       wager_pct_required: settingNum(s, 'wager_pct_required'),
+      monto_multiplo: settingNum(s, 'monto_multiplo'),
     },
     juego: { requerido, jugado, falta: Math.max(0, requerido - jugado) },
   });
@@ -62,6 +63,7 @@ export async function createTopup(request, env) {
   const s = await getSettings(env);
   const esDivisa = FX_METHODS.includes(method);
   const rate = settingNum(s, 'rate_usd');
+  const multiplo = settingNum(s, 'monto_multiplo');
 
   let amount;      // bolívares a acreditar
   let amountFx = null;
@@ -70,14 +72,23 @@ export async function createTopup(request, env) {
     const fx = Number(body.amount_fx);
     if (!Number.isFinite(fx) || fx <= 0 || fx > 1e9) return json({ error: 'Monto en dólares inválido' }, 400);
     amountFx = Math.round(fx * 100) / 100;
-    amount = Math.round(amountFx * rate);
+    // La conversión rara vez cae redonda: se redondea para arriba y la
+    // diferencia la pone la casa.
+    amount = redondearArriba(Math.round(amountFx * rate), multiplo);
   } else {
     amount = toPositiveInt(body.amount);
     if (amount === null) return json({ error: 'Monto inválido' }, 400);
   }
 
+  // El mínimo se avisa antes que el múltiplo: si el monto falla en las dos
+  // cosas, saber cuánto es lo mínimo le sirve más al jugador.
   const min = settingNum(s, 'min_topup');
   if (amount < min) return json({ error: `La recarga mínima es ${min} Bs` }, 400);
+
+  if (!esDivisa) {
+    const err = checkMultiplo(amount, multiplo);
+    if (err) return json({ error: err }, 400);
+  }
 
   // Evita que se acumulen decenas de solicitudes repetidas.
   const pend = await env.DB.prepare(
@@ -125,6 +136,9 @@ export async function createWithdrawal(request, env) {
   const s = await getSettings(env);
   const min = settingNum(s, 'min_withdrawal');
   if (amount < min) return json({ error: `El retiro mínimo es ${min} Bs` }, 400);
+
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
 
   const user = await getUser(env, auth.userId);
   const disponible = (user.balance || 0) - (user.held_balance || 0);
@@ -240,6 +254,9 @@ export async function adminApproveTopup(request, env, topupId) {
   if (body.amount !== undefined && body.amount !== null && body.amount !== '') {
     const a = toPositiveInt(body.amount);
     if (a === null) return json({ error: 'Monto inválido' }, 400);
+    const s = await getSettings(env);
+    const err = checkMultiplo(a, settingNum(s, 'monto_multiplo'));
+    if (err) return json({ error: err }, 400);
     amount = a;
   }
 

@@ -1,5 +1,5 @@
 // Billetera del jugador — expone window.WalletPanel
-// Props: { user, onExit(), onBalance(balance) }
+// Props: { user, onExit(), onLogout(), onBalance(balance) }
 //
 // Tres cosas: recargar (informando una transferencia ya hecha), retirar
 // (queda esperando que el dueño lo apruebe) y ver el propio historial.
@@ -9,7 +9,7 @@
   const { bs, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Pestanas,
           Tabla, Estado, Campo, METODOS, nombreMetodo } = U;
 
-  function WalletPanel({ user, onExit, onBalance }) {
+  function WalletPanel({ user, onExit, onLogout, onBalance }) {
     const [tab, setTab] = useState('recargar');
     const [info, setInfo] = useState(null);
     const [hist, setHist] = useState(null);
@@ -43,7 +43,10 @@
           <Encabezado
             titulo="💰 MI BILLETERA"
             subtitulo={user.username}
-            acciones={<Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>}
+            acciones={<>
+              <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
+              {onLogout && <Boton tono="gris" onClick={onLogout}>SALIR</Boton>}
+            </>}
           />
 
           {info && (
@@ -103,7 +106,14 @@
 
     const esDivisa = metodo === 'zelle' || metodo === 'binance';
     const tasa = info.limites.rate_usd;
-    const enBs = esDivisa ? Math.round((Number(monto) || 0) * tasa) : (Number(monto) || 0);
+    const mult = info.limites.monto_multiplo || 1;
+    // En divisa la conversión se redondea para arriba: la diferencia la pone la casa.
+    const enBs = esDivisa
+      ? (mult > 1
+          ? Math.ceil(Math.round((Number(monto) || 0) * tasa) / mult) * mult
+          : Math.round((Number(monto) || 0) * tasa))
+      : (Number(monto) || 0);
+    const multiploOk = esDivisa || mult <= 1 || enBs % mult === 0;
     const datosCuenta = info.cuentas[metodo];
 
     const enviar = async () => {
@@ -123,7 +133,7 @@
       finally { setEnviando(false); }
     };
 
-    const listo = enBs >= info.limites.min_topup && referencia.trim().length > 0;
+    const listo = enBs >= info.limites.min_topup && referencia.trim().length > 0 && multiploOk;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -167,12 +177,23 @@
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Campo label={esDivisa ? 'CUÁNTO MANDASTE (dólares)' : 'CUÁNTO MANDASTE (bolívares)'}>
               <input style={S.input} type="number" inputMode="decimal" min="0"
-                     placeholder={esDivisa ? '20' : String(info.limites.min_topup)}
+                     step={esDivisa ? 'any' : mult}
+                     placeholder={esDivisa ? '20' : String(Math.max(info.limites.min_topup, mult))}
                      value={monto} onChange={(e) => setMonto(e.target.value)} />
+              {!esDivisa && mult > 1 && (
+                <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
+                  En múltiplos de {bs(mult)} (ej: {bs(mult * 5)}, {bs(mult * 10)}, {bs(mult * 20)}).
+                </div>
+              )}
             </Campo>
             {esDivisa && enBs > 0 && (
               <div style={{ fontSize: 15, color: '#ddd' }}>
                 Se te acreditarían <b style={{ color: '#ffd84a' }}>{bs(enBs)} Bs</b>.
+              </div>
+            )}
+            {!multiploOk && enBs > 0 && (
+              <div style={{ color: '#ff9a9a', fontSize: 14 }}>
+                Los montos van en múltiplos de {bs(mult)}. Probá con {bs(Math.floor(enBs / mult) * mult)} o {bs((Math.floor(enBs / mult) + 1) * mult)}.
               </div>
             )}
             <Campo label="NÚMERO DE REFERENCIA">
@@ -209,6 +230,8 @@
 
     const m = Number(monto) || 0;
     const faltaJugar = info.juego.falta;
+    const mult = info.limites.monto_multiplo || 1;
+    const multiploOk = mult <= 1 || m % mult === 0;
 
     const enviar = async () => {
       setEnviando(true);
@@ -227,7 +250,7 @@
     };
 
     const listo = m >= info.limites.min_withdrawal && m <= info.disponible
-      && destino.trim() && cedula.trim() && faltaJugar === 0;
+      && destino.trim() && cedula.trim() && faltaJugar === 0 && multiploOk;
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -251,11 +274,12 @@
           <div style={S.titulo}>PEDIR UN RETIRO</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Campo label="CUÁNTO QUERÉS RETIRAR (Bs)">
-              <input style={S.input} type="number" inputMode="numeric" min="0"
+              <input style={S.input} type="number" inputMode="numeric" min="0" step={mult}
                      placeholder={String(info.limites.min_withdrawal)}
                      value={monto} onChange={(e) => setMonto(e.target.value)} />
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
                 Disponible: {bs(info.disponible)} Bs · Mínimo: {bs(info.limites.min_withdrawal)} Bs
+                {mult > 1 && ` · En múltiplos de ${bs(mult)}`}
               </div>
             </Campo>
 
@@ -284,6 +308,11 @@
             {m > 0 && m < info.limites.min_withdrawal && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
                 El retiro mínimo es {bs(info.limites.min_withdrawal)} Bs.
+              </div>
+            )}
+            {m > 0 && !multiploOk && (
+              <div style={{ color: '#ff9a9a', fontSize: 14 }}>
+                Los retiros van en múltiplos de {bs(mult)}. Probá con {bs(Math.floor(m / mult) * mult)} o {bs((Math.floor(m / mult) + 1) * mult)}.
               </div>
             )}
 

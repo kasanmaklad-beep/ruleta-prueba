@@ -1,5 +1,5 @@
 // Panel del taquillero — expone window.CashierPanel
-// Props: { user, onExit() }
+// Props: { user, onExit(), onLogout() }
 //
 // Lo único que hace un taquillero: cargarle saldo a sus jugadores usando el
 // cupo que ya le compró al dueño. No puede aprobar retiros ni tocar la
@@ -9,7 +9,7 @@
   const U = window.UI;
   const { bs, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Confirmar, Campo } = U;
 
-  function CashierPanel({ user, onExit }) {
+  function CashierPanel({ user, onExit, onLogout }) {
     const [data, setData] = useState(null);
     const [msg, setMsg] = useState(null);
     const [username, setUsername] = useState('');
@@ -66,7 +66,10 @@
           <Encabezado
             titulo="🎟 TAQUILLA"
             subtitulo={`Sesión: ${user.username}`}
-            acciones={<Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>}
+            acciones={<>
+              <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
+              {onLogout && <Boton tono="gris" onClick={onLogout}>SALIR</Boton>}
+            </>}
           />
 
           <Aviso msg={msg} onClose={() => setMsg(null)} />

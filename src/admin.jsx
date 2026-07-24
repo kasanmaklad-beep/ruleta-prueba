@@ -1,5 +1,5 @@
 // Panel de administración — expone window.AdminPanel
-// Props: { user, onExit() }  — onExit vuelve al juego
+// Props: { user, onExit(), onLogout() }  — onExit vuelve al juego
 //
 // Pestañas: Resumen · Jugadores · Taquilleros · Recargas · Retiros ·
 //           Reportes · Configuración
@@ -11,7 +11,7 @@
 
   // ═════════════════════════════ Raíz ═════════════════════════════════════
 
-  function AdminPanel({ user, onExit }) {
+  function AdminPanel({ user, onExit, onLogout }) {
     const [tab, setTab] = useState('resumen');
     const [msg, setMsg] = useState(null);
     const [resumen, setResumen] = useState(null);
@@ -50,7 +50,10 @@
           <Encabezado
             titulo="⚙ PANEL DEL DUEÑO"
             subtitulo={`Sesión: ${user.username}`}
-            acciones={<Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>}
+            acciones={<>
+              <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
+              {onLogout && <Boton tono="gris" onClick={onLogout}>SALIR</Boton>}
+            </>}
           />
 
           {/* Aviso permanente mientras haya cosas esperando respuesta. */}
@@ -1179,6 +1182,8 @@
       ayuda: 'Todo lo que el jugador pone en la mesa en un mismo giro no puede pasar de este número.' },
     { key: 'max_win_per_spin', label: 'Premio máximo por giro (Bs)', tipo: 'number',
       ayuda: 'El candado importante: los números Lightning pagan hasta 500x. Con este techo, un solo golpe de suerte no te vacía la caja.' },
+    { key: 'monto_multiplo', label: 'Los montos van en múltiplos de (Bs)', tipo: 'number',
+      ayuda: 'Recargas, retiros, cargas de taquilla y cupo se manejan en cifras redondas de este tamaño. Con 100, nadie puede pedir 1.350: pide 1.300 o 1.400. Cuando el jugador paga en dólares, la conversión se redondea para arriba y la diferencia la pone la casa. Poné 1 para desactivarlo.' },
     { key: 'min_topup', label: 'Recarga mínima (Bs)', tipo: 'number',
       ayuda: 'Por debajo de esto no se puede pedir una recarga.' },
     { key: 'min_withdrawal', label: 'Retiro mínimo (Bs)', tipo: 'number',
