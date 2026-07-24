@@ -1372,11 +1372,19 @@ function AppRoot() {
   const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
 
   // A qué pantalla mandar según la URL y lo que el usuario tiene permitido.
+  // Al entrar (raíz) cada uno cae en su lugar de trabajo: el dueño en su panel,
+  // el taquillero en la taquilla y el jugador en la mesa. El dueño no entra a
+  // jugar, entra a administrar; para la mesa está "VOLVER AL JUEGO" (/juego).
   const pantallaPara = (u) => {
     const ruta = rutaActual();
     if (ruta === '/admin' && u.role === 'admin') return 'admin';
     if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
     if (ruta === '/billetera') return 'billetera';
+    if (ruta === '/juego') return 'game';
+    if (ruta === '/') {
+      if (u.role === 'admin') return 'admin';
+      if (u.role === 'cashier') return 'taquilla';
+    }
     return 'game';
   };
 
@@ -1397,8 +1405,10 @@ function AppRoot() {
   }, []);
 
   // Refresca el usuario al volver al juego: el saldo pudo cambiar en la billetera.
+  // Va a /juego (y no a la raíz) para que al recargar la página el dueño y el
+  // taquillero se queden en la mesa en vez de rebotar a su panel.
   const volverAlJuego = () => {
-    window.history.pushState({}, '', '/');
+    window.history.pushState({}, '', '/juego');
     setStatus('game');
     window.Api.me().then((d) => d && d.user && setUser(d.user)).catch(() => {});
   };
