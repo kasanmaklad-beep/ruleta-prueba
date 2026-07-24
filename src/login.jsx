@@ -1,32 +1,55 @@
 // Pantalla de Login / Registro — expone window.LoginScreen
 // Props: { onAuth(user) }  — se llama tras login/registro exitoso (token ya guardado)
+//
+// El registro pide la ficha completa (nombre, apellido, cédula, teléfono,
+// correo y banco) porque acá se maneja plata real: cuando alguien pide un
+// retiro hay que saber a quién se le está pagando y a dónde.
 (function () {
   const { useState } = React;
 
+  const BANCOS = (window.UI && window.UI.BANCOS) || ['Otro'];
+
   function LoginScreen({ onAuth }) {
     const [mode, setMode] = useState('login'); // 'login' | 'register'
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [phone, setPhone] = useState('');
+    const [f, setF] = useState({
+      username: '', password: '', first_name: '', last_name: '',
+      cedula: '', phone: '', email: '', bank: '',
+    });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
     const submit = async (e) => {
       e.preventDefault();
       setError('');
-      const u = username.trim().toLowerCase();
+      const u = f.username.trim().toLowerCase();
       if (u.length < 3) { setError('El usuario debe tener al menos 3 caracteres'); return; }
-      if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
-      // El teléfono es a donde se le paga cuando retira: se pide desde el registro.
-      if (mode === 'register' && phone.replace(/\D/g, '').length < 7) {
-        setError('Poné tu teléfono: es a donde te vamos a pagar cuando retires');
-        return;
+      if (f.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+
+      if (mode === 'register') {
+        if (f.first_name.trim().length < 2) { setError('Poné tu nombre'); return; }
+        if (f.last_name.trim().length < 2) { setError('Poné tu apellido'); return; }
+        if (f.cedula.replace(/\D/g, '').length < 6) { setError('Poné tu cédula (por ejemplo V12345678)'); return; }
+        if (f.phone.replace(/\D/g, '').length < 7) { setError('Poné tu teléfono: es a donde te vamos a pagar'); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(f.email.trim())) { setError('Poné un correo válido'); return; }
+        if (!f.bank) { setError('Elegí tu banco'); return; }
       }
+
       setLoading(true);
       try {
         const res = mode === 'login'
-          ? await window.Api.login(u, password)
-          : await window.Api.register(u, password, phone.trim());
+          ? await window.Api.login(u, f.password)
+          : await window.Api.register({
+              username: u,
+              password: f.password,
+              first_name: f.first_name.trim(),
+              last_name: f.last_name.trim(),
+              cedula: f.cedula.trim(),
+              phone: f.phone.trim(),
+              email: f.email.trim(),
+              bank: f.bank,
+            });
         window.Api.setToken(res.token);
         onAuth(res.user);
       } catch (err) {
@@ -41,6 +64,8 @@
       border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.5)', color: '#fff',
       fontSize: 16, fontFamily: 'Georgia, serif', outline: 'none', boxSizing: 'border-box',
     };
+    const ayuda = { fontSize: 11, color: '#888', marginTop: -8, marginBottom: 12, lineHeight: 1.4 };
+    const registro = mode === 'register';
 
     return (
       <div style={{
@@ -50,52 +75,73 @@
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
       }}>
         <div style={{
-          width: '100%', maxWidth: 380,
+          width: '100%', maxWidth: registro ? 440 : 380,
           background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
           border: '1px solid #8b6a20', borderRadius: 12, padding: 28,
           boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
         }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ textAlign: 'center', marginBottom: 22 }}>
             <div style={{
               fontSize: 24, fontWeight: 900, letterSpacing: 3, color: '#d4a94a',
               textShadow: '0 2px 4px rgba(0,0,0,0.8)',
             }}>⚡ RULETA CATATUMBO ⚡</div>
             <div style={{ fontSize: 11, letterSpacing: 2, color: '#888', marginTop: 6 }}>
-              {mode === 'login' ? 'Ingresá para jugar' : 'Creá tu cuenta'}
+              {registro ? 'Creá tu cuenta' : 'Ingresá para jugar'}
             </div>
           </div>
 
           <form onSubmit={submit}>
+            {registro && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <input style={inputStyle} type="text" placeholder="Nombre"
+                       value={f.first_name} onChange={set('first_name')} />
+                <input style={inputStyle} type="text" placeholder="Apellido"
+                       value={f.last_name} onChange={set('last_name')} />
+              </div>
+            )}
+
+            {registro && (
+              <>
+                <input style={inputStyle} type="text" placeholder="Cédula (ej: V12345678)"
+                       value={f.cedula} onChange={set('cedula')} />
+                <div style={ayuda}>Una cédula, una cuenta.</div>
+              </>
+            )}
+
             <input
               style={inputStyle}
               type="text"
               placeholder="Usuario"
-              value={username}
+              value={f.username}
               autoCapitalize="none"
               autoCorrect="off"
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={set('username')}
             />
             <input
               style={inputStyle}
               type="password"
               placeholder="Contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={f.password}
+              onChange={set('password')}
             />
-            {mode === 'register' && (
-              <div>
-                <input
-                  style={inputStyle}
-                  type="tel"
-                  inputMode="tel"
-                  placeholder="Teléfono (ej: 04141234567)"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-                <div style={{ fontSize: 11, color: '#888', marginTop: -6, marginBottom: 12 }}>
-                  Es a donde te mandamos la plata cuando retires.
+
+            {registro && (
+              <>
+                <input style={inputStyle} type="tel" inputMode="tel"
+                       placeholder="Teléfono (ej: 04141234567)"
+                       value={f.phone} onChange={set('phone')} />
+                <select style={{ ...inputStyle, color: f.bank ? '#fff' : '#888' }}
+                        value={f.bank} onChange={set('bank')}>
+                  <option value="">Tu banco…</option>
+                  {BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <div style={ayuda}>
+                  A este banco y teléfono te mandamos el Pago Móvil cuando retires.
                 </div>
-              </div>
+                <input style={inputStyle} type="email" inputMode="email"
+                       placeholder="Correo electrónico"
+                       value={f.email} onChange={set('email')} />
+              </>
             )}
 
             {error && (
@@ -116,18 +162,18 @@
                 boxShadow: '0 4px 14px rgba(212,169,74,0.4)',
               }}
             >
-              {loading ? '...' : (mode === 'login' ? 'ENTRAR' : 'REGISTRARME')}
+              {loading ? '...' : (registro ? 'REGISTRARME' : 'ENTRAR')}
             </button>
           </form>
 
           <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: '#aaa' }}>
-            {mode === 'login' ? '¿No tenés cuenta? ' : '¿Ya tenés cuenta? '}
+            {registro ? '¿Ya tenés cuenta? ' : '¿No tenés cuenta? '}
             <a
               href="#"
-              onClick={(e) => { e.preventDefault(); setError(''); setMode(mode === 'login' ? 'register' : 'login'); }}
+              onClick={(e) => { e.preventDefault(); setError(''); setMode(registro ? 'login' : 'register'); }}
               style={{ color: '#d4a94a', fontWeight: 700, textDecoration: 'none' }}
             >
-              {mode === 'login' ? 'Registrate' : 'Iniciá sesión'}
+              {registro ? 'Iniciá sesión' : 'Registrate'}
             </a>
           </div>
         </div>

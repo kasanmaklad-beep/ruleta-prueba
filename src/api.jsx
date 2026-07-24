@@ -51,9 +51,9 @@
     logout() { setToken(null); },
 
     // ── Cuenta ──
-    register(username, password, phone) {
-      return POST('/api/auth/register', { username, password, phone });
-    },
+    // Recibe la ficha completa: usuario, clave, nombre, apellido, cédula,
+    // teléfono, correo y banco.
+    register(datos) { return POST('/api/auth/register', datos); },
     login(username, password) {
       return POST('/api/auth/login', { username, password });
     },

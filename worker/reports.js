@@ -156,6 +156,7 @@ export async function reportPlayer(request, env, playerId) {
 
   const user = await env.DB.prepare(
     `SELECT u.id, u.username, u.balance, u.held_balance, u.role, u.status, u.phone, u.cedula,
+            u.first_name, u.last_name, u.email, u.bank,
             u.payout_method, u.payout_details, u.wagered_total, u.deposited_total,
             u.cashier_id, u.created_at, c.username AS cashier_username
        FROM users u LEFT JOIN users c ON c.id = u.cashier_id

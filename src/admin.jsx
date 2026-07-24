@@ -240,8 +240,18 @@
           >
             {users.map((u) => (
               <tr key={u.id}>
-                <td style={{ ...S.td, fontWeight: 700 }}>{u.username}</td>
-                <td style={{ ...S.td, color: '#aaa', fontSize: 13 }}>{u.phone || '—'}</td>
+                <td style={{ ...S.td, fontWeight: 700 }}>
+                  {u.username}
+                  {(u.first_name || u.last_name) && (
+                    <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>
+                      {[u.first_name, u.last_name].filter(Boolean).join(' ')}
+                    </div>
+                  )}
+                </td>
+                <td style={{ ...S.td, color: '#aaa', fontSize: 13 }}>
+                  {u.phone || '—'}
+                  {u.cedula && <div style={{ fontSize: 11, color: '#777' }}>{u.cedula}</div>}
+                </td>
                 <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(u.balance)}</td>
                 <td style={{ ...S.td, color: u.held_balance ? '#ffa04a' : '#888' }}>
                   {bs(u.balance - u.held_balance)}
@@ -453,10 +463,17 @@
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: U.GOLD }}>{d.user.username}</div>
-                    <div style={{ fontSize: 12, color: '#888' }}>
-                      {d.user.phone || 'sin teléfono'}
+                    <div style={{ fontSize: 20, fontWeight: 900, color: U.GOLD }}>
+                      {[d.user.first_name, d.user.last_name].filter(Boolean).join(' ') || d.user.username}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#aaa' }}>
+                      usuario: <b>{d.user.username}</b>
                       {d.user.cedula ? ` · CI ${d.user.cedula}` : ''}
+                      {d.user.phone ? ` · ${d.user.phone}` : ''}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      {d.user.bank || 'sin banco'}
+                      {d.user.email ? ` · ${d.user.email}` : ''}
                       {d.user.cashier_username ? ` · taquillero: ${d.user.cashier_username}` : ''}
                       {' · desde '}{fecha(d.user.created_at, false)}
                     </div>
@@ -903,9 +920,13 @@
             <tr key={w.id}>
               <td style={{ ...S.td, fontSize: 12, color: '#888', whiteSpace: 'nowrap' }}>{fecha(w.created_at)}</td>
               <td style={S.td}>
-                <div style={{ fontWeight: 700 }}>{w.username}</div>
+                <div style={{ fontWeight: 700 }}>
+                  {[w.first_name, w.last_name].filter(Boolean).join(' ') || w.username}
+                </div>
                 <div style={{ fontSize: 11, color: '#888' }}>
-                  {w.cedula ? `CI ${w.cedula}` : ''}{w.cashier_username ? ` · ${w.cashier_username}` : ''}
+                  {w.username}
+                  {w.cedula ? ` · CI ${w.cedula}` : ''}
+                  {w.cashier_username ? ` · ${w.cashier_username}` : ''}
                 </div>
               </td>
               <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(w.amount)}</td>
@@ -954,6 +975,11 @@
               }}>
                 <div><b style={{ color: '#ffd84a', fontSize: 20 }}>{bs(accion.item.amount)} Bs</b></div>
                 <div>{nombreMetodo(accion.item.method)} a <b style={{ fontFamily: 'monospace' }}>{accion.item.destination}</b></div>
+                {(accion.item.first_name || accion.item.last_name) && (
+                  <div style={{ fontSize: 14, color: '#ddd' }}>
+                    A nombre de <b>{[accion.item.first_name, accion.item.last_name].filter(Boolean).join(' ')}</b>
+                  </div>
+                )}
                 {accion.item.cedula && <div style={{ fontSize: 13, color: '#aaa' }}>Cédula: {accion.item.cedula}</div>}
               </div>
 

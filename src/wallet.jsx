@@ -224,7 +224,10 @@
     const u = info.user;
     const [monto, setMonto] = useState('');
     const [metodo, setMetodo] = useState(u.payout_method || 'pago_movil');
-    const [destino, setDestino] = useState(u.payout_details || u.phone || '');
+    // Ya cargó banco y teléfono al registrarse: se le proponen armados.
+    const [destino, setDestino] = useState(
+      u.payout_details || [u.bank, u.phone].filter(Boolean).join(' ') || ''
+    );
     const [cedula, setCedula] = useState(u.cedula || '');
     const [enviando, setEnviando] = useState(false);
 

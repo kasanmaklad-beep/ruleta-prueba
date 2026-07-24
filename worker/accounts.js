@@ -8,6 +8,7 @@ import {
   toPositiveInt, hashPassword, verifyPassword, signJwt, getSettings, settingNum,
   requireAuth, requireAdmin, validMethod, USER_FIELDS, nowSql,
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
+  normalizeNombre, normalizeCedula, normalizeEmail,
 } from './lib.js';
 
 // ─────────────────────────── Registro e ingreso ───────────────────────────
@@ -17,6 +18,11 @@ export async function register(request, env) {
   const username = normalizeUsername(body.username);
   const password = String(body.password || '');
   const phone = normalizePhone(body.phone);
+  const firstName = normalizeNombre(body.first_name);
+  const lastName = normalizeNombre(body.last_name);
+  const cedula = normalizeCedula(body.cedula);
+  const email = normalizeEmail(body.email);
+  const bank = str(body.bank, 60);
 
   const settings = await getSettings(env);
   if (settingNum(settings, 'registration_open') !== 1) {
@@ -26,10 +32,19 @@ export async function register(request, env) {
   const uErr = validateUsername(username);
   if (uErr) return json({ error: uErr }, 400);
   if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
+  if (!firstName) return json({ error: 'Poné tu nombre (solo letras)' }, 400);
+  if (!lastName) return json({ error: 'Poné tu apellido (solo letras)' }, 400);
+  if (!cedula) return json({ error: 'Poné una cédula válida (por ejemplo V12345678)' }, 400);
   if (!phone) return json({ error: 'Poné un teléfono válido: es a donde te vamos a pagar' }, 400);
+  if (!email) return json({ error: 'Poné un correo válido' }, 400);
+  if (!bank) return json({ error: 'Elegí tu banco: es a donde te vamos a pagar' }, 400);
 
   const existing = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
   if (existing) return json({ error: 'Ese usuario ya existe' }, 409);
+
+  // Una cédula, una cuenta.
+  const dupCedula = await env.DB.prepare('SELECT id FROM users WHERE cedula = ?').bind(cedula).first();
+  if (dupCedula) return json({ error: 'Ya hay una cuenta registrada con esa cédula' }, 409);
 
   const password_hash = await hashPassword(password);
   // El primer usuario llamado "admin" se vuelve administrador automáticamente.
@@ -37,9 +52,12 @@ export async function register(request, env) {
   const role = isAdmin ? 'admin' : 'player';
 
   const res = await env.DB.prepare(
-    `INSERT INTO users (username, password_hash, balance, is_admin, role, phone)
-     VALUES (?, ?, 0, ?, ?, ?)`
-  ).bind(username, password_hash, isAdmin, role, phone).run();
+    `INSERT INTO users (username, password_hash, balance, is_admin, role,
+                        phone, first_name, last_name, cedula, email, bank,
+                        payout_method, payout_details)
+     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?)`
+  ).bind(username, password_hash, isAdmin, role, phone, firstName, lastName,
+         cedula, email, bank, `${bank} ${phone}`).run();
 
   const user = await getUser(env, res.meta.last_row_id);
   const token = await signJwt({ sub: user.id, username, is_admin: isAdmin, role }, env);
@@ -107,9 +125,32 @@ export async function updateProfile(request, env) {
     fields.push('phone = ?'); values.push(phone);
   }
   if (body.cedula !== undefined) {
-    const cedula = str(body.cedula, 20);
-    if (!cedula) return json({ error: 'Cédula inválida' }, 400);
+    const cedula = normalizeCedula(body.cedula);
+    if (!cedula) return json({ error: 'Cédula inválida (por ejemplo V12345678)' }, 400);
+    const dup = await env.DB.prepare('SELECT id FROM users WHERE cedula = ? AND id != ?')
+      .bind(cedula, auth.userId).first();
+    if (dup) return json({ error: 'Ya hay una cuenta registrada con esa cédula' }, 409);
     fields.push('cedula = ?'); values.push(cedula);
+  }
+  if (body.first_name !== undefined) {
+    const n = normalizeNombre(body.first_name);
+    if (!n) return json({ error: 'Nombre inválido (solo letras)' }, 400);
+    fields.push('first_name = ?'); values.push(n);
+  }
+  if (body.last_name !== undefined) {
+    const n = normalizeNombre(body.last_name);
+    if (!n) return json({ error: 'Apellido inválido (solo letras)' }, 400);
+    fields.push('last_name = ?'); values.push(n);
+  }
+  if (body.email !== undefined) {
+    const e = normalizeEmail(body.email);
+    if (!e) return json({ error: 'Correo inválido' }, 400);
+    fields.push('email = ?'); values.push(e);
+  }
+  if (body.bank !== undefined) {
+    const b = str(body.bank, 60);
+    if (!b) return json({ error: 'Elegí tu banco' }, 400);
+    fields.push('bank = ?'); values.push(b);
   }
   if (body.payout_method !== undefined) {
     const m = validMethod(body.payout_method);
@@ -160,7 +201,12 @@ export async function adminUsers(request, env, url) {
 
   const where = [];
   const binds = [];
-  if (search) { where.push('(u.username LIKE ? OR u.phone LIKE ? OR u.cedula LIKE ?)'); binds.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+  if (search) {
+    where.push(`(u.username LIKE ? OR u.phone LIKE ? OR u.cedula LIKE ?
+                 OR u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)`);
+    const q = `%${search}%`;
+    binds.push(q, q, q, q, q, q);
+  }
   if (role) { where.push('u.role = ?'); binds.push(role); }
   const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 

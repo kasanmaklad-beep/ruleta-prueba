@@ -12,7 +12,7 @@
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAuth, requireAdmin, getSettings, settingNum, validMethod,
-  FX_METHODS, nowSql, checkMultiplo, redondearArriba,
+  FX_METHODS, nowSql, checkMultiplo, redondearArriba, normalizeCedula,
 } from './lib.js';
 import { getUser } from './accounts.js';
 
@@ -126,12 +126,12 @@ export async function createWithdrawal(request, env) {
   const amount = toPositiveInt(body.amount);
   const method = validMethod(body.method);
   const destination = str(body.destination, 200);
-  const cedula = str(body.cedula, 20);
+  const cedula = normalizeCedula(body.cedula);
 
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
   if (!method) return json({ error: 'Elegí cómo querés cobrar' }, 400);
   if (!destination) return json({ error: 'Poné a dónde te mandamos la plata (teléfono, cuenta o correo)' }, 400);
-  if (!cedula) return json({ error: 'Poné tu cédula: la necesitamos para pagarte' }, 400);
+  if (!cedula) return json({ error: 'Poné una cédula válida (por ejemplo V12345678)' }, 400);
 
   const s = await getSettings(env);
   const min = settingNum(s, 'min_withdrawal');
@@ -144,6 +144,19 @@ export async function createWithdrawal(request, env) {
   const disponible = (user.balance || 0) - (user.held_balance || 0);
   if (amount > disponible) {
     return json({ error: `Solo tenés ${disponible} Bs disponibles` }, 400);
+  }
+
+  // La plata sale a nombre del titular de la cuenta: no se cobra con la cédula
+  // de otro. Si la de la cuenta está mal, la corrige el dueño desde el panel.
+  if (user.cedula && user.cedula !== cedula) {
+    return json({
+      error: `Esa cédula no es la de tu cuenta (${user.cedula}). Si está mal cargada, pedile al administrador que la corrija.`,
+    }, 400);
+  }
+  if (!user.cedula) {
+    const dup = await env.DB.prepare('SELECT id FROM users WHERE cedula = ? AND id != ?')
+      .bind(cedula, auth.userId).first();
+    if (dup) return json({ error: 'Ya hay otra cuenta registrada con esa cédula' }, 409);
   }
 
   // Regla anti casa-de-cambio: hay que haber jugado parte de lo recargado.
@@ -318,6 +331,7 @@ export async function adminWithdrawals(request, env, url) {
 
   const rows = await env.DB.prepare(
     `SELECT w.*, u.username, u.phone, u.balance, u.wagered_total, u.deposited_total,
+            u.first_name, u.last_name, u.bank,
             c.username AS cashier_username, r.username AS reviewer, p.username AS payer_username
        FROM withdrawals w
        JOIN users u ON u.id = w.user_id

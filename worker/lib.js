@@ -128,6 +128,37 @@ export function redondearArriba(amount, multiplo) {
   return Math.ceil(amount / multiplo) * multiplo;
 }
 
+// ── Datos personales ──────────────────────────────────────────────────────
+
+// Nombre o apellido: letras (con acentos y ñ), espacios, apóstrofes y guiones.
+export function normalizeNombre(v) {
+  const s = str(v, 60);
+  if (!s) return null;
+  if (s.length < 2) return null;
+  if (!/^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ' -]+$/.test(s)) return null;
+  // Capitaliza cada palabra: "josé luis" → "José Luis".
+  return s.toLowerCase().replace(/(^|[\s'-])([a-záéíóúñü])/g,
+    (m, sep, letra) => sep + letra.toUpperCase());
+}
+
+// Cédula venezolana: V/E/J + 6 a 9 dígitos. Se guarda normalizada (V12345678).
+export function normalizeCedula(v) {
+  const s = str(v, 20);
+  if (!s) return null;
+  const limpio = s.toUpperCase().replace(/[^VEJPG0-9]/g, '');
+  const m = limpio.match(/^([VEJPG]?)(\d{6,9})$/);
+  if (!m) return null;
+  return `${m[1] || 'V'}${m[2]}`;
+}
+
+export function normalizeEmail(v) {
+  const s = str(v, 120);
+  if (!s) return null;
+  const e = s.toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(e)) return null;
+  return e;
+}
+
 export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'zelle', 'binance'];
 // Métodos que se cobran en divisa y necesitan conversión con la tasa.
 export const FX_METHODS = ['zelle', 'binance'];
@@ -157,6 +188,7 @@ export function todayVE() {
 // Campos del usuario que se devuelven al cliente (nunca el hash de la clave).
 export const USER_FIELDS =
   'id, username, balance, held_balance, is_admin, role, status, phone, cedula, ' +
+  'first_name, last_name, email, bank, ' +
   'payout_method, payout_details, credit_balance, commission_pct, cashier_id, ' +
   'wagered_total, deposited_total, created_at';
 
