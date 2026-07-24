@@ -1364,12 +1364,85 @@ function generateBoltPath(seed) {
   return d;
 }
 
+// ═══ Enlace de invitación abierto con otra sesión ya iniciada ═══
+// Sin esto, el código de socio se perdía en silencio y el invitado terminaba
+// dentro de la cuenta de quien estaba logueado en ese navegador.
+function PantallaInvitacion({ codigo, user, onRegistrarme, onSeguir }) {
+  const boton = {
+    width: '100%', padding: '13px', borderRadius: 6, fontWeight: 900,
+    fontSize: 14, letterSpacing: 1, cursor: 'pointer', fontFamily: 'Georgia, serif',
+  };
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'radial-gradient(ellipse at center, #3a1f08 0%, #1a0d02 60%, #050200 100%)',
+      color: '#fff', fontFamily: 'Georgia, serif',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }}>
+      <div style={{
+        width: '100%', maxWidth: 420,
+        background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
+        border: '1px solid #8b6a20', borderRadius: 12, padding: 28,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.7)', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 2, color: '#d4a94a' }}>
+          ⚡ RULETA CATATUMBO ⚡
+        </div>
+        <div style={{ fontSize: 13, color: '#aaa', marginTop: 14, lineHeight: 1.6 }}>
+          Te invitaron con el código
+        </div>
+        <div style={{
+          fontSize: 30, fontWeight: 900, letterSpacing: 3, color: '#ffd84a',
+          fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)',
+          padding: '10px 16px', borderRadius: 8, border: '1px dashed #8b6a20',
+          margin: '10px 0 18px',
+        }}>{codigo}</div>
+
+        <div style={{
+          fontSize: 14, color: '#ffc9c9', background: 'rgba(180,16,26,0.18)',
+          border: '1px solid #b8101a', borderRadius: 6, padding: '10px 12px',
+          marginBottom: 18, lineHeight: 1.6,
+        }}>
+          En este navegador ya hay una sesión abierta como <b>{user.username}</b>.
+        </div>
+
+        <button
+          onClick={onRegistrarme}
+          style={{
+            ...boton, border: '2px solid #d4a94a', marginBottom: 10,
+            background: 'linear-gradient(180deg, #d4a94a, #8b6a20)', color: '#1a1006',
+          }}
+        >SALIR Y CREAR MI CUENTA</button>
+
+        <button
+          onClick={onSeguir}
+          style={{
+            ...boton, border: '1px solid #555',
+            background: 'linear-gradient(180deg, #333, #111)', color: '#ddd',
+          }}
+        >SEGUIR COMO {user.username.toUpperCase()}</button>
+
+        <div style={{ fontSize: 11, color: '#888', marginTop: 14, lineHeight: 1.5 }}>
+          Si la cuenta de arriba no es tuya, tocá “salir y crear mi cuenta”: así quedás
+          registrado con este código.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ Raíz: gate de autenticación + ruteo /admin, /taquilla y /billetera ═══
 function AppRoot() {
   const [status, setStatus] = useState('loading'); // loading | login | game | admin | taquilla | billetera
   const [user, setUser] = useState(null);
 
   const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
+
+  // Código de socio que viene en el enlace (.../?ref=S0009).
+  const refDelEnlace = () => {
+    try { return (new URLSearchParams(window.location.search).get('ref') || '').toUpperCase(); }
+    catch (e) { return ''; }
+  };
 
   // A qué pantalla mandar según la URL y lo que el usuario tiene permitido.
   // Al entrar (raíz) cada uno cae en su lugar de trabajo: el dueño en su panel,
@@ -1399,7 +1472,10 @@ function AppRoot() {
       .then((d) => {
         const u = d.user;
         setUser(u);
-        setStatus(pantallaPara(u));
+        // Llegó por un enlace de invitación pero ya hay una sesión abierta:
+        // hay que preguntar, porque si no el código se pierde en silencio y el
+        // invitado termina metido en la cuenta de otro.
+        setStatus(refDelEnlace() ? 'invitacion' : pantallaPara(u));
       })
       .catch(() => { window.Api.logout(); setStatus('login'); });
   }, []);
@@ -1435,6 +1511,20 @@ function AppRoot() {
     window.history.pushState({}, '', '/');
     setStatus('login');
   };
+
+  // Enlace de invitación con una sesión ya abierta: se pregunta en vez de
+  // decidir solo, así el invitado no termina jugando en la cuenta de otro.
+  if (status === 'invitacion') {
+    return <PantallaInvitacion
+      codigo={refDelEnlace()}
+      user={user}
+      onRegistrarme={() => { window.Api.logout(); setUser(null); setStatus('login'); }}
+      onSeguir={() => {
+        window.history.replaceState({}, '', window.location.pathname);
+        setStatus(pantallaPara(user));
+      }}
+    />;
+  }
 
   if (status === 'admin')     return <AdminPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
   if (status === 'taquilla')  return <CashierPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
