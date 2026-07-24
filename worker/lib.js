@@ -141,14 +141,14 @@ export function normalizeNombre(v) {
     (m, sep, letra) => sep + letra.toUpperCase());
 }
 
-// Tipos de documento aceptados.
+// Tipos de documento aceptados. La cédula venezolana va primera porque es el
+// caso de casi todos. Si algún día hace falta otro tipo, se agrega acá.
 export const DOC_TYPES = {
-  V:    { label: 'V — Cédula venezolana',    re: /^\d{6,9}$/,        ej: '12345678' },
-  E:    { label: 'E — Cédula de extranjero', re: /^\d{6,9}$/,        ej: '84123456' },
-  J:    { label: 'J — RIF jurídico',         re: /^\d{8,10}$/,       ej: '401234567' },
-  G:    { label: 'G — RIF gubernamental',    re: /^\d{8,10}$/,       ej: '200012345' },
-  P:    { label: 'P — Pasaporte',            re: /^[A-Z0-9]{5,15}$/, ej: 'AB123456' },
-  OTRO: { label: 'Otro documento',           re: /^[A-Z0-9]{4,20}$/, ej: 'ABC1234' },
+  V: { label: 'V — Cédula venezolana',    re: /^\d{6,9}$/,        ej: '12345678' },
+  E: { label: 'E — Cédula de extranjero', re: /^\d{6,9}$/,        ej: '84123456' },
+  J: { label: 'J — RIF jurídico',         re: /^\d{8,10}$/,       ej: '401234567' },
+  G: { label: 'G — RIF gubernamental',    re: /^\d{8,10}$/,       ej: '200012345' },
+  P: { label: 'P — Pasaporte',            re: /^[A-Z0-9]{5,15}$/, ej: 'AB123456' },
 };
 
 // Normaliza un documento a "V-12345678". Acepta el tipo aparte o pegado al
