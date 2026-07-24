@@ -23,7 +23,7 @@ export async function adminCashiers(request, env) {
 
   const rows = await env.DB.prepare(
     `SELECT u.id, u.username, u.phone, u.status, u.credit_balance, u.commission_pct, u.created_at,
-            u.first_name, u.last_name, u.referral_code, u.cedula, u.bank,
+            u.first_name, u.last_name, u.referral_code, u.cedula, u.bank, u.risk_share_pct,
             COALESCE(p.comprado, 0)   AS cupo_comprado,
             COALESCE(p.pagado, 0)     AS total_pagado,
             COALESCE(l.cargado, 0)    AS total_cargado,
@@ -70,10 +70,11 @@ export async function adminSellCredit(request, env) {
   if (!cashier) return json({ error: 'Usuario no encontrado' }, 404);
   if (cashier.role !== 'cashier') return json({ error: `${cashier.username} no es socio. Cambiale el rol primero.` }, 400);
 
-  // Si no dicen cuánto pagó, se calcula con su comisión: 10% → paga 90%.
+  // Si no dicen cuánto pagó, se calcula con su porcentaje: el socio paga el
+  // commission_pct% del valor de las fichas (típico: 20% → 10.000 por 2.000).
   let paid;
   if (body.paid_amount === undefined || body.paid_amount === null || body.paid_amount === '') {
-    paid = Math.round(amount * (1 - (cashier.commission_pct || 0) / 100));
+    paid = Math.round(amount * ((cashier.commission_pct || 0) / 100));
   } else {
     const p = Number(body.paid_amount);
     if (!Number.isInteger(p) || p < 0 || p > amount) {
@@ -280,9 +281,26 @@ export async function cashierSummary(request, env) {
       LIMIT 50`
   ).bind(auth.userId).all();
 
+  // Pendientes en su ventanilla y umbral del aviso de cupo bajo.
+  const [pend, settings] = await Promise.all([
+    env.DB.prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM topups      WHERE cashier_id = ?1 AND status = 'pending') AS recargas,
+         (SELECT COUNT(*) FROM withdrawals WHERE cashier_id = ?1 AND status = 'pending') AS retiros,
+         (SELECT COALESCE(SUM(amount), 0) FROM withdrawals WHERE cashier_id = ?1 AND status = 'pending') AS retiros_monto`
+    ).bind(auth.userId).first(),
+    getSettings(env),
+  ]);
+
   return json({
     cashier: self,
     hoy: { cargas: hoy?.cargas || 0, total: hoy?.total || 0 },
+    pendientes: {
+      recargas: pend?.recargas || 0,
+      retiros: pend?.retiros || 0,
+      retiros_monto: pend?.retiros_monto || 0,
+    },
+    cupo_alert: settingNum(settings, 'cupo_alert'),
     players: players.results || [],
     ledger: movs.results || [],
   });

@@ -32,6 +32,9 @@ import {
   walletInfo, walletHistory, createTopup, createWithdrawal,
   adminTopups, adminApproveTopup, adminRejectTopup,
   adminWithdrawals, adminPayWithdrawal, adminRejectWithdrawal,
+  cashierTopups, cashierApproveTopup, cashierRejectTopup,
+  cashierWithdrawals, cashierPayWithdrawal, cashierRejectWithdrawal,
+  cashierSetCollectInfo,
 } from './payments.js';
 
 import {
@@ -86,9 +89,20 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/wallet/topup')    return createTopup(request, env);
   if (method === 'POST' && path === '/api/wallet/withdraw') return createWithdrawal(request, env);
 
-  // ── Taquilla ──
+  // ── Taquilla del socio ──
   if (method === 'GET'  && path === '/api/cashier/summary') return cashierSummary(request, env);
   if (method === 'POST' && path === '/api/cashier/load')    return cashierLoad(request, env);
+  if (method === 'PUT'  && path === '/api/cashier/collect-info') return cashierSetCollectInfo(request, env);
+  if (method === 'GET'  && path === '/api/cashier/topups')       return cashierTopups(request, env, url);
+  if (method === 'POST' && (m = path.match(/^\/api\/cashier\/topups\/(\d+)\/approve$/)))
+    return cashierApproveTopup(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/cashier\/topups\/(\d+)\/reject$/)))
+    return cashierRejectTopup(request, env, Number(m[1]));
+  if (method === 'GET'  && path === '/api/cashier/withdrawals') return cashierWithdrawals(request, env, url);
+  if (method === 'POST' && (m = path.match(/^\/api\/cashier\/withdrawals\/(\d+)\/pay$/)))
+    return cashierPayWithdrawal(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/cashier\/withdrawals\/(\d+)\/reject$/)))
+    return cashierRejectWithdrawal(request, env, Number(m[1]));
 
   // ── Panel: tablero y usuarios ──
   if (method === 'GET'  && path === '/api/admin/summary')      return adminSummary(request, env);

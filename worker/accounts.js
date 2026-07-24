@@ -118,9 +118,17 @@ export async function adminCreateCashier(request, env) {
   const tomado = await libreONull(env, username, perfil.doc.documento);
   if (tomado) return json({ error: tomado }, 409);
 
+  // commission_pct = el % del valor de las fichas que el socio PAGA (típico: 20).
   const comision = Number(body.commission_pct);
-  if (!Number.isFinite(comision) || comision < 0 || comision > 90) {
-    return json({ error: 'La comisión debe estar entre 0 y 90%' }, 400);
+  if (!Number.isFinite(comision) || comision < 1 || comision > 100) {
+    return json({ error: 'El % que paga por las fichas debe estar entre 1 y 100' }, 400);
+  }
+
+  // Participación en la ganancia (franquicia con responsabilidad compartida).
+  // 0 = riesgo completo del socio. Máximo 30, por decisión del dueño.
+  const share = Number(body.risk_share_pct ?? 0);
+  if (!Number.isFinite(share) || share < 0 || share > 30) {
+    return json({ error: 'La participación en la ganancia va de 0 a 30%' }, 400);
   }
 
   // Código propuesto por el dueño, o generado con el id después de insertar.
@@ -135,12 +143,13 @@ export async function adminCreateCashier(request, env) {
   const password_hash = await hashPassword(password);
   const res = await env.DB.prepare(
     `INSERT INTO users (username, password_hash, balance, is_admin, role, commission_pct,
-                        phone, first_name, last_name, cedula, doc_type, email, bank,
-                        payout_method, payout_details, created_by)
-     VALUES (?, ?, 0, 0, 'cashier', ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?)`
-  ).bind(username, password_hash, comision, perfil.phone, perfil.firstName,
+                        risk_share_pct, phone, first_name, last_name, cedula, doc_type,
+                        email, bank, payout_method, payout_details, collect_details, created_by)
+     VALUES (?, ?, 0, 0, 'cashier', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?)`
+  ).bind(username, password_hash, comision, share, perfil.phone, perfil.firstName,
          perfil.lastName, perfil.doc.documento, perfil.doc.doc_type, perfil.email,
-         perfil.bank, `${perfil.bank} ${perfil.phone}`, auth.userId).run();
+         perfil.bank, `${perfil.bank} ${perfil.phone}`, `${perfil.bank} ${perfil.phone}`,
+         auth.userId).run();
 
   const id = res.meta.last_row_id;
   await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?')
@@ -357,7 +366,7 @@ export async function adminSetRole(request, env, userId) {
   let commission = target.commission_pct;
   if (body.commission_pct !== undefined) {
     const c = Number(body.commission_pct);
-    if (!Number.isFinite(c) || c < 0 || c > 90) return json({ error: 'La comisión debe estar entre 0 y 90%' }, 400);
+    if (!Number.isFinite(c) || c < 0 || c > 100) return json({ error: 'El % que paga por las fichas debe estar entre 1 y 100' }, 400);
     commission = c;
   }
 

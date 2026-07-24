@@ -280,15 +280,18 @@
     'Otro',
   ];
 
+  // Esta versión maneja solo bolívares. P2P es para quien paga en divisas por
+  // fuera: lo que se registra es el monto acordado en Bs.
   const METODOS = [
     ['pago_movil', 'Pago Móvil'],
     ['transferencia', 'Transferencia'],
-    ['zelle', 'Zelle'],
-    ['binance', 'Binance'],
+    ['p2p', 'P2P (divisas)'],
   ];
+  // Etiquetas de métodos viejos, para que el historial se siga leyendo bien.
+  const METODOS_VIEJOS = { zelle: 'Zelle', binance: 'Binance' };
   function nombreMetodo(m) {
     const f = METODOS.find((x) => x[0] === m);
-    return f ? f[1] : (m || '—');
+    return f ? f[1] : (METODOS_VIEJOS[m] || m || '—');
   }
 
   window.UI = {

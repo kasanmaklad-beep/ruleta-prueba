@@ -74,10 +74,23 @@
     createTopup(data) { return POST('/api/wallet/topup', data); },
     createWithdrawal(data) { return POST('/api/wallet/withdraw', data); },
 
-    // ── Taquilla ──
+    // ── Taquilla del socio ──
     cashierSummary() { return req('/api/cashier/summary'); },
     cashierLoad(username, amount, note) {
       return POST('/api/cashier/load', { username, amount, note });
+    },
+    cashierSetCollectInfo(details) { return PUT('/api/cashier/collect-info', { details }); },
+    cashierTopups(status) { return req('/api/cashier/topups' + qs({ status })); },
+    cashierApproveTopup(id, amount) {
+      return POST(`/api/cashier/topups/${id}/approve`, { amount });
+    },
+    cashierRejectTopup(id, note) { return POST(`/api/cashier/topups/${id}/reject`, { note }); },
+    cashierWithdrawals(status) { return req('/api/cashier/withdrawals' + qs({ status })); },
+    cashierPayWithdrawal(id, note) {
+      return POST(`/api/cashier/withdrawals/${id}/pay`, { note });
+    },
+    cashierRejectWithdrawal(id, note) {
+      return POST(`/api/cashier/withdrawals/${id}/reject`, { note });
     },
 
     // ── Panel: tablero, usuarios y movimientos ──

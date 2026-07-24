@@ -32,8 +32,11 @@ export const DEFAULT_SETTINGS = {
   // Todo monto que se convierte en saldo va redondeado a este múltiplo, para
   // que no circulen cifras raras. Poner 1 lo desactiva.
   monto_multiplo: '100',
+  // Aviso de cupo bajo para los socios.
+  cupo_alert: '2000',
   bank_pago_movil: '',
   bank_transferencia: '',
+  bank_p2p: '',
   bank_zelle: '',
   bank_binance: '',
 };
@@ -48,6 +51,7 @@ export const NUMERIC_SETTINGS = {
   wager_pct_required: { min: 0,    max: 1000, integer: false },
   registration_open:  { min: 0,    max: 1,    integer: true },
   monto_multiplo:     { min: 1,    max: 100000, integer: true },
+  cupo_alert:         { min: 0,    max: 1e12, integer: true },
 };
 
 export async function getSettings(env) {
@@ -197,9 +201,9 @@ export function normalizeEmail(v) {
   return e;
 }
 
-export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'zelle', 'binance'];
-// Métodos que se cobran en divisa y necesitan conversión con la tasa.
-export const FX_METHODS = ['zelle', 'binance'];
+// Esta versión trabaja SOLO en bolívares. El P2P es para quien paga en
+// divisas por fuera: el monto que se registra igual es el acordado en Bs.
+export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'p2p'];
 
 export function validMethod(v) {
   const s = String(v || '');
@@ -227,6 +231,7 @@ export function todayVE() {
 export const USER_FIELDS =
   'id, username, balance, held_balance, is_admin, role, status, phone, cedula, doc_type, ' +
   'first_name, last_name, email, bank, referral_code, created_by, affiliated_at, ' +
+  'collect_details, risk_share_pct, ' +
   'payout_method, payout_details, credit_balance, commission_pct, cashier_id, ' +
   'wagered_total, deposited_total, created_at';
 

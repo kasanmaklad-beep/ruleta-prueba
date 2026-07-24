@@ -9,7 +9,7 @@
 //   · JUEGO = apostado − premios  → lo que la ruleta le ganó a los jugadores.
 // ════════════════════════════════════════════════════════════════════════
 
-import { json, str, requireAdmin, VE_OFFSET, todayVE } from './lib.js';
+import { json, str, requireAdmin, VE_OFFSET, todayVE, getSettings, settingNum } from './lib.js';
 
 // Rango de fechas pedido, con tope de un año para no barrer la base entera.
 function dateRange(url, defaultDays = 30) {
@@ -35,9 +35,11 @@ export async function adminSummary(request, env) {
   const [pend, dia, totales, cupo] = await Promise.all([
     env.DB.prepare(
       `SELECT
-         (SELECT COUNT(*) FROM topups      WHERE status = 'pending') AS recargas_pendientes,
-         (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending') AS retiros_pendientes,
-         (SELECT COALESCE(SUM(amount), 0) FROM withdrawals WHERE status = 'pending') AS retiros_pendientes_monto`
+         (SELECT COUNT(*) FROM topups      WHERE status = 'pending' AND cashier_id IS NULL) AS recargas_pendientes,
+         (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NULL) AS retiros_pendientes,
+         (SELECT COALESCE(SUM(amount), 0) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NULL) AS retiros_pendientes_monto,
+         (SELECT COUNT(*) FROM topups      WHERE status = 'pending' AND cashier_id IS NOT NULL) AS recargas_socios,
+         (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NOT NULL) AS retiros_socios`
     ).first(),
     env.DB.prepare(
       `SELECT
@@ -125,7 +127,8 @@ export async function reportCashiers(request, env, url) {
   const { from, to } = dateRange(url, 30);
 
   const rows = await env.DB.prepare(
-    `SELECT c.id, c.username, c.credit_balance, c.commission_pct, c.status,
+    `SELECT c.id, c.username, c.first_name, c.last_name, c.credit_balance,
+            c.commission_pct, c.risk_share_pct, c.status,
             COALESCE(SUM(CASE WHEN l.type = 'purchase' THEN l.amount END), 0)              AS cupo_comprado,
             COALESCE(SUM(CASE WHEN l.type = 'purchase' THEN l.paid_amount END), 0)         AS pagado,
             COALESCE(SUM(CASE WHEN l.type = 'load' THEN -l.amount END), 0)                 AS cargado,
@@ -140,10 +143,20 @@ export async function reportCashiers(request, env, url) {
       ORDER BY cargado DESC, c.username`
   ).bind(VE_OFFSET, from, to).all();
 
-  const socios = (rows.results || []).map((c) => ({
-    ...c,
-    comision: c.cupo_comprado - c.pagado,
-  }));
+  const socios = (rows.results || []).map((c) => {
+    // Resultado del período para el socio: lo que cobró a sus jugadores
+    // (cargas de cupo) menos lo que les pagó en retiros. Si es negativo y el
+    // socio es franquiciado (participación > 0), esa pérdida corre por la casa.
+    const resultado = (c.cargado || 0) - (c.retiros_pagados || 0);
+    return {
+      ...c,
+      comision: c.cupo_comprado - c.pagado,
+      resultado,
+      participacion: c.risk_share_pct > 0 && resultado > 0
+        ? Math.round(resultado * c.risk_share_pct / 100)
+        : 0,
+    };
+  });
 
   return json({ from, to, socios });
 }
@@ -212,8 +225,10 @@ export async function reportAlerts(request, env, url) {
   if (auth.error) return auth.response;
 
   const limit = Math.min(Number(url.searchParams.get('limit')) || 10, 50);
+  const settings = await getSettings(env);
+  const umbralCupo = settingNum(settings, 'cupo_alert');
 
-  const [ganadores, sinJugar, viejos] = await Promise.all([
+  const [ganadores, sinJugar, viejos, cupoBajo] = await Promise.all([
     // 1. Jugadores que le vienen ganando a la casa.
     env.DB.prepare(
       `SELECT u.id, u.username, u.balance,
@@ -247,11 +262,22 @@ export async function reportAlerts(request, env, url) {
         ORDER BY w.created_at
         LIMIT ?`
     ).bind(limit).all(),
+
+    // 4. Socios con el cupo por agotarse: sin fichas no pueden vender.
+    env.DB.prepare(
+      `SELECT id, username, first_name, last_name, credit_balance
+         FROM users
+        WHERE role = 'cashier' AND status = 'active' AND credit_balance < ?
+        ORDER BY credit_balance
+        LIMIT ?`
+    ).bind(umbralCupo, limit).all(),
   ]);
 
   return json({
     ganadores: (ganadores.results || []).map((g) => ({ ...g, neto: g.premios - g.apostado })),
     poco_juego: sinJugar.results || [],
     retiros_demorados: viejos.results || [],
+    socios_cupo_bajo: cupoBajo.results || [],
+    umbral_cupo: umbralCupo,
   });
 }

@@ -81,6 +81,14 @@
             </div>
           )}
 
+          {/* Lo que está en cancha de los socios: informativo, lo resuelven ellos. */}
+          {resumen && ((pend.recargas_socios || 0) > 0 || (pend.retiros_socios || 0) > 0) && (
+            <div style={{ marginBottom: 14, fontSize: 12, color: '#998' }}>
+              Además, los socios tienen {pend.recargas_socios || 0} recarga(s) y {pend.retiros_socios || 0} retiro(s)
+              en su cancha — los resuelven ellos desde su taquilla.
+            </div>
+          )}
+
           <Pestanas tabs={tabs} activa={tab} onChange={setTab} />
           <Aviso msg={msg} onClose={() => setMsg(null)} />
 
@@ -397,12 +405,12 @@
           </select>
         </Campo>
         {rol === 'cashier' && (
-          <Campo label="COMISIÓN (%)">
-            <input style={S.input} type="number" min="0" max="90" value={comision}
+          <Campo label="PAGA EL (%) DE LAS FICHAS">
+            <input style={S.input} type="number" min="1" max="100" value={comision}
                    onChange={(e) => setComision(e.target.value)} />
             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-              Con {comision || 0}% te paga {bs(Math.round(10000 * (1 - (Number(comision) || 0) / 100)))} Bs
-              por cada 10.000 de cupo.
+              Con {comision || 0}% te paga {bs(Math.round(10000 * ((Number(comision) || 0) / 100)))} Bs
+              por cada 10.000 de fichas. Lo típico es 20.
             </div>
           </Campo>
         )}
@@ -547,8 +555,8 @@
   function FormNuevoSocio({ setMsg, onHecho }) {
     const vacio = {
       first_name: '', last_name: '', doc_type: 'V', cedula: '', phone: '',
-      email: '', bank: '', username: '', password: '', commission_pct: '10',
-      referral_code: '',
+      email: '', bank: '', username: '', password: '', commission_pct: '20',
+      risk_share_pct: '0', referral_code: '',
     };
     const [f, setF] = useState(vacio);
     const [abierto, setAbierto] = useState(false);
@@ -562,11 +570,12 @@
         const res = await window.Api.adminCreateCashier({
           ...f,
           commission_pct: Number(f.commission_pct),
+          risk_share_pct: Number(f.risk_share_pct) || 0,
           referral_code: f.referral_code.trim() || undefined,
         });
         setMsg({
           kind: 'ok',
-          text: `Socio ${res.cashier.username} creado. Su código de referencia es ${res.cashier.referral_code}. Ya le podés vender cupo.`,
+          text: `Socio ${res.cashier.username} creado. Su código de referencia es ${res.cashier.referral_code}. Ya le podés vender fichas.`,
         });
         setF(vacio); setAbierto(false);
         onHecho();
@@ -632,9 +641,13 @@
             <input style={S.input} value={f.password} onChange={set('password')}
                    placeholder="mínimo 6 caracteres" required />
           </Campo>
-          <Campo label="COMISIÓN (%)">
-            <input style={S.input} type="number" min="0" max="90"
+          <Campo label="PAGA EL (%) DE LAS FICHAS">
+            <input style={S.input} type="number" min="1" max="100"
                    value={f.commission_pct} onChange={set('commission_pct')} required />
+          </Campo>
+          <Campo label="PARTICIP. GANANCIA (%)">
+            <input style={S.input} type="number" min="0" max="30"
+                   value={f.risk_share_pct} onChange={set('risk_share_pct')} />
           </Campo>
           <Campo label="CÓDIGO (opcional)">
             <input style={{ ...S.input, textTransform: 'uppercase' }}
@@ -650,6 +663,9 @@
         </form>
         <div style={{ fontSize: 12, color: '#888', marginTop: 12 }}>
           Pasale el usuario y la contraseña por un medio seguro. Él las puede cambiar después desde su panel.
+          <br />“Paga el %”: lo que te paga por las fichas (típico 20). “Particip. ganancia”: solo para
+          franquicias con responsabilidad compartida — el % de la ganancia del socio que le toca a la
+          casa a cambio de cubrirle las pérdidas (0 = riesgo completo del socio; máximo 30).
         </div>
       </div>
     );
@@ -679,7 +695,8 @@
 
     const elegido = cashiers.find((c) => c.username === username.trim().toLowerCase());
     const cupo = Number(amount) || 0;
-    const sugerido = elegido ? Math.round(cupo * (1 - (elegido.commission_pct || 0) / 100)) : null;
+    // El socio paga el commission_pct% del valor de las fichas (típico: 20).
+    const sugerido = elegido ? Math.round(cupo * ((elegido.commission_pct || 0) / 100)) : null;
     const cobra = pagado === '' ? sugerido : Number(pagado);
 
     const vender = async () => {
@@ -761,7 +778,7 @@
         <div style={S.card}>
           <div style={S.titulo}>SOCIOS ({cashiers.length})</div>
           <Tabla
-            columnas={['SOCIO', 'CÓDIGO', 'CUPO SIN USAR', 'COMISIÓN', 'CUPO COMPRADO', 'TE PAGÓ', 'CARGÓ', 'SU COMISIÓN', 'AFILIADOS', 'ESTADO']}
+            columnas={['SOCIO', 'CÓDIGO', 'FICHAS SIN USAR', 'PAGA %', 'PARTICIP.', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'SU MARGEN', 'AFILIADOS', 'ESTADO']}
             vacio="Todavía no tenés socios. Tocá “+ NUEVO SOCIO” arriba para dar de alta al primero."
           >
             {cashiers.map((c) => (
@@ -775,6 +792,9 @@
                 </td>
                 <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(c.credit_balance)}</td>
                 <td style={S.td}>{c.commission_pct}%</td>
+                <td style={{ ...S.td, color: c.risk_share_pct > 0 ? '#c9a0ff' : '#666' }}>
+                  {c.risk_share_pct > 0 ? `${c.risk_share_pct}%` : '—'}
+                </td>
                 <td style={S.td}>{bs(c.cupo_comprado)}</td>
                 <td style={{ ...S.td, color: '#7ee08a' }}>{bs(c.total_pagado)}</td>
                 <td style={S.td}>{bs(c.total_cargado)}</td>
@@ -900,12 +920,17 @@
                 )}
               </td>
               <td style={S.td}>
-                {t.status === 'pending' && (
+                {t.status === 'pending' && (t.socio_username ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#c9a0ff' }}>La maneja {t.socio_username}</span>
+                    <Boton chico tono="rojo" onClick={() => abrir('rechazar', t)}>RECHAZAR</Boton>
+                  </div>
+                ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Boton chico tono="verde" onClick={() => abrir('aprobar', t)}>APROBAR</Boton>
                     <Boton chico tono="rojo" onClick={() => abrir('rechazar', t)}>RECHAZAR</Boton>
                   </div>
-                )}
+                ))}
               </td>
             </tr>
           ))}
@@ -1070,12 +1095,17 @@
                 )}
               </td>
               <td style={S.td}>
-                {w.status === 'pending' && (
+                {w.status === 'pending' && (w.socio_username ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: '#c9a0ff' }}>Lo paga {w.socio_username}</span>
+                    <Boton chico tono="rojo" onClick={() => abrir('rechazar', w)}>RECHAZAR</Boton>
+                  </div>
+                ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Boton chico tono="verde" onClick={() => abrir('pagar', w)}>PAGAR</Boton>
                     <Boton chico tono="rojo" onClick={() => abrir('rechazar', w)}>RECHAZAR</Boton>
                   </div>
-                )}
+                ))}
               </td>
             </tr>
           ))}
@@ -1230,17 +1260,27 @@
 
         <div style={S.card}>
           <div style={S.titulo}>POR SOCIO (EN EL PERÍODO)</div>
-          <Tabla columnas={['SOCIO', 'CUPO COMPRADO', 'TE PAGÓ', 'SU COMISIÓN', 'CARGÓ', 'CARGAS', 'RETIROS QUE PAGÓ', 'CUPO ACTUAL', 'JUGADORES']}
+          <Tabla columnas={['SOCIO', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'RETIROS QUE PAGÓ', 'RESULTADO', 'PARTICIP. CASA', 'FICHAS ACTUALES', 'AFILIADOS']}
                  vacio="Sin movimientos de socios">
             {(cash ? cash.socios : []).map((c) => (
               <tr key={c.id}>
-                <td style={{ ...S.td, fontWeight: 700 }}>{c.username}</td>
+                <td style={{ ...S.td, fontWeight: 700 }}>
+                  {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.username}
+                  <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>{c.username}</div>
+                </td>
                 <td style={S.td}>{bs(c.cupo_comprado)}</td>
                 <td style={{ ...S.td, color: '#7ee08a' }}>{bs(c.pagado)}</td>
-                <td style={{ ...S.td, color: U.GOLD }}>{bs(c.comision)}</td>
                 <td style={S.td}>{bs(c.cargado)}</td>
-                <td style={{ ...S.td, color: '#999' }}>{bs(c.cargas)}</td>
                 <td style={S.td}>{bs(c.retiros_pagados)}</td>
+                <td style={{ ...S.td, color: c.resultado >= 0 ? '#7ee08a' : '#ff9a9a', fontWeight: 900 }}>
+                  {bs(c.resultado)}
+                  {c.resultado < 0 && c.risk_share_pct > 0 && (
+                    <div style={{ fontSize: 10, color: '#c9a0ff', fontWeight: 400 }}>cubre la casa</div>
+                  )}
+                </td>
+                <td style={{ ...S.td, color: '#c9a0ff' }}>
+                  {c.risk_share_pct > 0 ? `${bs(c.participacion)} (${c.risk_share_pct}%)` : '—'}
+                </td>
                 <td style={{ ...S.td, color: '#ffd84a', fontWeight: 700 }}>{bs(c.credit_balance)}</td>
                 <td style={{ ...S.td, color: '#999' }}>{bs(c.jugadores)}</td>
               </tr>
@@ -1254,7 +1294,8 @@
   }
 
   function Alertas({ a }) {
-    const hay = a.ganadores.length || a.poco_juego.length || a.retiros_demorados.length;
+    const hay = a.ganadores.length || a.poco_juego.length || a.retiros_demorados.length
+      || (a.socios_cupo_bajo && a.socios_cupo_bajo.length);
     return (
       <div style={S.card}>
         <div style={S.titulo}>🔎 ALERTAS</div>
@@ -1296,6 +1337,25 @@
           </div>
         )}
 
+        {a.socios_cupo_bajo && a.socios_cupo_bajo.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ color: '#ffd84a', fontWeight: 700, marginBottom: 6 }}>
+              Socios con las fichas por agotarse (menos de {bs(a.umbral_cupo)})
+            </div>
+            <Tabla columnas={['SOCIO', 'FICHAS QUE LE QUEDAN']}>
+              {a.socios_cupo_bajo.map((s) => (
+                <tr key={s.id}>
+                  <td style={{ ...S.td, fontWeight: 700 }}>
+                    {[s.first_name, s.last_name].filter(Boolean).join(' ') || s.username}
+                    <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}> · {s.username}</span>
+                  </td>
+                  <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(s.credit_balance)}</td>
+                </tr>
+              ))}
+            </Tabla>
+          </div>
+        )}
+
         {a.poco_juego.length > 0 && (
           <div>
             <div style={{ color: '#c9a0ff', fontWeight: 700, marginBottom: 6 }}>
@@ -1323,8 +1383,6 @@
   // ═════════════════════════════ Configuración ════════════════════════════
 
   const CAMPOS_CONFIG = [
-    { key: 'rate_usd', label: 'Tasa del dólar (Bs por $)', tipo: 'number',
-      ayuda: 'Se usa para convertir Zelle y Binance a bolívares. Cada recarga guarda la tasa con la que se hizo.' },
     { key: 'max_bet_per_spin', label: 'Apuesta máxima por giro (Bs)', tipo: 'number',
       ayuda: 'Todo lo que el jugador pone en la mesa en un mismo giro no puede pasar de este número.' },
     { key: 'max_win_per_spin', label: 'Premio máximo por giro (Bs)', tipo: 'number',
@@ -1342,8 +1400,10 @@
     { key: 'bank_pago_movil', label: 'Datos de tu Pago Móvil', tipo: 'text',
       ayuda: 'Lo ve el jugador cuando elige pagar por Pago Móvil. Ej: Banco, cédula y teléfono.' },
     { key: 'bank_transferencia', label: 'Datos de tu cuenta bancaria', tipo: 'text' },
-    { key: 'bank_zelle', label: 'Tu correo de Zelle', tipo: 'text' },
-    { key: 'bank_binance', label: 'Tu usuario de Binance', tipo: 'text' },
+    { key: 'bank_p2p', label: 'Tus datos P2P (divisas)', tipo: 'text',
+      ayuda: 'Para quien te paga en divisas por P2P (Binance u otro). El monto que se registra igual es en bolívares.' },
+    { key: 'cupo_alert', label: 'Avisar fichas bajas del socio (Bs)', tipo: 'number',
+      ayuda: 'Cuando las fichas de un socio bajan de este número, le sale un aviso en su taquilla y a vos en las alertas.' },
   ];
 
   function TabConfig({ setMsg }) {

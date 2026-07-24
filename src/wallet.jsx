@@ -104,28 +104,21 @@
     const [referencia, setReferencia] = useState('');
     const [enviando, setEnviando] = useState(false);
 
-    const esDivisa = metodo === 'zelle' || metodo === 'binance';
-    const tasa = info.limites.rate_usd;
     const mult = info.limites.monto_multiplo || 1;
-    // En divisa la conversión se redondea para arriba: la diferencia la pone la casa.
-    const enBs = esDivisa
-      ? (mult > 1
-          ? Math.ceil(Math.round((Number(monto) || 0) * tasa) / mult) * mult
-          : Math.round((Number(monto) || 0) * tasa))
-      : (Number(monto) || 0);
-    const multiploOk = esDivisa || mult <= 1 || enBs % mult === 0;
-    const datosCuenta = info.cuentas[metodo];
+    const enBs = Number(monto) || 0;
+    const multiploOk = mult <= 1 || enBs % mult === 0;
+    // Con socio, la plata va a él; sin socio, a las cuentas de la casa.
+    const datosCuenta = info.socio ? info.socio.datos : (info.cuentas ? info.cuentas[metodo] : '');
 
     const enviar = async () => {
       setEnviando(true);
       try {
-        const body = esDivisa
-          ? { method: metodo, amount_fx: Number(monto), reference: referencia.trim() }
-          : { method: metodo, amount: Number(monto), reference: referencia.trim() };
-        await window.Api.createTopup(body);
+        await window.Api.createTopup({ method: metodo, amount: enBs, reference: referencia.trim() });
         setMsg({
           kind: 'ok',
-          text: `Listo. Tu recarga de ${bs(enBs)} Bs quedó esperando revisión. Apenas verifiquemos la transferencia te acreditamos el saldo.`,
+          text: info.socio
+            ? `Listo. Tu recarga de ${bs(enBs)} Bs le llegó a tu socio ${info.socio.nombre}: apenas confirme el pago te acredita el saldo.`
+            : `Listo. Tu recarga de ${bs(enBs)} Bs quedó esperando revisión. Apenas verifiquemos la transferencia te acreditamos el saldo.`,
         });
         setMonto(''); setReferencia('');
         onHecho();
@@ -157,17 +150,19 @@
         </div>
 
         <div style={S.card}>
-          <div style={S.titulo}>2. TRANSFERÍ A ESTA CUENTA</div>
+          <div style={S.titulo}>
+            {info.socio ? `2. PAGALE A TU SOCIO (${info.socio.nombre.toUpperCase()})` : '2. TRANSFERÍ A ESTA CUENTA'}
+          </div>
           <div style={{
             background: 'rgba(0,0,0,0.45)', border: '1px dashed #8b6a20', borderRadius: 8,
             padding: 14, fontSize: 16, color: '#7ee08a', whiteSpace: 'pre-wrap',
             fontFamily: 'monospace', lineHeight: 1.6, wordBreak: 'break-word',
           }}>
-            {datosCuenta || 'El administrador todavía no cargó los datos de esta cuenta.'}
+            {datosCuenta || 'Todavía no hay datos de cobro cargados. Consultá antes de transferir.'}
           </div>
-          {esDivisa && (
+          {metodo === 'p2p' && (
             <div style={{ fontSize: 13, color: '#aaa', marginTop: 10 }}>
-              Tasa de hoy: <b style={{ color: '#ffd84a' }}>{tasa} Bs por dólar</b>.
+              ¿Pagás en divisas por P2P? Acordá el monto y poné acá el equivalente <b>en bolívares</b>.
             </div>
           )}
         </div>
@@ -175,22 +170,16 @@
         <div style={S.card}>
           <div style={S.titulo}>3. CONTANOS QUÉ MANDASTE</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Campo label={esDivisa ? 'CUÁNTO MANDASTE (dólares)' : 'CUÁNTO MANDASTE (bolívares)'}>
-              <input style={S.input} type="number" inputMode="decimal" min="0"
-                     step={esDivisa ? 'any' : mult}
-                     placeholder={esDivisa ? '20' : String(Math.max(info.limites.min_topup, mult))}
+            <Campo label="CUÁNTO MANDASTE (bolívares)">
+              <input style={S.input} type="number" inputMode="numeric" min="0" step={mult}
+                     placeholder={String(Math.max(info.limites.min_topup, mult))}
                      value={monto} onChange={(e) => setMonto(e.target.value)} />
-              {!esDivisa && mult > 1 && (
+              {mult > 1 && (
                 <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                   En múltiplos de {bs(mult)} (ej: {bs(mult * 5)}, {bs(mult * 10)}, {bs(mult * 20)}).
                 </div>
               )}
             </Campo>
-            {esDivisa && enBs > 0 && (
-              <div style={{ fontSize: 15, color: '#ddd' }}>
-                Se te acreditarían <b style={{ color: '#ffd84a' }}>{bs(enBs)} Bs</b>.
-              </div>
-            )}
             {!multiploOk && enBs > 0 && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
                 Los montos van en múltiplos de {bs(mult)}. Probá con {bs(Math.floor(enBs / mult) * mult)} o {bs((Math.floor(enBs / mult) + 1) * mult)}.
@@ -206,11 +195,12 @@
               </div>
             )}
             <Boton tono="verde" disabled={!listo || enviando} onClick={enviar}>
-              {enviando ? 'ENVIANDO...' : 'YA TRANSFERÍ, AVISAR'}
+              {enviando ? 'ENVIANDO...' : 'YA PAGUÉ, AVISAR'}
             </Boton>
             <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
-              El saldo entra cuando verificamos la transferencia en el banco. Si el número de referencia está mal,
-              la recarga se rechaza.
+              {info.socio
+                ? `Tu recarga la revisa y aprueba tu socio ${info.socio.nombre}. Si el número de referencia está mal, la rechaza.`
+                : 'El saldo entra cuando verificamos la transferencia en el banco. Si el número de referencia está mal, la recarga se rechaza.'}
             </div>
           </div>
         </div>
@@ -348,6 +338,9 @@
               {enviando ? 'ENVIANDO...' : 'PEDIR RETIRO'}
             </Boton>
             <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
+              {info.socio
+                ? `Este retiro lo revisa y te lo paga tu socio ${info.socio.nombre}. `
+                : ''}
               Al pedirlo, ese saldo te queda retenido y no lo vas a poder jugar. Si el retiro se rechaza,
               te vuelve automáticamente.
             </div>
