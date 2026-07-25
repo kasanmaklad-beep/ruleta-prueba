@@ -181,8 +181,12 @@ function WinCelebration({ amount, lightning, isMobile }) {
   );
 }
 
-function RouletteApp({ user, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet }) {
+function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // Tope de apuesta por giro. Manda el servidor: esto es solo para avisar
+  // ANTES de arrancar el cilindro, en vez de frenar con la rueda girando.
+  const maxBet = (config && config.max_bet_per_spin) || 0;
 
   // Estado del juego — el saldo es autoritativo del servidor (cae a STARTING_BALANCE solo sin sesión)
   const [balance, setBalance] = useState(user ? user.balance : STARTING_BALANCE);
@@ -396,7 +400,10 @@ function RouletteApp({ user, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet 
         runSpinAnimation(server);
       })
       .catch((err) => {
-        // Falló (saldo insuficiente / red): volver a apostar y sincronizar saldo.
+        // Falló (saldo insuficiente / tope / red): volver a apostar y sincronizar
+        // saldo. El sonido del giro hay que cortarlo a mano: el cilindro ya
+        // estaba sonando y si no, queda sonando para siempre.
+        if (window.AudioEngine) { try { window.AudioEngine.stopSpin(); } catch (e) {} }
         setPhase('betting');
         setMessage(err && err.message ? err.message : 'No se pudo girar');
         window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {});
@@ -408,6 +415,13 @@ function RouletteApp({ user, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet 
       setMessage('Debes apostar primero');
       return;
     }
+    // El tope se avisa ACÁ, antes de arrancar: si se dejaba para el cierre, el
+    // cilindro giraba 6 segundos para terminar rechazando la apuesta.
+    const total = bets.reduce((s, b) => s + b.amount, 0);
+    if (maxBet > 0 && total > maxBet) {
+      setMessage(`El máximo por giro es $${maxBet.toLocaleString()}. Llevás $${total.toLocaleString()}: sacá fichas para poder girar.`);
+      return;
+    }
     // El cilindro arranca YA, en giro libre y sin resultado: las apuestas
     // siguen abiertas unos segundos, como en una mesa real.
     serverSpinRef.current = null;
@@ -417,7 +431,7 @@ function RouletteApp({ user, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet 
     setCameraZoom(false);
     setPhase('openbets');
     setBetCountdown(Math.round(OPEN_BETS_MS / 1000));
-  }, [phase, bets]);
+  }, [phase, bets, maxBet]);
 
   // Mantener betsRef al día para poder cerrar con las apuestas más recientes
   useEffect(() => { betsRef.current = bets; }, [bets]);
@@ -1435,6 +1449,8 @@ function PantallaInvitacion({ codigo, user, onRegistrarme, onSeguir }) {
 function AppRoot() {
   const [status, setStatus] = useState('loading'); // loading | login | game | admin | taquilla | billetera
   const [user, setUser] = useState(null);
+  // Límites vigentes (topes, mínimos). Vienen con /api/me.
+  const [config, setConfig] = useState(null);
 
   const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
 
@@ -1472,6 +1488,7 @@ function AppRoot() {
       .then((d) => {
         const u = d.user;
         setUser(u);
+        if (d.config) setConfig(d.config);
         // Llegó por un enlace de invitación pero ya hay una sesión abierta:
         // hay que preguntar, porque si no el código se pierde en silencio y el
         // invitado termina metido en la cuenta de otro.
@@ -1486,7 +1503,10 @@ function AppRoot() {
   const volverAlJuego = () => {
     window.history.pushState({}, '', '/juego');
     setStatus('game');
-    window.Api.me().then((d) => d && d.user && setUser(d.user)).catch(() => {});
+    window.Api.me().then((d) => {
+      if (d && d.user) setUser(d.user);
+      if (d && d.config) setConfig(d.config);
+    }).catch(() => {});
   };
 
   if (status === 'loading') {
@@ -1500,7 +1520,12 @@ function AppRoot() {
   }
 
   if (status === 'login') {
-    return <LoginScreen onAuth={(u) => { setUser(u); setStatus(pantallaPara(u)); }} />;
+    return <LoginScreen onAuth={(u) => {
+      setUser(u);
+      setStatus(pantallaPara(u));
+      // Los límites llegan con /api/me: se piden apenas entra.
+      window.Api.me().then((d) => d && d.config && setConfig(d.config)).catch(() => {});
+    }} />;
   }
 
   // Cerrar sesión tiene que estar a mano desde cualquier pantalla: el dueño no
@@ -1535,6 +1560,7 @@ function AppRoot() {
 
   return <RouletteApp
     user={user}
+    config={config}
     onLogout={salir}
     onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}
     onOpenCashier={esTaquillero ? () => ir('/taquilla', 'taquilla') : null}

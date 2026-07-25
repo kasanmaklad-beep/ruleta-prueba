@@ -368,6 +368,29 @@ const AudioEngine = (() => {
     osc.stop(now + 0.55);
   }
 
+  // ── Silencio cuando nadie está mirando ──────────────────────────────────
+  // El giro es un sonido continuo: si la pestaña queda de fondo (o se apaga el
+  // servidor con la página abierta), seguía sonando para siempre. Se corta el
+  // giro y se suspende el audio; al volver, se reanuda.
+
+  function silenciar() {
+    try { stopSpin(); } catch (e) {}
+    if (ctx && ctx.state === 'running') { try { ctx.suspend(); } catch (e) {} }
+  }
+
+  function reanudar() {
+    if (ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} }
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) silenciar(); else reanudar();
+    });
+    // Cerrar o recargar la pestaña: soltar el audio en el acto.
+    window.addEventListener('pagehide', silenciar);
+    window.addEventListener('beforeunload', silenciar);
+  }
+
   return {
     ensureCtx,
     setVolume,
@@ -384,6 +407,8 @@ const AudioEngine = (() => {
     chip,
     win,
     lose,
+    silenciar,
+    reanudar,
   };
 })();
 
@@ -467,6 +492,14 @@ const Voice = (() => {
   }
   function anunciarPremio(monto) { say(`¡Ganaste ${monto}!`); }
   function anunciarNoMasApuestas() { cancel(); say('No más apuestas', { rate: 1.08 }); }
+
+  // La voz también se calla si la pestaña pasa a segundo plano o se cierra:
+  // si no, termina de cantar el número aunque ya nadie esté mirando.
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => { if (document.hidden) cancel(); });
+    window.addEventListener('pagehide', cancel);
+    window.addEventListener('beforeunload', cancel);
+  }
 
   return { say, setEnabled, isEnabled, isSupported, cancel, anunciarGanador, anunciarPremio, anunciarNoMasApuestas };
 })();

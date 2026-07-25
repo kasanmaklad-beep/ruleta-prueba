@@ -34,34 +34,47 @@
     const submit = async (e) => {
       e.preventDefault();
       setError('');
-      const u = f.username.trim().toLowerCase();
+
+      // El autocompletado del navegador llena los campos sin avisarle a React,
+      // así que al enviar se leen del formulario y no del estado: si no, un
+      // usuario con la clave guardada veía "el usuario debe tener 3 caracteres"
+      // con el campo lleno.
+      const els = e.target.elements;
+      const v = (k) => {
+        const el = els[k];
+        const val = el && typeof el.value === 'string' ? el.value : f[k];
+        return (val == null ? '' : String(val)).trim();
+      };
+
+      const u = v('username').toLowerCase();
+      const password = v('password');
       if (u.length < 3) { setError('El usuario debe tener al menos 3 caracteres'); return; }
-      if (f.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+      if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
 
       if (mode === 'register') {
-        if (f.first_name.trim().length < 2) { setError('Poné tu nombre'); return; }
-        if (f.last_name.trim().length < 2) { setError('Poné tu apellido'); return; }
-        if (f.cedula.trim().length < 4) { setError('Poné el número de tu documento'); return; }
-        if (f.phone.replace(/\D/g, '').length < 7) { setError('Poné tu teléfono: es a donde te vamos a pagar'); return; }
-        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(f.email.trim())) { setError('Poné un correo válido'); return; }
-        if (!f.bank) { setError('Elegí tu banco'); return; }
+        if (v('first_name').length < 2) { setError('Poné tu nombre'); return; }
+        if (v('last_name').length < 2) { setError('Poné tu apellido'); return; }
+        if (v('cedula').length < 4) { setError('Poné el número de tu documento'); return; }
+        if (v('phone').replace(/\D/g, '').length < 7) { setError('Poné tu teléfono: es a donde te vamos a pagar'); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v('email'))) { setError('Poné un correo válido'); return; }
+        if (!v('bank')) { setError('Elegí tu banco'); return; }
       }
 
       setLoading(true);
       try {
         const res = mode === 'login'
-          ? await window.Api.login(u, f.password)
+          ? await window.Api.login(u, password)
           : await window.Api.register({
               username: u,
-              password: f.password,
-              first_name: f.first_name.trim(),
-              last_name: f.last_name.trim(),
-              doc_type: f.doc_type,
-              cedula: f.cedula.trim(),
-              phone: f.phone.trim(),
-              email: f.email.trim(),
-              bank: f.bank,
-              ref: f.ref.trim(),
+              password,
+              first_name: v('first_name'),
+              last_name: v('last_name'),
+              doc_type: v('doc_type') || f.doc_type,
+              cedula: v('cedula'),
+              phone: v('phone'),
+              email: v('email'),
+              bank: v('bank'),
+              ref: v('ref'),
             });
         window.Api.setToken(res.token);
         onAuth(res.user);
@@ -106,9 +119,9 @@
           <form onSubmit={submit}>
             {registro && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <input style={inputStyle} type="text" placeholder="Nombre"
+                <input style={inputStyle} type="text" name="first_name" placeholder="Nombre"
                        value={f.first_name} onChange={set('first_name')} />
-                <input style={inputStyle} type="text" placeholder="Apellido"
+                <input style={inputStyle} type="text" name="last_name" placeholder="Apellido"
                        value={f.last_name} onChange={set('last_name')} />
               </div>
             )}
@@ -116,10 +129,11 @@
             {registro && (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 10 }}>
-                  <select style={inputStyle} value={f.doc_type} onChange={set('doc_type')}>
+                  <select style={inputStyle} name="doc_type" value={f.doc_type} onChange={set('doc_type')}>
                     {DOCS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
                   </select>
-                  <input style={inputStyle} type="text" inputMode={f.doc_type === 'P' || f.doc_type === 'OTRO' ? 'text' : 'numeric'}
+                  <input style={inputStyle} type="text" name="cedula"
+                         inputMode={f.doc_type === 'P' ? 'text' : 'numeric'}
                          placeholder={`Número (ej: ${ejemploDoc(f.doc_type)})`}
                          value={f.cedula} onChange={set('cedula')} />
                 </div>
@@ -130,37 +144,43 @@
             <input
               style={inputStyle}
               type="text"
+              name="username"
               placeholder="Usuario"
               value={f.username}
               autoCapitalize="none"
               autoCorrect="off"
+              autoComplete="username"
               onChange={set('username')}
             />
             <input
               style={inputStyle}
               type="password"
+              name="password"
               placeholder="Contraseña"
               value={f.password}
+              autoComplete={registro ? 'new-password' : 'current-password'}
               onChange={set('password')}
             />
 
             {registro && (
               <>
-                <input style={inputStyle} type="tel" inputMode="tel"
+                <input style={inputStyle} type="tel" inputMode="tel" name="phone"
+                       autoComplete="tel"
                        placeholder="Teléfono (ej: 04141234567)"
                        value={f.phone} onChange={set('phone')} />
                 <select style={{ ...inputStyle, color: f.bank ? '#fff' : '#888' }}
-                        value={f.bank} onChange={set('bank')}>
+                        name="bank" value={f.bank} onChange={set('bank')}>
                   <option value="">Tu banco…</option>
                   {BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
                 </select>
                 <div style={ayuda}>
                   A este banco y teléfono te mandamos el Pago Móvil cuando retires.
                 </div>
-                <input style={inputStyle} type="email" inputMode="email"
+                <input style={inputStyle} type="email" inputMode="email" name="email"
+                       autoComplete="email"
                        placeholder="Correo electrónico"
                        value={f.email} onChange={set('email')} />
-                <input style={{ ...inputStyle, textTransform: 'uppercase' }} type="text"
+                <input style={{ ...inputStyle, textTransform: 'uppercase' }} type="text" name="ref"
                        placeholder="Código de tu socio (opcional)"
                        value={f.ref}
                        onChange={(e) => setF((p) => ({ ...p, ref: e.target.value.toUpperCase() }))} />

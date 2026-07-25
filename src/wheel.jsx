@@ -61,6 +61,13 @@ function RouletteWheel({
   const dirRef = React.useRef(1);          // sentido de la tirada en curso
   const freeSpinRef = React.useRef(false); // ¿venimos de un giro libre?
 
+  // Red de seguridad: si la rueda desaparece de pantalla (cambio de vista,
+  // cierre de sesión) el sonido del giro se corta. Es continuo: si no se
+  // apaga acá, sigue sonando aunque ya no haya ruleta.
+  React.useEffect(() => () => {
+    if (window.AudioEngine) { try { window.AudioEngine.stopSpin(); } catch (e) {} }
+  }, []);
+
   // ═══ Giro libre: la rueda corre sin saber el resultado ═══
   React.useEffect(() => {
     if (!freeSpin) return;
