@@ -125,18 +125,20 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     hotspots.push({ type: 'split', payload: '0-00', numbers: [0, '00'], x: cx - 12, y: cy - 8, w: 24, h: 16, chipX: cx, chipY: cy });
   }
 
-  // STREET (3 números de una fila): {1,2,3}, {4,5,6}, ..., {34,35,36}
+  // STREET (los 3 números de una columna): {1,2,3}, {4,5,6}, ..., {34,35,36}
+  // Va sobre la línea de ABAJO, centrada bajo la columna — como en una mesa
+  // real. Antes era una tira vertical de 20px sobre la raya que separa dos
+  // columnas: casi imposible de acertar, se confundía con el split, y la
+  // ficha aparecía en la otra punta de donde uno tocaba.
   for (let col = 0; col < 12; col++) {
     const baseN = col * 3 + 1;
-    const r = cellRect(baseN); // bottom (n=baseN)
-    const xRight = r.x + r.w;
-    const yTop = r.y - 2 * NUM_H; // top of column
+    const r = cellRect(baseN); // celda de abajo (n = baseN)
     const yBottom = r.y + r.h;
     hotspots.push({
       type: 'street', payload: `${baseN}-${baseN + 1}-${baseN + 2}`,
       numbers: [baseN, baseN + 1, baseN + 2],
-      x: xRight - 10, y: yTop, w: 20, h: NUM_H * 3,
-      chipX: xRight, chipY: yBottom,
+      x: r.x, y: yBottom - 11, w: r.w, h: 22,
+      chipX: r.cx, chipY: yBottom,
     });
   }
 
