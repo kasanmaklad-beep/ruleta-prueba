@@ -23,7 +23,10 @@ export async function readJson(request) {
 // funciona con estos números (deben coincidir con migrations/002).
 export const DEFAULT_SETTINGS = {
   rate_usd: '40',
-  max_bet_per_spin: '500',
+  // Tope POR CASILLA del paño (no por mesa): el riesgo lo da cuánto puede
+  // cobrar una sola posición, no la suma de las apuestas.
+  max_bet_casilla: '500',
+  max_bet_per_spin: '500',   // heredado, ya no se usa
   max_win_per_spin: '50000',
   min_topup: '100',
   min_withdrawal: '500',
@@ -44,6 +47,7 @@ export const DEFAULT_SETTINGS = {
 // Claves numéricas y su rango válido, para no guardar cualquier cosa.
 export const NUMERIC_SETTINGS = {
   rate_usd:           { min: 0.01, max: 1e9,  integer: false },
+  max_bet_casilla:    { min: 1,    max: 1e12, integer: true },
   max_bet_per_spin:   { min: 1,    max: 1e12, integer: true },
   max_win_per_spin:   { min: 1,    max: 1e12, integer: true },
   min_topup:          { min: 0,    max: 1e12, integer: true },

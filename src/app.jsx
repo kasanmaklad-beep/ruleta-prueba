@@ -184,14 +184,18 @@ function WinCelebration({ amount, lightning, isMobile }) {
 function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
-  // Tope de apuesta por giro. Manda el servidor: esto es solo para avisar
-  // ANTES de arrancar el cilindro, en vez de frenar con la rueda girando.
-  const maxBet = (config && config.max_bet_per_spin) || 0;
+  // Tope POR CASILLA del paño. Manda el servidor: esto es para frenar la ficha
+  // al ponerla, en vez de rechazar la jugada con el cilindro girando.
+  const maxCasilla = (config && config.max_bet_casilla) || 0;
 
   // Estado del juego — el saldo es autoritativo del servidor (cae a STARTING_BALANCE solo sin sesión)
   const [balance, setBalance] = useState(user ? user.balance : STARTING_BALANCE);
   const [bets, setBets] = useState([]);
   const [lastBets, setLastBets] = useState([]);
+  // Aviso corto que pisa al historial: si no, el jugador toca una ficha
+  // rechazada y no ve ninguna explicación.
+  const [aviso, setAviso] = useState('');
+  const avisoRef = useRef(null);
   const [selectedChip, setSelectedChip] = useState(5);
   const [phase, setPhase] = useState('betting'); // 'betting' | 'lightning' | 'spinning' | 'result'
   const [resultIndex, setResultIndex] = useState(null);
@@ -288,15 +292,37 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
   // gira, hasta que se canta "no más apuestas".
   const apuestasAbiertas = phase === 'betting' || phase === 'openbets';
 
+  const avisar = useCallback((txt) => {
+    setAviso(txt);
+    clearTimeout(avisoRef.current);
+    // Siete segundos: el aviso explica qué hacer, hay que dar tiempo a leerlo.
+    avisoRef.current = setTimeout(() => setAviso(''), 7000);
+  }, []);
+
   const placeBet = useCallback((bet) => {
     if (!apuestasAbiertas) return;
     if (bet.amount > balance) {
-      setMessage('Saldo insuficiente');
+      avisar('Saldo insuficiente');
       return;
+    }
+    // Tope por casilla: se frena acá, con la ficha en la mano. Cubrir otras
+    // posiciones sigue permitido — lo que no se puede es cargar una sola.
+    if (maxCasilla > 0) {
+      const key = betKey(bet.type, bet.payload);
+      const yaPuesto = bets.reduce(
+        (s, b) => (betKey(b.type, b.payload) === key ? s + b.amount : s), 0);
+      if (yaPuesto + bet.amount > maxCasilla) {
+        avisar(
+          yaPuesto >= maxCasilla
+            ? `Esa casilla ya está en el máximo ($${maxCasilla.toLocaleString()}). Probá en otra.`
+            : `El máximo por casilla es $${maxCasilla.toLocaleString()}: ahí solo entran $${(maxCasilla - yaPuesto).toLocaleString()} más.`
+        );
+        return;
+      }
     }
     setBalance((b) => b - bet.amount);
     setBets((bs) => [...bs, bet]);
-  }, [apuestasAbiertas, balance]);
+  }, [apuestasAbiertas, balance, bets, maxCasilla, avisar]);
 
   const removeBet = useCallback((type, payload) => {
     if (!apuestasAbiertas) return;
@@ -412,15 +438,24 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
 
   const startSpin = useCallback(() => {
     if (phase !== 'betting' || bets.length === 0) {
-      setMessage('Debes apostar primero');
+      avisar('Debes apostar primero');
       return;
     }
-    // El tope se avisa ACÁ, antes de arrancar: si se dejaba para el cierre, el
-    // cilindro giraba 6 segundos para terminar rechazando la apuesta.
-    const total = bets.reduce((s, b) => s + b.amount, 0);
-    if (maxBet > 0 && total > maxBet) {
-      setMessage(`El máximo por giro es $${maxBet.toLocaleString()}. Llevás $${total.toLocaleString()}: sacá fichas para poder girar.`);
-      return;
+    // Red de seguridad: normalmente el tope ya se frenó al poner la ficha,
+    // pero si alguna casilla quedó pasada no se arranca el cilindro para
+    // terminar rechazando la jugada seis segundos después.
+    if (maxCasilla > 0) {
+      const porCasilla = new Map();
+      for (const b of bets) {
+        const k = betKey(b.type, b.payload);
+        porCasilla.set(k, (porCasilla.get(k) || 0) + b.amount);
+      }
+      for (const [, monto] of porCasilla) {
+        if (monto > maxCasilla) {
+          avisar(`Hay una casilla con $${monto.toLocaleString()} y el máximo es $${maxCasilla.toLocaleString()}. Sacá fichas de ahí.`);
+          return;
+        }
+      }
     }
     // El cilindro arranca YA, en giro libre y sin resultado: las apuestas
     // siguen abiertas unos segundos, como en una mesa real.
@@ -431,7 +466,7 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
     setCameraZoom(false);
     setPhase('openbets');
     setBetCountdown(Math.round(OPEN_BETS_MS / 1000));
-  }, [phase, bets, maxBet]);
+  }, [phase, bets, maxCasilla, avisar]);
 
   // Mantener betsRef al día para poder cerrar con las apuestas más recientes
   useEffect(() => { betsRef.current = bets; }, [bets]);
@@ -770,7 +805,9 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
           animation: phase === 'lightning' ? 'pulseBar 0.6s ease-in-out infinite alternate' : 'none',
         }}
       >
-        {phase === 'betting' ? (
+        {aviso ? (
+          <span style={{ color: '#ff9a9a' }}>{aviso}</span>
+        ) : phase === 'betting' ? (
           history.length > 0 ? (
             <>
               <span style={{ fontSize: isMobile ? 8 : 10, letterSpacing: 2, color: '#888', marginRight: 4 }}>HIST.</span>

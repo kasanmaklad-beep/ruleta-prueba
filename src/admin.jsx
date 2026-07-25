@@ -1383,8 +1383,8 @@
   // ═════════════════════════════ Configuración ════════════════════════════
 
   const CAMPOS_CONFIG = [
-    { key: 'max_bet_per_spin', label: 'Apuesta máxima por giro (Bs)', tipo: 'number',
-      ayuda: 'Todo lo que el jugador pone en la mesa en un mismo giro no puede pasar de este número.' },
+    { key: 'max_bet_casilla', label: 'Apuesta máxima por casilla (Bs)', tipo: 'number',
+      ayuda: 'Lo máximo que entra en CADA posición del paño: un número, el rojo, una docena. Puede cubrir varias casillas sin límite de total, porque eso no agrega riesgo: las que pierden pagan parte de la que gana. Lo que no puede es cargar una sola por encima de este número.' },
     { key: 'max_win_per_spin', label: 'Premio máximo por giro (Bs)', tipo: 'number',
       ayuda: 'El candado importante: los números Lightning pagan hasta 500x. Con este techo, un solo golpe de suerte no te vacía la caja.' },
     { key: 'monto_multiplo', label: 'Los montos van en múltiplos de (Bs)', tipo: 'number',

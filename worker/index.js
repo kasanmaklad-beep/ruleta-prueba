@@ -194,6 +194,10 @@ async function adminTransactions(request, env, url) {
 //   5. calcula el premio, lo recorta al TECHO DE PREMIO y lo acredita.
 //  Así el jugador nunca decide cuánto gana, y un Lightning de 500x no puede
 //  vaciar la caja de un solo giro.
+//
+//  El tope de apuesta es POR CASILLA del paño, no por total de mesa: cubrir
+//  varias posiciones no agrega riesgo (las que pierden pagan parte de la que
+//  gana), así que limitar la suma solo estorbaba al jugador.
 // ═══════════════════════════════════════════════════════════════════════
 async function gameSpin(request, env) {
   const auth = await requireAuth(request, env);
@@ -218,15 +222,26 @@ async function gameSpin(request, env) {
   }
   if (stake <= 0 || stake > 1e12) return json({ error: 'Apuesta total inválida' }, 400);
 
-  // 2. Tope de apuesta por giro.
+  // 2. Tope POR CASILLA (no por mesa). El riesgo lo marca cuánto puede cobrar
+  //    una sola posición: 500 al rojo y 500 al negro se cancelan entre sí, y
+  //    500 en diez plenos expone menos que un solo pleno de 500. Lo que no se
+  //    puede permitir es cargar una casilla por encima del tope.
   const settings = await getSettings(env);
-  const maxBet = settingNum(settings, 'max_bet_per_spin');
+  const maxCasilla = settingNum(settings, 'max_bet_casilla');
   const maxWin = settingNum(settings, 'max_win_per_spin');
-  if (stake > maxBet) {
-    return json({
-      error: `El máximo por giro es ${maxBet.toLocaleString('es-VE')}. Estás apostando ${stake.toLocaleString('es-VE')}.`,
-      max_bet_per_spin: maxBet,
-    }, 400);
+
+  const porCasilla = new Map();
+  for (const b of bets) {
+    const key = `${b.type}:${b.payload}`;
+    porCasilla.set(key, (porCasilla.get(key) || 0) + b.amount);
+  }
+  for (const [, monto] of porCasilla) {
+    if (monto > maxCasilla) {
+      return json({
+        error: `El máximo por casilla es ${maxCasilla.toLocaleString('es-VE')}. Tenés ${monto.toLocaleString('es-VE')} en una sola.`,
+        max_bet_casilla: maxCasilla,
+      }, 400);
+    }
   }
 
   // 3. Descontar del saldo DISPONIBLE de forma atómica.
