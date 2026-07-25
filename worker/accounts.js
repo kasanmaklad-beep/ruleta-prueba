@@ -216,6 +216,7 @@ export async function me(request, env) {
     user,
     config: {
       max_bet_casilla: settingNum(s, 'max_bet_casilla'),
+      max_bet_pleno: settingNum(s, 'max_bet_pleno'),
       max_win_per_spin: settingNum(s, 'max_win_per_spin'),
       min_topup: settingNum(s, 'min_topup'),
       min_withdrawal: settingNum(s, 'min_withdrawal'),

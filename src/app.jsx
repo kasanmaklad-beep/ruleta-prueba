@@ -184,9 +184,15 @@ function WinCelebration({ amount, lightning, isMobile }) {
 function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
-  // Tope POR CASILLA del paño. Manda el servidor: esto es para frenar la ficha
-  // al ponerla, en vez de rechazar la jugada con el cilindro girando.
+  // Topes POR CASILLA del paño. Manda el servidor: esto es para frenar la
+  // ficha al ponerla, en vez de rechazar la jugada con el cilindro girando.
+  // El pleno lleva el suyo, más bajo: paga 29:1 y con Lightning hasta 500x.
   const maxCasilla = (config && config.max_bet_casilla) || 0;
+  const maxPleno = (config && config.max_bet_pleno) || 0;
+  const topeDe = useCallback(
+    (tipo) => (tipo === 'straight' ? (maxPleno || maxCasilla) : maxCasilla),
+    [maxCasilla, maxPleno]
+  );
 
   // Estado del juego — el saldo es autoritativo del servidor (cae a STARTING_BALANCE solo sin sesión)
   const [balance, setBalance] = useState(user ? user.balance : STARTING_BALANCE);
@@ -307,22 +313,24 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
     }
     // Tope por casilla: se frena acá, con la ficha en la mano. Cubrir otras
     // posiciones sigue permitido — lo que no se puede es cargar una sola.
-    if (maxCasilla > 0) {
+    const tope = topeDe(bet.type);
+    if (tope > 0) {
       const key = betKey(bet.type, bet.payload);
       const yaPuesto = bets.reduce(
         (s, b) => (betKey(b.type, b.payload) === key ? s + b.amount : s), 0);
-      if (yaPuesto + bet.amount > maxCasilla) {
+      if (yaPuesto + bet.amount > tope) {
+        const donde = bet.type === 'straight' ? 'pleno' : 'casilla';
         avisar(
-          yaPuesto >= maxCasilla
-            ? `Esa casilla ya está en el máximo ($${maxCasilla.toLocaleString()}). Probá en otra.`
-            : `El máximo por casilla es $${maxCasilla.toLocaleString()}: ahí solo entran $${(maxCasilla - yaPuesto).toLocaleString()} más.`
+          yaPuesto >= tope
+            ? `Ese ${donde} ya está en el máximo ($${tope.toLocaleString()}). Probá en otro.`
+            : `El máximo por ${donde} es $${tope.toLocaleString()}: ahí solo entran $${(tope - yaPuesto).toLocaleString()} más.`
         );
         return;
       }
     }
     setBalance((b) => b - bet.amount);
     setBets((bs) => [...bs, bet]);
-  }, [apuestasAbiertas, balance, bets, maxCasilla, avisar]);
+  }, [apuestasAbiertas, balance, bets, topeDe, avisar]);
 
   const removeBet = useCallback((type, payload) => {
     if (!apuestasAbiertas) return;
@@ -444,15 +452,19 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
     // Red de seguridad: normalmente el tope ya se frenó al poner la ficha,
     // pero si alguna casilla quedó pasada no se arranca el cilindro para
     // terminar rechazando la jugada seis segundos después.
-    if (maxCasilla > 0) {
+    if (maxCasilla > 0 || maxPleno > 0) {
       const porCasilla = new Map();
       for (const b of bets) {
         const k = betKey(b.type, b.payload);
-        porCasilla.set(k, (porCasilla.get(k) || 0) + b.amount);
+        const prev = porCasilla.get(k) || { monto: 0, type: b.type };
+        prev.monto += b.amount;
+        porCasilla.set(k, prev);
       }
-      for (const [, monto] of porCasilla) {
-        if (monto > maxCasilla) {
-          avisar(`Hay una casilla con $${monto.toLocaleString()} y el máximo es $${maxCasilla.toLocaleString()}. Sacá fichas de ahí.`);
+      for (const [, c] of porCasilla) {
+        const tope = topeDe(c.type);
+        if (tope > 0 && c.monto > tope) {
+          const donde = c.type === 'straight' ? 'un pleno' : 'una casilla';
+          avisar(`Hay ${donde} con $${c.monto.toLocaleString()} y el máximo es $${tope.toLocaleString()}. Sacá fichas de ahí.`);
           return;
         }
       }
@@ -466,7 +478,7 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
     setCameraZoom(false);
     setPhase('openbets');
     setBetCountdown(Math.round(OPEN_BETS_MS / 1000));
-  }, [phase, bets, maxCasilla, avisar]);
+  }, [phase, bets, maxCasilla, maxPleno, topeDe, avisar]);
 
   // Mantener betsRef al día para poder cerrar con las apuestas más recientes
   useEffect(() => { betsRef.current = bets; }, [bets]);

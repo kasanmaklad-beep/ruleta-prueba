@@ -26,6 +26,9 @@ export const DEFAULT_SETTINGS = {
   // Tope POR CASILLA del paño (no por mesa): el riesgo lo da cuánto puede
   // cobrar una sola posición, no la suma de las apuestas.
   max_bet_casilla: '500',
+  // El pleno paga 29:1 (y hasta 500x con Lightning), así que lleva su propio
+  // tope, más bajo que el del resto de las casillas.
+  max_bet_pleno: '100',
   max_bet_per_spin: '500',   // heredado, ya no se usa
   max_win_per_spin: '50000',
   min_topup: '100',
@@ -48,6 +51,7 @@ export const DEFAULT_SETTINGS = {
 export const NUMERIC_SETTINGS = {
   rate_usd:           { min: 0.01, max: 1e9,  integer: false },
   max_bet_casilla:    { min: 1,    max: 1e12, integer: true },
+  max_bet_pleno:      { min: 1,    max: 1e12, integer: true },
   max_bet_per_spin:   { min: 1,    max: 1e12, integer: true },
   max_win_per_spin:   { min: 1,    max: 1e12, integer: true },
   min_topup:          { min: 0,    max: 1e12, integer: true },

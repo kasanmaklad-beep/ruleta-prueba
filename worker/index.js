@@ -228,18 +228,27 @@ async function gameSpin(request, env) {
   //    puede permitir es cargar una casilla por encima del tope.
   const settings = await getSettings(env);
   const maxCasilla = settingNum(settings, 'max_bet_casilla');
+  const maxPleno = settingNum(settings, 'max_bet_pleno');
   const maxWin = settingNum(settings, 'max_win_per_spin');
 
+  // El pleno tiene su propio tope: paga 29:1 y con Lightning hasta 500x, así
+  // que aguanta mucho menos que un color o una docena.
   const porCasilla = new Map();
   for (const b of bets) {
     const key = `${b.type}:${b.payload}`;
-    porCasilla.set(key, (porCasilla.get(key) || 0) + b.amount);
+    const prev = porCasilla.get(key) || { monto: 0, type: b.type };
+    prev.monto += b.amount;
+    porCasilla.set(key, prev);
   }
-  for (const [, monto] of porCasilla) {
-    if (monto > maxCasilla) {
+  for (const [, c] of porCasilla) {
+    const tope = c.type === 'straight' ? maxPleno : maxCasilla;
+    if (c.monto > tope) {
       return json({
-        error: `El máximo por casilla es ${maxCasilla.toLocaleString('es-VE')}. Tenés ${monto.toLocaleString('es-VE')} en una sola.`,
+        error: c.type === 'straight'
+          ? `El máximo por pleno es ${maxPleno.toLocaleString('es-VE')}. Tenés ${c.monto.toLocaleString('es-VE')} en un número.`
+          : `El máximo por casilla es ${maxCasilla.toLocaleString('es-VE')}. Tenés ${c.monto.toLocaleString('es-VE')} en una sola.`,
         max_bet_casilla: maxCasilla,
+        max_bet_pleno: maxPleno,
       }, 400);
     }
   }
