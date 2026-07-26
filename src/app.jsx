@@ -378,21 +378,8 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
   }, [apuestasAbiertas, totalBet]);
 
 
-  // Genera los números Lightning para esta ronda
-  const generateLightning = useCallback(() => {
-    const count = 1 + Math.floor(Math.random() * 5); // 1-5
-    const pool = [...AMERICAN_WHEEL_ORDER];
-    const chosen = new Map();
-    for (let i = 0; i < count; i++) {
-      const idx = Math.floor(Math.random() * pool.length);
-      const n = pool.splice(idx, 1)[0];
-      // Multiplicadores tipo lightning: 50x, 100x, 150x, 200x, 300x, 400x, 500x
-      const multPool = [50, 75, 100, 150, 200, 300, 400, 500];
-      const mult = multPool[Math.floor(Math.random() * multPool.length)];
-      chosen.set(n, mult);
-    }
-    return chosen;
-  }, []);
+  // Los números Lightning NO se sortean acá: los manda el servidor en la
+  // respuesta de /api/game/spin. Este archivo solo los dibuja.
 
   const spawnBolt = useCallback(() => {
     const id = Math.random();
