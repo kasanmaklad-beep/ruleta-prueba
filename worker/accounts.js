@@ -10,6 +10,7 @@ import {
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
   normalizeNombre, normalizeDocumento, normalizeEmail,
   normalizeRefCode, refCodeDeId,
+  LTG_VALORES, LTG_PERFILES, ventajaPleno,
 } from './lib.js';
 
 // ─────────────────────── Ficha de datos personales ────────────────────────
@@ -498,7 +499,19 @@ export async function adminAdjust(request, env) {
 export async function adminGetSettings(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
-  return json({ settings: await getSettings(env) });
+  const settings = await getSettings(env);
+  return json({
+    settings,
+    // Cuánto le deja el pleno a la casa con la configuración actual, más los
+    // perfiles listos para elegir desde el panel.
+    lightning: {
+      ...ventajaPleno(settings),
+      valores: LTG_VALORES,
+      perfiles: LTG_PERFILES,
+      // El resto de la mesa siempre paga esto: sirve de referencia.
+      ventaja_resto_mesa: 5.3,
+    },
+  });
 }
 
 export async function adminPutSettings(request, env) {
@@ -514,6 +527,27 @@ export async function adminPutSettings(request, env) {
   for (const [key, raw] of Object.entries(incoming)) {
     if (!(key in DEFAULT_SETTINGS)) continue; // ignorar claves desconocidas
     let value;
+
+    // Los pesos de los rayos vienen como lista: "40,20,15,11,7,4,2,1".
+    if (key === 'ltg_pesos') {
+      const nums = String(raw).split(',').map((x) => Number(String(x).trim()));
+      if (nums.length !== LTG_VALORES.length || nums.some((n) => !Number.isFinite(n) || n < 0)) {
+        return json({ error: `Los pesos de los rayos tienen que ser ${LTG_VALORES.length} números de 0 en adelante, separados por coma` }, 400);
+      }
+      if (!nums.some((n) => n > 0)) {
+        return json({ error: 'Al menos un multiplicador tiene que poder salir' }, 400);
+      }
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value,
+                                          updated_at = excluded.updated_at,
+                                          updated_by = excluded.updated_by`
+        ).bind(key, nums.join(','), nowSql(), auth.userId)
+      );
+      continue;
+    }
+
     const rule = NUMERIC_SETTINGS[key];
     if (rule) {
       const n = Number(raw);
@@ -542,13 +576,25 @@ export async function adminPutSettings(request, env) {
   const settings = await getSettings(env);
   // Coherencia: el techo de premio por debajo del tope de apuesta no tiene
   // sentido (el jugador no podría ni recuperar lo apostado).
-  if (settingNum(settings, 'max_win_per_spin') < settingNum(settings, 'max_bet_per_spin')) {
+  const lightning = {
+    ...ventajaPleno(settings), valores: LTG_VALORES,
+    perfiles: LTG_PERFILES, ventaja_resto_mesa: 5.3,
+  };
+
+  if (settingNum(settings, 'max_win_per_spin') < settingNum(settings, 'max_bet_casilla')) {
     return json({
-      settings,
+      settings, lightning,
       warning: 'Ojo: el techo de premio quedó por debajo del tope de apuesta. Un jugador podría apostar más de lo que puede cobrar.',
     });
   }
-  return json({ settings });
+  // Aviso fuerte: con esos pesos la casa PIERDE en los plenos.
+  if (lightning.ventaja < 0) {
+    return json({
+      settings, lightning,
+      warning: `Ojo: así el pleno deja ${lightning.ventaja}%, o sea que la casa PIERDE ${Math.abs(lightning.ventaja)}% de todo lo que le apuesten a un número. Bajá el peso de los multiplicadores grandes.`,
+    });
+  }
+  return json({ settings, lightning });
 }
 
 // ─────────────────────────── Helper ───────────────────────────────────────

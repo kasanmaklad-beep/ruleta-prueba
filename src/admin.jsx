@@ -1410,19 +1410,21 @@
 
   function TabConfig({ setMsg }) {
     const [vals, setVals] = useState(null);
+    const [ltg, setLtg] = useState(null);
     const [guardando, setGuardando] = useState(false);
 
     useEffect(() => {
       window.Api.adminGetSettings()
-        .then((d) => setVals(d.settings))
+        .then((d) => { setVals(d.settings); setLtg(d.lightning || null); })
         .catch((err) => setMsg({ kind: 'err', text: err.message }));
     }, [setMsg]);
 
-    const guardar = async () => {
+    const guardar = async (extra) => {
       setGuardando(true);
       try {
-        const res = await window.Api.adminPutSettings(vals);
+        const res = await window.Api.adminPutSettings({ ...vals, ...(extra || {}) });
         setVals(res.settings);
+        if (res.lightning) setLtg(res.lightning);
         setMsg({ kind: res.warning ? 'err' : 'ok', text: res.warning || 'Configuración guardada.' });
       } catch (err) { setMsg({ kind: 'err', text: err.message }); }
       finally { setGuardando(false); }
@@ -1451,10 +1453,169 @@
             </div>
           ))}
         </div>
+
+        {ltg && (
+          <PanelRayos
+            ltg={ltg}
+            vals={vals}
+            setVals={setVals}
+            guardar={guardar}
+            guardando={guardando}
+          />
+        )}
+
         <div style={{ marginTop: 20 }}>
-          <Boton tono="verde" onClick={guardar} disabled={guardando}>
+          <Boton tono="verde" onClick={() => guardar()} disabled={guardando}>
             {guardando ? 'GUARDANDO...' : 'GUARDAR CONFIGURACIÓN'}
           </Boton>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Rayos (Lightning) ────────────────────────────────────────────────────
+  // Acá se decide cuánto gana la casa en los plenos. Los multiplicadores son
+  // siempre los mismos (50x…500x); lo que se ajusta es cada cuánto sale cada
+  // uno. Si los grandes salen seguido, el pleno paga más de lo que recibe.
+  function PanelRayos({ ltg, vals, setVals, guardar, guardando }) {
+    const valores = ltg.valores || [50, 75, 100, 150, 200, 300, 400, 500];
+    const pesosTxt = vals.ltg_pesos || '';
+    const pesos = pesosTxt.split(',').map((x) => Number(String(x).trim()));
+    const sumaPesos = pesos.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+
+    // Ventaja calculada en vivo, con lo que hay escrito en pantalla.
+    const calc = (() => {
+      const min = Number(vals.ltg_min), max = Number(vals.ltg_max);
+      if (![min, max].every(Number.isFinite) || sumaPesos <= 0 || pesos.length !== valores.length
+          || pesos.some((p) => !Number.isFinite(p) || p < 0)) return null;
+      const multProm = valores.reduce((a, v, i) => a + v * pesos[i], 0) / sumaPesos;
+      const rayosProm = (Math.max(0, min) + Math.max(min, max)) / 2;
+      const P = Math.min(1, rayosProm / 38);
+      const devuelve = (1 / 38) * (P * multProm + (1 - P) * 30);
+      return {
+        ventaja: Math.round((1 - devuelve) * 1000) / 10,
+        multProm: Math.round(multProm * 10) / 10,
+        rayosProm,
+      };
+    })();
+
+    const v = calc ? calc.ventaja : null;
+    const color = v == null ? '#888' : v < 0 ? '#ff9a9a' : v < 3 ? '#ffd84a' : '#7ee08a';
+
+    const aplicarPerfil = (p) => {
+      const nuevos = { ...vals, ltg_pesos: p.pesos, ltg_min: '1', ltg_max: '5' };
+      setVals(nuevos);
+      guardar({ ltg_pesos: p.pesos, ltg_min: '1', ltg_max: '5' });
+    };
+
+    const setPeso = (i, valor) => {
+      const arr = [...pesos];
+      arr[i] = valor === '' ? 0 : Number(valor);
+      setVals({ ...vals, ltg_pesos: arr.join(',') });
+    };
+
+    return (
+      <div style={{ ...S.card, marginTop: 18, borderColor: '#5ab8ff' }}>
+        <div style={{ ...S.titulo, color: '#9fd8ff' }}>⚡ RAYOS Y GANANCIA DE LA CASA</div>
+        <div style={{ fontSize: 12, color: '#888', marginBottom: 14, lineHeight: 1.6 }}>
+          Los rayos son lo que hace que un pleno pague hasta 500 veces. Cuanto más seguido salgan
+          los multiplicadores grandes, más generoso es el juego — y menos gana la casa. El resto de
+          la mesa (color, docena, línea) siempre le deja <b>5,3%</b> a la casa; acá se ajusta el pleno
+          para que quede parecido.
+        </div>
+
+        {/* Resultado en vivo */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+          gap: 10, marginBottom: 16,
+        }}>
+          <Dato titulo="Le deja a la casa (pleno)" color={color}
+                valor={v == null ? '—' : `${v}%`}
+                detalle={v == null ? 'revisá los pesos'
+                  : v < 0 ? 'la casa PIERDE' : 'el resto de la mesa: 5,3%'} />
+          <Dato chico titulo="Multiplicador promedio" valor={calc ? `${calc.multProm}x` : '—'} />
+          <Dato chico titulo="Rayos por giro (promedio)" valor={calc ? calc.rayosProm : '—'} />
+        </div>
+
+        {v != null && v < 0 && (
+          <div style={{
+            marginBottom: 14, padding: '10px 14px', borderRadius: 6, fontSize: 14,
+            background: 'rgba(180,16,26,0.2)', border: '1px solid #b8101a', color: '#ff9a9a',
+          }}>
+            Con estos pesos la casa <b>pierde {Math.abs(v)}%</b> de todo lo que le apuesten a un número.
+            Cada 100 Bs apostados a plenos devuelve {Math.round(100 * (1 + Math.abs(v) / 100))}.
+          </div>
+        )}
+
+        {/* Perfiles listos */}
+        <div style={{ fontSize: 11, color: '#999', letterSpacing: 1, marginBottom: 6 }}>PERFILES LISTOS</div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+          {Object.entries(ltg.perfiles || {}).map(([id, p]) => (
+            <Boton key={id} tono={id === 'equilibrado' ? 'verde' : 'oro'}
+                   disabled={guardando}
+                   onClick={() => aplicarPerfil(p)}>
+              {p.label.toUpperCase()} — {String(p.ventaja).replace('.', ',')}%
+            </Boton>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 18, lineHeight: 1.5 }}>
+          <b>Equilibrado:</b> el pleno rinde igual que el resto de la mesa. Es el recomendado.
+          <br /><b>Casa fuerte:</b> el pleno rinde un poco más que el resto; los premios grandes salen
+          menos seguido.
+        </div>
+
+        {/* Ajuste fino */}
+        <div style={{ fontSize: 11, color: '#999', letterSpacing: 1, marginBottom: 6 }}>
+          AJUSTE FINO — CADA CUÁNTO SALE CADA MULTIPLICADOR
+        </div>
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(88px, 1fr))', gap: 8,
+        }}>
+          {valores.map((val, i) => {
+            const pct = sumaPesos > 0 ? (pesos[i] / sumaPesos) * 100 : 0;
+            return (
+              <div key={val} style={{
+                background: 'rgba(0,0,0,0.3)', border: '1px solid #3a2a10',
+                borderRadius: 6, padding: '8px 10px',
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 900, color: '#ffd84a' }}>{val}x</div>
+                <input
+                  style={{ ...S.input, padding: '6px 8px', fontSize: 14, marginTop: 4 }}
+                  type="number" min="0" step="0.5"
+                  value={Number.isFinite(pesos[i]) ? pesos[i] : ''}
+                  onChange={(e) => setPeso(i, e.target.value)}
+                />
+                <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>
+                  {pct.toFixed(1)}% de los rayos
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.5 }}>
+          Son pesos relativos, no porcentajes: si el 50x tiene 40 y el 500x tiene 1, el 50x sale
+          cuarenta veces más seguido. El porcentaje de abajo se calcula solo.
+        </div>
+
+        {/* Cuántos números reciben rayo */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+          gap: 12, marginTop: 16,
+        }}>
+          <Campo label="MÍNIMO DE NÚMEROS CON RAYO">
+            <input style={S.input} type="number" min="0" max="20"
+                   value={vals.ltg_min}
+                   onChange={(e) => setVals({ ...vals, ltg_min: e.target.value })} />
+          </Campo>
+          <Campo label="MÁXIMO DE NÚMEROS CON RAYO">
+            <input style={S.input} type="number" min="1" max="20"
+                   value={vals.ltg_max}
+                   onChange={(e) => setVals({ ...vals, ltg_max: e.target.value })} />
+          </Campo>
+        </div>
+        <div style={{ fontSize: 11, color: '#888', marginTop: 8, lineHeight: 1.5 }}>
+          Cuántos números se encienden en cada giro. Más números encendidos = más chances de que
+          alguien pegue un multiplicador, o sea más generoso.
         </div>
       </div>
     );

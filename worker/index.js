@@ -13,7 +13,7 @@
 
 import {
   json, readJson, str, toPositiveInt, requireAuth, requireAdmin,
-  getSettings, settingNum,
+  getSettings, settingNum, ltgPesos, LTG_VALORES,
 } from './lib.js';
 
 import {
@@ -273,7 +273,7 @@ async function gameSpin(request, env) {
   ).bind(auth.userId, stake, `Apuesta ronda (${bets.length} fichas)`).run();
 
   // 4. Generar Lightning y resultado con RNG del servidor.
-  const lightning = generateLightning();       // Array<[num, mult]>
+  const lightning = generateLightning(settings);   // Array<[num, mult]>
   const ltgMap = new Map(lightning);
   const resultIndex = randInt(AMERICAN_WHEEL_ORDER.length);
   const resultNum = AMERICAN_WHEEL_ORDER[resultIndex];
@@ -420,17 +420,37 @@ function range(a, b) {
   return r;
 }
 
-// Genera 1-5 números Lightning con multiplicadores. Igual que src/app.jsx.
-function generateLightning() {
-  const count = 1 + randInt(5); // 1..5
+// Genera los números Lightning del giro, según la configuración del panel.
+//
+// Los multiplicadores NO salen parejos: cada uno tiene su peso, así que el 50x
+// aparece seguido y el 500x es raro — como en una mesa real. Si salieran todos
+// iguales el promedio sería 222x y el pleno pagaría más de lo que recibe.
+function generateLightning(settings) {
+  const min = Math.max(0, Math.round(settingNum(settings, 'ltg_min')));
+  const max = Math.max(min, Math.round(settingNum(settings, 'ltg_max')));
+  const count = min + (max > min ? randInt(max - min + 1) : 0);
+
+  const pesos = ltgPesos(settings);
+  const total = pesos.reduce((a, b) => a + b, 0);
+
+  // Sorteo con peso: se tira un número en [0, total) y se busca en qué tramo cae.
+  const sortearMult = () => {
+    if (total <= 0) return LTG_VALORES[0];
+    // randInt da enteros; se usa una resolución de 10.000 para admitir pesos con decimales.
+    let r = (randInt(10000) / 10000) * total;
+    for (let i = 0; i < LTG_VALORES.length; i++) {
+      r -= pesos[i];
+      if (r < 0) return LTG_VALORES[i];
+    }
+    return LTG_VALORES[LTG_VALORES.length - 1];
+  };
+
   const pool = [...AMERICAN_WHEEL_ORDER];
-  const multPool = [50, 75, 100, 150, 200, 300, 400, 500];
   const chosen = [];
   for (let i = 0; i < count && pool.length > 0; i++) {
     const idx = randInt(pool.length);
     const n = pool.splice(idx, 1)[0];
-    const mult = multPool[randInt(multPool.length)];
-    chosen.push([n, mult]);
+    chosen.push([n, sortearMult()]);
   }
   return chosen;
 }

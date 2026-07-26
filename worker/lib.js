@@ -40,6 +40,11 @@ export const DEFAULT_SETTINGS = {
   monto_multiplo: '100',
   // Aviso de cupo bajo para los socios.
   cupo_alert: '2000',
+  // Rayos (Lightning): cuántos números por giro y con qué peso sale cada
+  // multiplicador. Ver LTG_VALORES y ventajaPleno().
+  ltg_min: '1',
+  ltg_max: '5',
+  ltg_pesos: '40,20,15,11,7,4,2,1',
   bank_pago_movil: '',
   bank_transferencia: '',
   bank_p2p: '',
@@ -60,7 +65,56 @@ export const NUMERIC_SETTINGS = {
   registration_open:  { min: 0,    max: 1,    integer: true },
   monto_multiplo:     { min: 1,    max: 100000, integer: true },
   cupo_alert:         { min: 0,    max: 1e12, integer: true },
+  ltg_min:            { min: 0,    max: 20,   integer: true },
+  ltg_max:            { min: 1,    max: 20,   integer: true },
 };
+
+// ── Rayos (Lightning) ─────────────────────────────────────────────────────
+// Los 8 multiplicadores posibles de un pleno con rayo. Los valores no cambian
+// (son parte de la identidad del juego); lo que se ajusta es cada cuánto sale
+// cada uno.
+export const LTG_VALORES = [50, 75, 100, 150, 200, 300, 400, 500];
+
+// Perfiles listos para el panel. El nombre es lo que ve el dueño.
+export const LTG_PERFILES = {
+  equilibrado: { label: 'Equilibrado', pesos: '40,20,15,11,7,4,2,1', ventaja: 5.4 },
+  casa_fuerte: { label: 'Casa fuerte', pesos: '47,20,14,13,7,3,1.5,0.5', ventaja: 7.0 },
+};
+
+// Lee los pesos guardados. Si vienen rotos, cae al perfil equilibrado.
+export function ltgPesos(settings) {
+  const crudo = String(settings.ltg_pesos || DEFAULT_SETTINGS.ltg_pesos);
+  const nums = crudo.split(',').map((x) => Number(String(x).trim()));
+  const ok = nums.length === LTG_VALORES.length
+    && nums.every((n) => Number.isFinite(n) && n >= 0)
+    && nums.some((n) => n > 0);
+  if (!ok) return DEFAULT_SETTINGS.ltg_pesos.split(',').map(Number);
+  return nums;
+}
+
+// Ventaja de la casa en el PLENO, en porcentaje, según la configuración.
+// Positivo = gana la casa. El resto de la mesa está clavado en 5,26%.
+//
+//   P(el número apostado tenga rayo) = promedio de rayos por giro / 38
+//   devuelve = (1/38) · [ P · multiplicador promedio + (1-P) · 30 ]
+export function ventajaPleno(settings) {
+  const min = Math.max(0, Math.round(settingNum(settings, 'ltg_min')));
+  const max = Math.max(min, Math.round(settingNum(settings, 'ltg_max')));
+  const pesos = ltgPesos(settings);
+  const suma = pesos.reduce((a, b) => a + b, 0);
+  const multProm = suma > 0
+    ? LTG_VALORES.reduce((a, v, i) => a + v * pesos[i], 0) / suma
+    : 0;
+
+  const rayosProm = (min + max) / 2;
+  const P = Math.min(1, rayosProm / 38);
+  const devuelve = (1 / 38) * (P * multProm + (1 - P) * 30);
+  return {
+    ventaja: Math.round((1 - devuelve) * 1000) / 10,  // % con un decimal
+    multProm: Math.round(multProm * 10) / 10,
+    rayosProm,
+  };
+}
 
 export async function getSettings(env) {
   const rows = await env.DB.prepare('SELECT key, value FROM settings').all();
