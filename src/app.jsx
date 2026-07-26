@@ -27,6 +27,15 @@ const AD_ROTATE_MS = 6000;
 // Tiempo con las apuestas abiertas y el cilindro ya girando (como en el casino)
 const OPEN_BETS_MS = 6000;
 
+// ── Tiempos de la ronda, después de que sale el número ────────────────────
+// Es tiempo muerto: la mesa está cerrada y no se puede apostar. Antes eran
+// 15s (5 en la rueda + 10 en el paño), que con el giro y la ventana de
+// apuestas daban 28s por jugada. Se dejó el marcador de la rueda —que es el
+// momento en que se ve dónde cayó la bola— y se recortó el del paño.
+const HOLD_RUEDA_MS = 4000;   // el ganador señalado sobre la rueda
+const HOLD_PANO_MS  = 5000;   // el ganador señalado sobre el paño
+const ESPERA_RONDA_MS = HOLD_RUEDA_MS + HOLD_PANO_MS;   // 9s (antes 15s)
+
 // Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
 const SPIN_SOUND_OPTIONS = [
   { value: 'clasico', label: 'Clásico', hint: 'Whoosh de aire (original)' },
@@ -555,9 +564,9 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
   const handleSpinEnd = useCallback(() => {
     setCameraZoom(false);
     setPhase('result');
-    // Mantener la rueda con el marcador del ganador 5s antes de volver al paño
+    // La rueda queda con el ganador señalado antes de volver al paño
     setHoldWinner(true);
-    setTimeout(() => setHoldWinner(false), 5000);
+    setTimeout(() => setHoldWinner(false), HOLD_RUEDA_MS);
 
     // El premio ya fue calculado y acreditado por el servidor en /api/game/spin.
     const server = serverSpinRef.current || {};
@@ -602,8 +611,7 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
       setWinAmount(null);
       setWinDetails(null);
       setMessage('Haz tu apuesta');
-      // 15s = 5s de marcador en la rueda + 10s de marcador (estático) en el paño
-    }, 15000);
+    }, ESPERA_RONDA_MS);
   }, [resultNum]);
 
   // Auto-spin
