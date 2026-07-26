@@ -453,7 +453,9 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               if (!r) return null;
               const cx = r.cx;
               const cy = r.cy;
-              const coinR = Math.min(r.w, r.h) * 0.36;
+              // Más grande que la celda: es el marcador que el jugador busca de
+              // un vistazo cuando la rueda ya se detuvo.
+              const coinR = Math.min(r.w, r.h) * 0.48;
               const coinRy = coinR * 0.62;
               const sideH = coinR * 0.32;
               return (

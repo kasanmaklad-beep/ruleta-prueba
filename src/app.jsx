@@ -6,7 +6,8 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "spinDuration": 7,
   "volume": 70,
   "lightningIntensity": 70,
-  "autoSpin": false
+  "autoSpin": false,
+  "pruebaGiros": 0
 }/*EDITMODE-END*/;
 
 // ═══════════════════════════════════════════════════════════════
@@ -240,15 +241,18 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
   const [betCountdown, setBetCountdown] = useState(0);
 
   // ── Modo prueba ──────────────────────────────────────────────────────────
-  // Se enciende con ?prueba=100 en la dirección. Lleva la cuenta de los giros
-  // y de cómo evoluciona el saldo, para medir en la práctica lo que dicen las
-  // tablas. No existe para el jugador común: sin el parámetro, no aparece.
-  const pruebaTotal = (() => {
+  // Lleva la cuenta de los giros y de cómo evoluciona el saldo, para medir en
+  // la práctica lo que dicen las tablas. Se enciende de dos formas: con
+  // ?prueba=100 en la dirección, o desde el panel de la tuerca — que es lo
+  // cómodo en el celular, donde escribir la dirección es un fastidio.
+  // Apagado (0), no se dibuja nada: el jugador común nunca lo ve.
+  const pruebaDeUrl = (() => {
     try {
       const n = Number(new URLSearchParams(window.location.search).get('prueba'));
       return Number.isFinite(n) && n > 0 ? Math.min(n, 10000) : 0;
     } catch (e) { return 0; }
   })();
+  const pruebaTotal = Math.min(Number(t.pruebaGiros) || pruebaDeUrl || 0, 10000);
   const [prueba, setPrueba] = useState(null); // { giros, apostado, ganado, saldoInicial }
   // Voz que narra el número ganador (recordada en el navegador)
   const [voiceOn, setVoiceOn] = useState(() => {
@@ -597,8 +601,8 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
       );
     } else {
       if (window.AudioEngine) window.AudioEngine.lose();
-      const a = (window.ANIMALS || {})[resultNum];
-      setMessage(a ? `Salió ${resultNum} ${a[0]} ${a[1]}. Sin ganancias.` : `Salió ${resultNum}. Sin ganancias.`);
+      // El número y el animal ya se ven grandes al lado: el texto no los repite.
+      setMessage('Sin ganancias esta vez');
     }
 
     // Siguiente ronda
@@ -851,7 +855,8 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
           letterSpacing: 1,
           color: phase === 'lightning' ? '#9fd8ff' : winAmount > 0 ? '#ffd84a' : '#fff',
           textShadow: phase === 'lightning' ? '0 0 12px #5ab8ff' : winAmount > 0 ? '0 0 10px #ffd84a' : 'none',
-          minHeight: isMobile ? 28 : 54,
+          // Al mostrar el ganador la barra crece: el número y el animal van grandes.
+          minHeight: phase === 'result' ? (isMobile ? 78 : 112) : (isMobile ? 28 : 54),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -882,21 +887,16 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
           ) : (
             <span>{message}</span>
           )
+        ) : phase === 'result' && resultNum != null ? (
+          <GanadorGrande
+            n={resultNum}
+            color={numColor(resultNum)}
+            mensaje={message}
+            gano={winAmount > 0}
+            isMobile={isMobile}
+          />
         ) : (
-          <>
-            {phase === 'result' && resultNum != null && (
-              <div style={{
-                width: isMobile ? 46 : 56, height: isMobile ? 46 : 56, borderRadius: '50%',
-                background: numColor(resultNum) === 'red' ? '#b8101a' : numColor(resultNum) === 'black' ? '#151515' : '#0d7a2e',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: isMobile ? 22 : 28, fontWeight: 900, marginRight: 10,
-                border: '3px solid #fff',
-                boxShadow: '0 0 14px rgba(255,216,74,0.8), 0 2px 8px rgba(0,0,0,0.7)',
-                flexShrink: 0,
-              }}>{resultNum}</div>
-            )}
-            <span>{message}</span>
-          </>
+          <span>{message}</span>
         )}
       </div>
 
@@ -1351,6 +1351,25 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
           value={t.autoSpin}
           onChange={(v) => setTweak('autoSpin', v)}
         />
+
+        {/* Modo prueba: acá se enciende desde el celular, sin tener que
+            escribir ?prueba=100 en la dirección. En 0 queda apagado. */}
+        <TweakSection label="Modo prueba" />
+        <TweakNumber
+          label="Giros a contar"
+          value={Number(t.pruebaGiros) || 0}
+          min={0}
+          max={1000}
+          step={10}
+          onChange={(v) => { setTweak('pruebaGiros', v); setPrueba(null); }}
+        />
+        {pruebaTotal > 0 && (
+          <TweakButton
+            label={`Reiniciar (van ${prueba ? prueba.giros : 0})`}
+            secondary
+            onClick={() => setPrueba(null)}
+          />
+        )}
       </TweaksPanel>
     </div>
   );
@@ -1470,6 +1489,59 @@ function generateBoltPath(seed) {
   return d;
 }
 
+// ═══ El número y el animal que salieron ═══
+// Es el momento que el jugador espera, así que va grande: la figura del animal,
+// el número en su color y el nombre. Antes era un círculo de 56px y, cuando
+// ganaba, el animal ni se mostraba — el mensaje solo decía cuánto ganó.
+function GanadorGrande({ n, color, mensaje, gano, isMobile }) {
+  const animal = (window.ANIMALS || {})[n] || null;   // [emoji, nombre, artículo]
+  const fondo = color === 'red' ? '#b8101a' : color === 'black' ? '#151515' : '#0d7a2e';
+
+  const dFicha = isMobile ? 62 : 92;
+  const dNumero = isMobile ? 30 : 46;
+  const dEmoji = isMobile ? 40 : 62;
+  const dNombre = isMobile ? 13 : 20;
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      gap: isMobile ? 10 : 18, flexWrap: 'wrap', width: '100%',
+    }}>
+      {/* La figura del animal */}
+      {animal && (
+        <div style={{
+          fontSize: dEmoji, lineHeight: 1, flexShrink: 0,
+          filter: 'drop-shadow(0 0 10px rgba(255,216,74,0.7))',
+        }}>{animal[0]}</div>
+      )}
+
+      {/* El número, en el color de su casilla */}
+      <div style={{
+        width: dFicha, height: dFicha, borderRadius: '50%', background: fondo,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: dNumero, fontWeight: 900, color: '#fff', flexShrink: 0,
+        border: `${isMobile ? 3 : 4}px solid #fff`,
+        boxShadow: '0 0 20px rgba(255,216,74,0.9), 0 3px 12px rgba(0,0,0,0.8)',
+      }}>{n}</div>
+
+      {/* Nombre del animal y el resultado de la jugada */}
+      <div style={{ textAlign: 'left', minWidth: 0 }}>
+        {animal && (
+          <div style={{
+            fontSize: dNombre, fontWeight: 900, letterSpacing: 2, color: '#ffd84a',
+            textTransform: 'uppercase', lineHeight: 1.1,
+            textShadow: '0 2px 6px rgba(0,0,0,0.8)',
+          }}>{animal[1]}</div>
+        )}
+        <div style={{
+          fontSize: isMobile ? 11 : 16, fontWeight: 800,
+          color: gano ? '#ffd84a' : '#ddd', marginTop: 2,
+        }}>{mensaje}</div>
+      </div>
+    </div>
+  );
+}
+
 // ═══ Marcador del modo prueba ═══
 // Sirve para medir en la práctica lo que dicen las tablas: cuántos giros van,
 // cuánto se apostó en total y cómo quedó el saldo. Solo existe con ?prueba=N.
@@ -1484,35 +1556,50 @@ function MarcadorPrueba({ total, p, saldo, isMobile }) {
   // Cuánto se quedó la casa de todo lo que pasó por la mesa.
   const ventaja = apostado > 0 ? ((apostado - ganado) / apostado) * 100 : 0;
 
+  // En el celular la pantalla es del juego: el marcador va apretado, en una
+  // línea, para no empujar el paño hacia abajo.
   const caja = (etiqueta, valor, color) => (
     <div style={{ textAlign: 'center', minWidth: 0 }}>
-      <div style={{ fontSize: isMobile ? 7 : 9, letterSpacing: 1, color: '#999' }}>{etiqueta}</div>
-      <div style={{ fontSize: isMobile ? 12 : 16, fontWeight: 900, color: color || '#fff' }}>{valor}</div>
+      <div style={{
+        fontSize: isMobile ? 6.5 : 9, letterSpacing: isMobile ? 0 : 1, color: '#999',
+        whiteSpace: 'nowrap',
+      }}>{etiqueta}</div>
+      <div style={{
+        fontSize: isMobile ? 11 : 16, fontWeight: 900, color: color || '#fff',
+        whiteSpace: 'nowrap',
+      }}>{valor}</div>
     </div>
   );
 
+  const plata = (v) => (isMobile
+    ? (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(1)}k` : String(v))
+    : `$${v.toLocaleString()}`);
+
   return (
     <div style={{
-      margin: isMobile ? '4px 4px 0' : '0 0 8px',
-      padding: isMobile ? '5px 8px' : '10px 16px',
+      margin: isMobile ? '3px 4px 0' : '0 0 8px',
+      padding: isMobile ? '4px 6px' : '10px 16px',
       borderRadius: 8,
       background: termino ? 'rgba(90,184,255,0.15)' : 'rgba(0,0,0,0.4)',
       border: `1px solid ${termino ? '#5ab8ff' : '#3a5a8a'}`,
       display: 'flex', alignItems: 'center', justifyContent: 'space-around',
-      gap: 8, flexWrap: 'wrap', fontFamily: 'Georgia, serif',
+      gap: isMobile ? 4 : 8, flexWrap: isMobile ? 'nowrap' : 'wrap',
+      fontFamily: 'Georgia, serif', overflowX: 'auto',
     }}>
-      {caja('MODO PRUEBA', `${giros} / ${total}`, termino ? '#9fd8ff' : '#5ab8ff')}
-      {caja('SALDO INICIAL', `$${inicial.toLocaleString()}`)}
-      {caja('AHORA', `$${saldo.toLocaleString()}`, '#ffd84a')}
-      {caja('NETO', `${neto >= 0 ? '+' : ''}$${neto.toLocaleString()}`, neto >= 0 ? '#7ee08a' : '#ff9a9a')}
-      {caja('APOSTADO EN TOTAL', `$${apostado.toLocaleString()}`)}
+      {caja('GIROS', `${giros}/${total}`, termino ? '#9fd8ff' : '#5ab8ff')}
+      {caja(isMobile ? 'INICIAL' : 'SALDO INICIAL', plata(inicial))}
+      {caja('AHORA', plata(saldo), '#ffd84a')}
+      {caja('NETO', `${neto >= 0 ? '+' : '−'}${plata(Math.abs(neto))}`,
+        neto >= 0 ? '#7ee08a' : '#ff9a9a')}
+      {caja(isMobile ? 'APOSTADO' : 'APOSTADO EN TOTAL', plata(apostado))}
       {/* Con pocos giros el porcentaje salta por todos lados y confunde:
           recién con unos cuantos empieza a significar algo. */}
       {giros >= 10
-        ? caja('SE QUEDÓ LA CASA', `${ventaja.toFixed(1)}%`, ventaja >= 0 ? '#7ee08a' : '#ff9a9a')
-        : caja('SE QUEDÓ LA CASA', `en ${10 - giros} giros`, '#777')}
-      {termino && (
-        <div style={{ fontSize: isMobile ? 9 : 12, color: '#9fd8ff', fontWeight: 700 }}>
+        ? caja(isMobile ? 'LA CASA' : 'SE QUEDÓ LA CASA', `${ventaja.toFixed(1)}%`,
+            ventaja >= 0 ? '#7ee08a' : '#ff9a9a')
+        : caja(isMobile ? 'LA CASA' : 'SE QUEDÓ LA CASA', `en ${10 - giros}`, '#777')}
+      {termino && !isMobile && (
+        <div style={{ fontSize: 12, color: '#9fd8ff', fontWeight: 700 }}>
           ✓ {total} giros cumplidos
         </div>
       )}
