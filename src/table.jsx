@@ -176,18 +176,22 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     });
   }
 
-  // TOP-LINE (5 números: 0, 00, 1, 2, 3) — esquina entre 0/00 y la primera columna
+  // TOP-LINE (5 números: 0, 00, 1, 2, 3) — toda la línea que separa la columna
+  // de los ceros de la primera columna de números.
+  //
+  // Antes era un cuadradito de 28x28 escondido en el vértice del 3, sin nada
+  // que lo señalara: entraba la ficha, pero había que adivinar dónde tocar.
+  // Ahora es la raya completa, que es lo que un jugador busca. Es la única
+  // apuesta sobre ese borde (no hay splits entre los ceros y el 1-2-3), así
+  // que no le quita el lugar a nada.
   {
-    const r1 = cellRect(1); // bottom-left de la columna 1
-    const cx = r1.x;
-    const cy = r1.y; // top de la celda 3 (yTop col)
-    // Hotspot en la unión 00-3 (esquina)
-    const yTop = cellRect(3).y; // top of col-1's top cell
+    const cx = ZERO_W;                 // borde entre los ceros y el 1-2-3
+    const alto = NUM_H * 3;            // de arriba abajo
     hotspots.push({
       type: 'topline', payload: '0-00-1-2-3',
       numbers: [0, '00', 1, 2, 3],
-      x: cx - 14, y: yTop + NUM_H / 2 - 14, w: 28, h: 28,
-      chipX: cx, chipY: yTop + NUM_H / 2,
+      x: cx - 9, y: 0, w: 18, h: alto,
+      chipX: cx, chipY: alto / 2,      // ficha al medio de la raya, siempre visible
     });
   }
   // BASKET no aplica en americana (basket = top-line aquí). Lo omitimos para no duplicar.
