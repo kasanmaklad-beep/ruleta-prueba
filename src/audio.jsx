@@ -192,6 +192,23 @@ const AudioEngine = (() => {
     spinCfg = null;
   }
 
+  // ── Liberar los nodos al terminar ──────────────────────────────────────
+  // Cada sonido arma unos nodos y los cuelga del master. Si no se sueltan al
+  // terminar, quedan ahí para siempre y el motor de audio los sigue
+  // procesando: el "tic" de la bolita suena ~70 veces por segundo, así que en
+  // media hora de juego se acumulan cientos de miles y la página se traba.
+  // Soltando el nodo de arriba, todo lo que cuelga de él se libera solo.
+  function liberarAlTerminar(fuente, ...nodos) {
+    const soltar = () => {
+      for (const n of nodos) { try { n.disconnect(); } catch (e) {} }
+    };
+    if (fuente && typeof fuente.addEventListener === 'function') {
+      fuente.addEventListener('ended', soltar, { once: true });
+    } else {
+      setTimeout(soltar, 3000);
+    }
+  }
+
   // Tick = bolita rebotando en el separador metálico
   function tick(velocity = 1) {
     const c = ensureCtx();
@@ -220,6 +237,7 @@ const AudioEngine = (() => {
 
     osc.start(now);
     osc.stop(now + 0.08);
+    liberarAlTerminar(osc, g, bp, osc);
   }
 
   // Ball drop = bolita cayendo en la casilla
@@ -244,6 +262,7 @@ const AudioEngine = (() => {
       g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + 0.25);
       osc.start(c.currentTime);
       osc.stop(c.currentTime + 0.3);
+      liberarAlTerminar(osc, g, osc);
     }, 380);
   }
 
@@ -267,6 +286,7 @@ const AudioEngine = (() => {
     crackGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
     crackSrc.start(now);
     crackSrc.stop(now + 0.25);
+    liberarAlTerminar(crackSrc, crackGain, hp, crackSrc);
 
     // Rumble grave (trueno sostenido)
     const rumbleSrc = c.createBufferSource();
@@ -283,6 +303,7 @@ const AudioEngine = (() => {
     rumbleGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
     rumbleSrc.start(now);
     rumbleSrc.stop(now + 1.3);
+    liberarAlTerminar(rumbleSrc, rumbleGain, lp, rumbleSrc);
 
     // Zap eléctrico (osc descendente rápido)
     const zap = c.createOscillator();
@@ -297,6 +318,7 @@ const AudioEngine = (() => {
     zapGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
     zap.start(now);
     zap.stop(now + 0.45);
+    liberarAlTerminar(zap, zapGain, zap);
   }
 
   // Ficha al colocar apuesta
@@ -322,6 +344,7 @@ const AudioEngine = (() => {
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
       osc.start(t);
       osc.stop(t + 0.07);
+      liberarAlTerminar(osc, g, bp, osc);
     }
   }
 
@@ -343,6 +366,7 @@ const AudioEngine = (() => {
       g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
       osc.start(t);
       osc.stop(t + 0.35);
+      liberarAlTerminar(osc, g, osc);
     });
   }
 
@@ -366,6 +390,7 @@ const AudioEngine = (() => {
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
     osc.start(now);
     osc.stop(now + 0.55);
+    liberarAlTerminar(osc, g, lp, osc);
   }
 
   // ── Silencio cuando nadie está mirando ──────────────────────────────────
