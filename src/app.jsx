@@ -37,6 +37,10 @@ const HOLD_RUEDA_MS = 4000;   // el ganador señalado sobre la rueda
 const HOLD_PANO_MS  = 5000;   // el ganador señalado sobre el paño
 const ESPERA_RONDA_MS = HOLD_RUEDA_MS + HOLD_PANO_MS;   // 9s (antes 15s)
 
+// Cuántos números ganadores se recuerdan. Con más no entran en la barra del
+// celular y el jugador tampoco los mira.
+const HISTORIAL_MAX = 10;
+
 // Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
 const SPIN_SOUND_OPTIONS = [
   { value: 'clasico', label: 'Clásico', hint: 'Whoosh de aire (original)' },
@@ -568,7 +572,7 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
     setWinDetails(server.winDetails || null);
     if (typeof server.balance === 'number') setBalance(server.balance);
 
-    setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, 15));
+    setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, HISTORIAL_MAX));
 
     // Voz: "Número ganador: catorce, Paloma" (+ el premio si ganó)
     if (window.Voice) {
