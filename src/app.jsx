@@ -229,6 +229,18 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
   const [soundMenu, setSoundMenu] = useState(false);
   // Segundos restantes con las apuestas abiertas y la rueda ya girando
   const [betCountdown, setBetCountdown] = useState(0);
+
+  // ── Modo prueba ──────────────────────────────────────────────────────────
+  // Se enciende con ?prueba=100 en la dirección. Lleva la cuenta de los giros
+  // y de cómo evoluciona el saldo, para medir en la práctica lo que dicen las
+  // tablas. No existe para el jugador común: sin el parámetro, no aparece.
+  const pruebaTotal = (() => {
+    try {
+      const n = Number(new URLSearchParams(window.location.search).get('prueba'));
+      return Number.isFinite(n) && n > 0 ? Math.min(n, 10000) : 0;
+    } catch (e) { return 0; }
+  })();
+  const [prueba, setPrueba] = useState(null); // { giros, apostado, ganado, saldoInicial }
   // Voz que narra el número ganador (recordada en el navegador)
   const [voiceOn, setVoiceOn] = useState(() => {
     try { return localStorage.getItem('ruleta_voz') !== 'off'; } catch (e) { return true; }
@@ -431,6 +443,26 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
       .then((server) => {
         serverSpinRef.current = server;
         if (typeof server.balance === 'number') setBalance(server.balance);
+        // Modo prueba: se anota el giro con lo apostado y lo ganado.
+        if (pruebaTotal > 0) {
+          const stake = finales.reduce((s, b) => s + b.amount, 0);
+          const win = typeof server.win === 'number' ? server.win : 0;
+          setPrueba((p) => {
+            // El saldo de partida se deduce del que informa el servidor: se le
+            // devuelve lo apostado y se le quita lo ganado. Usar el saldo local
+            // daba un número corrido, porque acá todavía es el de antes del giro.
+            const base = p || {
+              giros: 0, apostado: 0, ganado: 0,
+              saldoInicial: (typeof server.balance === 'number' ? server.balance : 0) - win + stake,
+            };
+            return {
+              ...base,
+              giros: base.giros + 1,
+              apostado: base.apostado + stake,
+              ganado: base.ganado + win,
+            };
+          });
+        }
         runSpinAnimation(server);
       })
       .catch((err) => {
@@ -789,6 +821,9 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
           )}
         </div>
       </div>
+
+      {/* Marcador del modo prueba (?prueba=100). No aparece sin el parámetro. */}
+      {pruebaTotal > 0 && <MarcadorPrueba total={pruebaTotal} p={prueba} saldo={balance} isMobile={isMobile} />}
 
       {/* Mensaje/estado — durante betting muestra el historial de números salidos */}
       <div
@@ -1425,6 +1460,56 @@ function generateBoltPath(seed) {
     d += ` L ${x} ${y}`;
   }
   return d;
+}
+
+// ═══ Marcador del modo prueba ═══
+// Sirve para medir en la práctica lo que dicen las tablas: cuántos giros van,
+// cuánto se apostó en total y cómo quedó el saldo. Solo existe con ?prueba=N.
+function MarcadorPrueba({ total, p, saldo, isMobile }) {
+  const giros = p ? p.giros : 0;
+  const apostado = p ? p.apostado : 0;
+  const ganado = p ? p.ganado : 0;
+  const inicial = p ? p.saldoInicial : saldo;
+  const neto = saldo - inicial;
+  const termino = giros >= total;
+
+  // Cuánto se quedó la casa de todo lo que pasó por la mesa.
+  const ventaja = apostado > 0 ? ((apostado - ganado) / apostado) * 100 : 0;
+
+  const caja = (etiqueta, valor, color) => (
+    <div style={{ textAlign: 'center', minWidth: 0 }}>
+      <div style={{ fontSize: isMobile ? 7 : 9, letterSpacing: 1, color: '#999' }}>{etiqueta}</div>
+      <div style={{ fontSize: isMobile ? 12 : 16, fontWeight: 900, color: color || '#fff' }}>{valor}</div>
+    </div>
+  );
+
+  return (
+    <div style={{
+      margin: isMobile ? '4px 4px 0' : '0 0 8px',
+      padding: isMobile ? '5px 8px' : '10px 16px',
+      borderRadius: 8,
+      background: termino ? 'rgba(90,184,255,0.15)' : 'rgba(0,0,0,0.4)',
+      border: `1px solid ${termino ? '#5ab8ff' : '#3a5a8a'}`,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-around',
+      gap: 8, flexWrap: 'wrap', fontFamily: 'Georgia, serif',
+    }}>
+      {caja('MODO PRUEBA', `${giros} / ${total}`, termino ? '#9fd8ff' : '#5ab8ff')}
+      {caja('SALDO INICIAL', `$${inicial.toLocaleString()}`)}
+      {caja('AHORA', `$${saldo.toLocaleString()}`, '#ffd84a')}
+      {caja('NETO', `${neto >= 0 ? '+' : ''}$${neto.toLocaleString()}`, neto >= 0 ? '#7ee08a' : '#ff9a9a')}
+      {caja('APOSTADO EN TOTAL', `$${apostado.toLocaleString()}`)}
+      {/* Con pocos giros el porcentaje salta por todos lados y confunde:
+          recién con unos cuantos empieza a significar algo. */}
+      {giros >= 10
+        ? caja('SE QUEDÓ LA CASA', `${ventaja.toFixed(1)}%`, ventaja >= 0 ? '#7ee08a' : '#ff9a9a')
+        : caja('SE QUEDÓ LA CASA', `en ${10 - giros} giros`, '#777')}
+      {termino && (
+        <div style={{ fontSize: isMobile ? 9 : 12, color: '#9fd8ff', fontWeight: 700 }}>
+          ✓ {total} giros cumplidos
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ═══ Enlace de invitación abierto con otra sesión ya iniciada ═══
