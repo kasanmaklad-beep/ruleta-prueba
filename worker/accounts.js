@@ -10,7 +10,7 @@ import {
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
   normalizeNombre, normalizeDocumento, normalizeEmail,
   normalizeRefCode, refCodeDeId,
-  LTG_VALORES, LTG_PERFILES, ventajaPleno,
+  LTG_VALORES, infoRayos,
 } from './lib.js';
 
 // ─────────────────────── Ficha de datos personales ────────────────────────
@@ -504,13 +504,7 @@ export async function adminGetSettings(request, env) {
     settings,
     // Cuánto le deja el pleno a la casa con la configuración actual, más los
     // perfiles listos para elegir desde el panel.
-    lightning: {
-      ...ventajaPleno(settings),
-      valores: LTG_VALORES,
-      perfiles: LTG_PERFILES,
-      // El resto de la mesa siempre paga esto: sirve de referencia.
-      ventaja_resto_mesa: 5.3,
-    },
+    lightning: infoRayos(settings),
   });
 }
 
@@ -576,10 +570,7 @@ export async function adminPutSettings(request, env) {
   const settings = await getSettings(env);
   // Coherencia: el techo de premio por debajo del tope de apuesta no tiene
   // sentido (el jugador no podría ni recuperar lo apostado).
-  const lightning = {
-    ...ventajaPleno(settings), valores: LTG_VALORES,
-    perfiles: LTG_PERFILES, ventaja_resto_mesa: 5.3,
-  };
+  const lightning = infoRayos(settings);
 
   if (settingNum(settings, 'max_win_per_spin') < settingNum(settings, 'max_bet_casilla')) {
     return json({

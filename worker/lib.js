@@ -69,31 +69,105 @@ export const NUMERIC_SETTINGS = {
   ltg_max:            { min: 1,    max: 20,   integer: true },
 };
 
-// ── Las mesas del salón ───────────────────────────────────────────────────
-// El catálogo de VOLTIO. Hoy vive acá porque hay una sola mesa; en la Etapa 4
-// pasa a la base de datos para que el dueño pueda crear mesas desde el panel
-// (ver ESTRUCTURA-SALON.md). El `id` es lo que se guarda en cada movimiento,
-// así que una vez usado NO se cambia: rompería el historial.
-export const JUEGOS = {
-  catatumbo: {
-    label: 'Catatumbo',
-    rueda: 'americana',   // 0 y 00 · 38 números
-    animales: true,
-    rayos: true,
-    activo: true,
+// ── Las ruedas ────────────────────────────────────────────────────────────
+// El orden es el de la rueda física: importa para dónde cae la bola en la
+// animación, no para las probabilidades (cada casilla sale igual de seguido).
+//
+// La diferencia de negocio entre las dos: en la americana el jugador pelea
+// contra dos ceros y en la europea contra uno. Eso solo ya cambia lo que le
+// deja la mesa a la casa: 5,26% contra 2,70% en las apuestas de afuera.
+export const RUEDAS = {
+  americana: {
+    label: 'Americana (0 y 00)',
+    dobleCero: true,
+    orden: [
+      0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1,
+      '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2,
+    ],
+  },
+  europea: {
+    label: 'Europea (un solo cero)',
+    dobleCero: false,
+    orden: [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+      5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26,
+    ],
   },
 };
 
+// ── Las mesas del salón ───────────────────────────────────────────────────
+// El catálogo de VOLTIO. Hoy vive acá porque las mesas todavía no se crean
+// desde el panel; en la Etapa 4 pasa a la base de datos (ver
+// ESTRUCTURA-SALON.md). El `id` es lo que se guarda en cada movimiento, así
+// que una vez usado NO se cambia: rompería el historial.
+//
+// `activo: false` = la mesa existe y se anuncia en el salón, pero no se puede
+// jugar. Se encienden de a una en la Etapa 5, cada una después de verificar
+// sus pagos.
+// OJO con `pagoPleno`: el pleno paga 29 a 1 SOLO en las mesas con rayos, donde
+// los multiplicadores compensan la diferencia. En una mesa sin rayos hay que
+// pagar los 35 a 1 de cualquier ruleta: con 29 a 1 y sin rayos la casa se
+// quedaría con el 21% del pleno (18,9% en la europea), que es un robo y
+// además espanta al jugador. Ver ventajaPlenoClasico().
+export const JUEGOS = {
+  catatumbo: {
+    label: 'Catatumbo',
+    rueda: 'americana',
+    animales: true,
+    rayos: true,
+    pagoPleno: 29,
+    activo: true,
+  },
+  americana: {
+    label: 'Americana Clásica',
+    rueda: 'americana',
+    animales: false,
+    rayos: false,
+    pagoPleno: 35,
+    activo: false,
+  },
+  europea: {
+    label: 'Europea Clásica',
+    rueda: 'europea',
+    animales: false,
+    rayos: false,
+    pagoPleno: 35,
+    activo: false,
+  },
+  europea_animales: {
+    label: 'Europea Catatumbo',
+    rueda: 'europea',
+    animales: true,
+    rayos: true,
+    pagoPleno: 29,
+    activo: false,
+  },
+};
+
+// La ficha de una mesa. Sin id válido devuelve null.
+export function juegoDe(id) {
+  const j = JUEGOS[id];
+  if (!j) return null;
+  const rueda = RUEDAS[j.rueda];
+  if (!rueda) return null;
+  return {
+    id, ...j,
+    ordenRueda: rueda.orden,
+    casillas: rueda.orden.length,
+    dobleCero: rueda.dobleCero,
+    ruedaLabel: rueda.label,
+  };
+}
+
 export const JUEGO_POR_DEFECTO = 'catatumbo';
 
-// Devuelve un id de mesa válido y encendido, o null si no existe.
+// Devuelve la ficha de una mesa válida y ENCENDIDA, o null.
 // Sin dato (cliente viejo que todavía no lo manda) cae en la mesa por defecto.
-export function normalizeGameId(raw) {
-  if (raw == null || raw === '') return JUEGO_POR_DEFECTO;
-  const id = String(raw).trim().toLowerCase();
-  const j = JUEGOS[id];
+export function mesaJugable(raw) {
+  const id = (raw == null || raw === '') ? JUEGO_POR_DEFECTO : String(raw).trim().toLowerCase();
+  const j = juegoDe(id);
   if (!j || !j.activo) return null;
-  return id;
+  return j;
 }
 
 // ── Rayos (Lightning) ─────────────────────────────────────────────────────
@@ -119,12 +193,25 @@ export function ltgPesos(settings) {
   return nums;
 }
 
+// Lo que le deja a la casa el RESTO de la mesa (color, docena, línea): sale
+// solo de cuántos ceros tiene la rueda, no se configura.
+//   americana → 2/38 = 5,26%   ·   europea → 1/37 = 2,70%
+export function ventajaMesa(casillas) {
+  const ceros = casillas - 36;
+  return Math.round((ceros / casillas) * 1000) / 10;
+}
+
 // Ventaja de la casa en el PLENO, en porcentaje, según la configuración.
-// Positivo = gana la casa. El resto de la mesa está clavado en 5,26%.
+// Positivo = gana la casa.
 //
-//   P(el número apostado tenga rayo) = promedio de rayos por giro / 38
-//   devuelve = (1/38) · [ P · multiplicador promedio + (1-P) · 30 ]
-export function ventajaPleno(settings) {
+//   P(el número apostado tenga rayo) = promedio de rayos por giro / casillas
+//   devuelve = (1/casillas) · [ P · multiplicador promedio + (1-P) · 30 ]
+//
+// El 30 es lo que devuelve un pleno sin rayo: paga 29 a 1 más la ficha.
+// OJO con `casillas`: la misma configuración de rayos deja porcentajes
+// distintos en la americana (38) y en la europea (37), porque el pleno pega
+// más seguido cuando hay una casilla menos.
+export function ventajaPleno(settings, casillas = 38) {
   const min = Math.max(0, Math.round(settingNum(settings, 'ltg_min')));
   const max = Math.max(min, Math.round(settingNum(settings, 'ltg_max')));
   const pesos = ltgPesos(settings);
@@ -134,13 +221,66 @@ export function ventajaPleno(settings) {
     : 0;
 
   const rayosProm = (min + max) / 2;
-  const P = Math.min(1, rayosProm / 38);
-  const devuelve = (1 / 38) * (P * multProm + (1 - P) * 30);
+  const P = Math.min(1, rayosProm / casillas);
+  const devuelve = (1 / casillas) * (P * multProm + (1 - P) * 30);
   return {
     ventaja: Math.round((1 - devuelve) * 1000) / 10,  // % con un decimal
     multProm: Math.round(multProm * 10) / 10,
     rayosProm,
+    casillas,
   };
+}
+
+// Ventaja del pleno en una mesa SIN rayos: sale sola del pago, no se
+// configura. Con el pago clásico de 35 a 1 da lo mismo que el resto de la
+// mesa (5,26% en la americana, 2,70% en la europea), que es como debe ser.
+export function ventajaPlenoClasico(casillas, pagoPleno) {
+  return Math.round((1 - (pagoPleno + 1) / casillas) * 1000) / 10;
+}
+
+// Todo lo que el panel necesita saber sobre los rayos. Los mismos pesos dejan
+// porcentajes distintos según la rueda, así que se informan los dos: el dueño
+// tiene que poder ver qué le deja cada mesa antes de encenderla.
+export function infoRayos(settings) {
+  const americana = ventajaPleno(settings, RUEDAS.americana.orden.length);
+  const europea = ventajaPleno(settings, RUEDAS.europea.orden.length);
+  return {
+    ...americana,   // la referencia sigue siendo la americana (Catatumbo)
+    valores: LTG_VALORES,
+    perfiles: LTG_PERFILES,
+    ventaja_resto_mesa: ventajaMesa(RUEDAS.americana.orden.length),
+    por_rueda: Object.entries(RUEDAS).map(([id, r]) => {
+      const casillas = r.orden.length;
+      return {
+        rueda: id,
+        label: r.label,
+        casillas,
+        ventaja_pleno: (id === 'europea' ? europea : americana).ventaja,
+        ventaja_resto_mesa: ventajaMesa(casillas),
+      };
+    }),
+  };
+}
+
+// El catálogo tal como lo ve el cliente: sin el orden de la rueda (no le sirve
+// para nada y es ruido) pero con lo que define cómo se dibuja y cuánto paga.
+export function catalogoMesas() {
+  return Object.keys(JUEGOS).map((id) => {
+    const j = juegoDe(id);
+    return {
+      id: j.id,
+      label: j.label,
+      rueda: j.rueda,
+      rueda_label: j.ruedaLabel,
+      casillas: j.casillas,
+      doble_cero: j.dobleCero,
+      animales: j.animales,
+      rayos: j.rayos,
+      pago_pleno: j.pagoPleno,
+      activo: j.activo,
+      ventaja_resto_mesa: ventajaMesa(j.casillas),
+    };
+  });
 }
 
 export async function getSettings(env) {

@@ -13,7 +13,7 @@
 
 import {
   json, readJson, str, toPositiveInt, requireAuth, requireAdmin,
-  getSettings, settingNum, ltgPesos, LTG_VALORES, normalizeGameId,
+  getSettings, settingNum, ltgPesos, LTG_VALORES, mesaJugable, catalogoMesas,
 } from './lib.js';
 
 import {
@@ -81,6 +81,9 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/me/password')   return changePassword(request, env);
 
   // ── Juego ──
+  // El catálogo lo pide el salón para dibujar las mesas y el juego para saber
+  // cómo armarse. No expone nada sensible, pero pide sesión igual.
+  if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
   if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
 
   // ── Billetera del jugador ──
@@ -208,10 +211,11 @@ async function gameSpin(request, env) {
   if (!rawBets || rawBets.length === 0) return json({ error: 'No hay apuestas' }, 400);
   if (rawBets.length > 200) return json({ error: 'Demasiadas apuestas' }, 400);
 
-  // En qué mesa se está jugando. Se guarda en cada movimiento para poder
-  // separar la plata por juego en los reportes.
-  const gameId = normalizeGameId(body.game);
-  if (!gameId) return json({ error: 'Esa mesa no existe o está cerrada' }, 400);
+  // En qué mesa se está jugando. La ficha manda: define la rueda, si hay
+  // rayos, cuánto paga el pleno y qué apuestas son válidas.
+  const mesa = mesaJugable(body.game);
+  if (!mesa) return json({ error: 'Esa mesa no existe o está cerrada' }, 400);
+  const gameId = mesa.id;
 
   // 1. Validar y normalizar cada apuesta (server-authoritative: reconstruye los números).
   const bets = [];
@@ -222,6 +226,11 @@ async function gameSpin(request, env) {
     const type = String(rb && rb.type || '');
     const numbers = deriveBetNumbers(type, rb && rb.payload);
     if (!numbers) return json({ error: `Apuesta inválida: ${type}` }, 400);
+    // En una mesa europea no existe el 00, así que tampoco las apuestas que
+    // lo tocan (incluido el top line de cinco números).
+    if (!mesa.dobleCero && numbers.some((n) => String(n) === '00')) {
+      return json({ error: 'En esta mesa no existe el 00' }, 400);
+    }
     stake += amount;
     bets.push({ type, payload: String(rb.payload), numbers, amount });
   }
@@ -278,17 +287,19 @@ async function gameSpin(request, env) {
   ).bind(auth.userId, stake, `Apuesta ronda (${bets.length} fichas)`, gameId).run();
 
   // 4. Generar Lightning y resultado con RNG del servidor.
-  const lightning = generateLightning(settings);   // Array<[num, mult]>
+  //    Los rayos solo existen en las mesas que los tienen; en una clásica el
+  //    pleno paga 35 a 1 y no hace falta compensar nada.
+  const lightning = mesa.rayos ? generateLightning(settings, mesa.ordenRueda) : [];
   const ltgMap = new Map(lightning);
-  const resultIndex = randInt(AMERICAN_WHEEL_ORDER.length);
-  const resultNum = AMERICAN_WHEEL_ORDER[resultIndex];
+  const resultIndex = randInt(mesa.ordenRueda.length);
+  const resultNum = mesa.ordenRueda[resultIndex];
 
   // 5. Calcular premio (autoritativo).
   let win = 0;
   let anyLightning = false;
   let winDetails = null;
   for (const b of bets) {
-    const r = calcWin(b, resultNum, ltgMap);
+    const r = calcWin(b, resultNum, ltgMap, mesa.pagoPleno);
     win += r.win;
     if (r.isLightningHit) anyLightning = true;
     if (r.win > 0 && (!winDetails || r.win > winDetails.win)) {
@@ -320,6 +331,7 @@ async function gameSpin(request, env) {
   // Enviamos resultNum y las claves Lightning en su tipo original (int o '00')
   // para que el cliente reconstruya el Map con las mismas claves que la rueda.
   return json({
+    game: gameId,
     resultIndex,
     resultNum,
     lightning,        // Array<[int|'00', mult]>
@@ -334,21 +346,26 @@ async function gameSpin(request, env) {
   });
 }
 
+// Las mesas del salón: cuáles hay, cómo es cada una y cuáles se pueden jugar.
+async function listGames(request, env) {
+  const auth = await requireAuth(request, env);
+  if (auth.error) return auth.response;
+  return json({ mesas: catalogoMesas() });
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 //  LÓGICA DEL JUEGO (autoritativa en el servidor)
 //  Debe mantenerse consistente con src/wheel.jsx y src/table.jsx (visual).
 // ═══════════════════════════════════════════════════════════════════════
 
-const AMERICAN_WHEEL_ORDER = [
-  0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1,
-  '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2,
-];
+// El orden de cada rueda vive en lib.js (RUEDAS): lo usa la mesa, no este archivo.
 const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
 const BLACK = new Set([2, 4, 6, 8, 10, 11, 13, 15, 17, 20, 22, 24, 26, 28, 29, 31, 33, 35]);
 
-// Payouts (ganancia neta a 1). Pleno 29:1 (Lightning). Debe coincidir con table.jsx.
+// Payouts (ganancia neta a 1). Debe coincidir con table.jsx.
+// El pleno NO está acá: lo pone la mesa (29 con rayos, 35 sin ellos).
 const PAYOUT = {
-  straight: 29, split: 17, street: 11, corner: 8, sixline: 5, topline: 6,
+  split: 17, street: 11, corner: 8, sixline: 5, topline: 6,
   column: 2, dozen: 2, half: 1, parity: 1, color: 1,
 };
 // Cantidad de números esperada por tipo interno (para validar la apuesta del cliente).
@@ -431,7 +448,7 @@ function range(a, b) {
 // Los multiplicadores NO salen parejos: cada uno tiene su peso, así que el 50x
 // aparece seguido y el 500x es raro — como en una mesa real. Si salieran todos
 // iguales el promedio sería 222x y el pleno pagaría más de lo que recibe.
-function generateLightning(settings) {
+function generateLightning(settings, ordenRueda) {
   const min = Math.max(0, Math.round(settingNum(settings, 'ltg_min')));
   const max = Math.max(min, Math.round(settingNum(settings, 'ltg_max')));
   const count = min + (max > min ? randInt(max - min + 1) : 0);
@@ -451,7 +468,7 @@ function generateLightning(settings) {
     return LTG_VALORES[LTG_VALORES.length - 1];
   };
 
-  const pool = [...AMERICAN_WHEEL_ORDER];
+  const pool = [...ordenRueda];
   const chosen = [];
   for (let i = 0; i < count && pool.length > 0; i++) {
     const idx = randInt(pool.length);
@@ -462,7 +479,9 @@ function generateLightning(settings) {
 }
 
 // Calcula el premio bruto de una apuesta. Espejo de calcWin en src/table.jsx.
-function calcWin(bet, result, ltgMap) {
+// `pagoPleno` viene de la mesa: 29 a 1 donde hay rayos que lo compensan,
+// 35 a 1 en una mesa clásica.
+function calcWin(bet, result, ltgMap, pagoPleno = 29) {
   const { type, amount, numbers } = bet;
   let win = 0, multiplier = 1, isLightningHit = false;
   const covers = numbers.some((x) => String(x) === String(result));
@@ -472,7 +491,7 @@ function calcWin(bet, result, ltgMap) {
     isLightningHit = true;
   }
   if (covers) {
-    const p = PAYOUT[type];
+    const p = type === 'straight' ? pagoPleno : PAYOUT[type];
     if (p != null) win = isLightningHit ? amount * multiplier : amount * (p + 1);
   }
   // Las apuestas externas nunca cubren 0 ni 00.
