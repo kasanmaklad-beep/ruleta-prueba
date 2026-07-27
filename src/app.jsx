@@ -41,6 +41,11 @@ const ESPERA_RONDA_MS = HOLD_RUEDA_MS + HOLD_PANO_MS;   // 9s (antes 15s)
 // celular y el jugador tampoco los mira.
 const HISTORIAL_MAX = 10;
 
+// Qué mesa del salón es esta pantalla. Viaja en cada giro para que los
+// reportes puedan separar la plata por juego. Cuando la ruleta se vuelva
+// configurable (Etapa 3) va a llegar desde la mesa elegida en el salón.
+const JUEGO_ID = 'catatumbo';
+
 // Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
 const SPIN_SOUND_OPTIONS = [
   { value: 'clasico', label: 'Clásico', hint: 'Whoosh de aire (original)' },
@@ -443,7 +448,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
     }
     setLastBets(finales.map(b => ({ ...b })));
     setMessage('¡No más apuestas!');
-    window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })))
+    window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })), JUEGO_ID)
       .then((server) => {
         serverSpinRef.current = server;
         // OJO: `server.balance` ya trae el premio sumado — el servidor sortea y

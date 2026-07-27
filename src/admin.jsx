@@ -1193,18 +1193,19 @@
     const [alerts, setAlerts] = useState(null);
     const [desde, setDesde] = useState('');
     const [hasta, setHasta] = useState('');
+    const [mesa, setMesa] = useState('todos');
 
     const cargar = useCallback(async () => {
       try {
         const params = { from: desde || undefined, to: hasta || undefined };
         const [d, c, a] = await Promise.all([
-          window.Api.reportDaily(params),
+          window.Api.reportDaily({ ...params, game: mesa === 'todos' ? undefined : mesa }),
           window.Api.reportCashiers(params),
           window.Api.reportAlerts(),
         ]);
         setDaily(d); setCash(c); setAlerts(a);
       } catch (err) { setMsg({ kind: 'err', text: err.message }); }
-    }, [desde, hasta, setMsg]);
+    }, [desde, hasta, mesa, setMsg]);
 
     useEffect(() => { cargar(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1216,9 +1217,18 @@
           <div style={{ display: 'flex', gap: 12, alignItems: 'end', flexWrap: 'wrap' }}>
             <Campo label="DESDE"><input style={S.input} type="date" value={desde} onChange={(e) => setDesde(e.target.value)} /></Campo>
             <Campo label="HASTA"><input style={S.input} type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} /></Campo>
+            <Campo label="MESA">
+              <select style={S.input} value={mesa} onChange={(e) => setMesa(e.target.value)}>
+                <option value="todos">Todas las mesas</option>
+                {(daily && daily.mesas ? daily.mesas : []).map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </Campo>
             <Boton onClick={cargar}>VER PERÍODO</Boton>
             <div style={{ fontSize: 12, color: '#888', flex: '1 1 200px' }}>
               Sin fechas muestra los últimos 30 días. El día cierra a medianoche, hora de Venezuela.
+              {mesa !== 'todos' && ' Filtrando por una mesa, la caja queda en cero: las recargas y retiros son del salón, no de una mesa.'}
             </div>
           </div>
         </div>
@@ -1238,8 +1248,46 @@
           </div>
         )}
 
+        {daily && daily.por_juego && daily.por_juego.length > 0 && (
+          <div style={S.card}>
+            <div style={S.titulo}>POR MESA (EN EL PERÍODO)</div>
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
+              Con qué mesa gana el salón. Las recargas y retiros no aparecen acá: son de la
+              billetera del jugador, no de una mesa en particular.
+            </div>
+            <Tabla columnas={['MESA', 'APOSTADO', 'PREMIOS', 'GANANCIA', '% QUE SE QUEDÓ', 'GIROS', 'JUGADORES']}
+                   vacio="Todavía nadie jugó en el período">
+              {daily.por_juego.map((m) => {
+                const pct = m.apostado > 0 ? (m.juego / m.apostado) * 100 : null;
+                return (
+                  <tr key={m.game_id}>
+                    <td style={{ ...S.td, fontWeight: 700 }}>{m.label}</td>
+                    <td style={S.td}>{bs(m.apostado)}</td>
+                    <td style={S.td}>{bs(m.premios)}</td>
+                    <td style={{ ...S.td, color: m.juego >= 0 ? '#ffd84a' : '#ff9a9a', fontWeight: 900 }}>
+                      {bs(m.juego)}
+                    </td>
+                    <td style={{ ...S.td, color: pct == null ? '#666' : pct >= 0 ? '#7ee08a' : '#ff9a9a' }}>
+                      {pct == null ? '—' : `${pct.toFixed(1)}%`}
+                    </td>
+                    <td style={{ ...S.td, color: '#999' }}>{bs(m.giros)}</td>
+                    <td style={{ ...S.td, color: '#999' }}>{bs(m.jugadores)}</td>
+                  </tr>
+                );
+              })}
+            </Tabla>
+          </div>
+        )}
+
         <div style={S.card}>
-          <div style={S.titulo}>CIERRE DIARIO</div>
+          <div style={S.titulo}>
+            CIERRE DIARIO
+            {daily && daily.filtro_juego && (
+              <span style={{ fontSize: 12, color: '#9fd8ff', fontWeight: 400, marginLeft: 8 }}>
+                · solo {(daily.mesas.find((m) => m.id === daily.filtro_juego) || {}).label || daily.filtro_juego}
+              </span>
+            )}
+          </div>
           <Tabla columnas={['DÍA', 'RECARGAS', 'RETIROS', 'CAJA', 'APOSTADO', 'PREMIOS', 'GANANCIA', 'GIROS', 'JUGADORES']}
                  vacio="Sin movimientos en el período">
             {(daily ? daily.dias : []).map((d) => (

@@ -13,7 +13,7 @@
 
 import {
   json, readJson, str, toPositiveInt, requireAuth, requireAdmin,
-  getSettings, settingNum, ltgPesos, LTG_VALORES,
+  getSettings, settingNum, ltgPesos, LTG_VALORES, normalizeGameId,
 } from './lib.js';
 
 import {
@@ -208,6 +208,11 @@ async function gameSpin(request, env) {
   if (!rawBets || rawBets.length === 0) return json({ error: 'No hay apuestas' }, 400);
   if (rawBets.length > 200) return json({ error: 'Demasiadas apuestas' }, 400);
 
+  // En qué mesa se está jugando. Se guarda en cada movimiento para poder
+  // separar la plata por juego en los reportes.
+  const gameId = normalizeGameId(body.game);
+  if (!gameId) return json({ error: 'Esa mesa no existe o está cerrada' }, 400);
+
   // 1. Validar y normalizar cada apuesta (server-authoritative: reconstruye los números).
   const bets = [];
   let stake = 0;
@@ -269,8 +274,8 @@ async function gameSpin(request, env) {
     }, 400);
   }
   await env.DB.prepare(
-    "INSERT INTO transactions (user_id, type, amount, note, source) VALUES (?, 'bet', ?, ?, 'game')"
-  ).bind(auth.userId, stake, `Apuesta ronda (${bets.length} fichas)`).run();
+    "INSERT INTO transactions (user_id, type, amount, note, source, game_id) VALUES (?, 'bet', ?, ?, 'game', ?)"
+  ).bind(auth.userId, stake, `Apuesta ronda (${bets.length} fichas)`, gameId).run();
 
   // 4. Generar Lightning y resultado con RNG del servidor.
   const lightning = generateLightning(settings);   // Array<[num, mult]>
@@ -300,12 +305,13 @@ async function gameSpin(request, env) {
     await env.DB.prepare('UPDATE users SET balance = balance + ? WHERE id = ?')
       .bind(win, auth.userId).run();
     await env.DB.prepare(
-      "INSERT INTO transactions (user_id, type, amount, note, source) VALUES (?, 'win', ?, ?, 'game')"
+      "INSERT INTO transactions (user_id, type, amount, note, source, game_id) VALUES (?, 'win', ?, ?, 'game', ?)"
     ).bind(
       auth.userId, win,
       capped
         ? `Ganancia ronda (salió ${resultNum}) — limitada al techo de ${maxWin}, bruto ${grossWin}`
-        : `Ganancia ronda (salió ${resultNum})`
+        : `Ganancia ronda (salió ${resultNum})`,
+      gameId
     ).run();
   }
 

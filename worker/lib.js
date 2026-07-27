@@ -69,6 +69,33 @@ export const NUMERIC_SETTINGS = {
   ltg_max:            { min: 1,    max: 20,   integer: true },
 };
 
+// ── Las mesas del salón ───────────────────────────────────────────────────
+// El catálogo de VOLTIO. Hoy vive acá porque hay una sola mesa; en la Etapa 4
+// pasa a la base de datos para que el dueño pueda crear mesas desde el panel
+// (ver ESTRUCTURA-SALON.md). El `id` es lo que se guarda en cada movimiento,
+// así que una vez usado NO se cambia: rompería el historial.
+export const JUEGOS = {
+  catatumbo: {
+    label: 'Catatumbo',
+    rueda: 'americana',   // 0 y 00 · 38 números
+    animales: true,
+    rayos: true,
+    activo: true,
+  },
+};
+
+export const JUEGO_POR_DEFECTO = 'catatumbo';
+
+// Devuelve un id de mesa válido y encendido, o null si no existe.
+// Sin dato (cliente viejo que todavía no lo manda) cae en la mesa por defecto.
+export function normalizeGameId(raw) {
+  if (raw == null || raw === '') return JUEGO_POR_DEFECTO;
+  const id = String(raw).trim().toLowerCase();
+  const j = JUEGOS[id];
+  if (!j || !j.activo) return null;
+  return id;
+}
+
 // ── Rayos (Lightning) ─────────────────────────────────────────────────────
 // Los 8 multiplicadores posibles de un pleno con rayo. Los valores no cambian
 // (son parte de la identidad del juego); lo que se ajusta es cada cuánto sale

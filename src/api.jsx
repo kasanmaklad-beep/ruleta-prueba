@@ -66,7 +66,9 @@
     // ── Juego ──
     // El servidor resuelve el giro completo: recibe las apuestas y devuelve
     // { resultIndex, resultNum, lightning, win, capped, winDetails, balance }.
-    spin(bets) { return POST('/api/game/spin', { bets }); },
+    // `game` es la mesa del salón donde se juega: queda guardada en cada
+    // movimiento para poder separar la plata por juego en los reportes.
+    spin(bets, game) { return POST('/api/game/spin', { bets, game: game || 'catatumbo' }); },
 
     // ── Billetera del jugador ──
     walletInfo() { return req('/api/wallet/info'); },

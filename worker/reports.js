@@ -9,7 +9,17 @@
 //   · JUEGO = apostado − premios  → lo que la ruleta le ganó a los jugadores.
 // ════════════════════════════════════════════════════════════════════════
 
-import { json, str, requireAdmin, VE_OFFSET, todayVE, getSettings, settingNum } from './lib.js';
+import {
+  json, str, requireAdmin, VE_OFFSET, todayVE, getSettings, settingNum, JUEGOS,
+} from './lib.js';
+
+// Mesa por la que se está filtrando, si se pidió una. Devuelve null cuando
+// hay que mostrar todo junto (que es lo normal).
+function gameFilter(url) {
+  const g = str(url.searchParams.get('game'), 40);
+  if (!g || g === 'todos') return null;
+  return JUEGOS[g] ? g : null;
+}
 
 // Rango de fechas pedido, con tope de un año para no barrer la base entera.
 function dateRange(url, defaultDays = 30) {
@@ -82,6 +92,16 @@ export async function reportDaily(request, env, url) {
   if (auth.error) return auth.response;
 
   const { from, to } = dateRange(url, 30);
+  const juego = gameFilter(url);
+
+  // Filtrando por mesa solo cuentan los movimientos DE esa mesa. Las recargas
+  // y retiros no pertenecen a ninguna (son de la billetera), así que en ese
+  // caso la caja queda en cero a propósito: la plata entra al salón, no a
+  // una mesa. Lo que sí es por mesa es el juego (apostado − premios).
+  const filtroJuego = juego ? 'AND game_id = ?' : '';
+  const args = juego
+    ? [VE_OFFSET, VE_OFFSET, from, to, juego]
+    : [VE_OFFSET, VE_OFFSET, from, to];
 
   const rows = await env.DB.prepare(
     `SELECT date(created_at, ?) AS dia,
@@ -93,10 +113,33 @@ export async function reportDaily(request, env, url) {
             COUNT(CASE WHEN type = 'bet' THEN 1 END)                      AS giros,
             COUNT(DISTINCT CASE WHEN type = 'bet' THEN user_id END)       AS jugadores
        FROM transactions
-      WHERE date(created_at, ?) BETWEEN ? AND ?
+      WHERE date(created_at, ?) BETWEEN ? AND ? ${filtroJuego}
       GROUP BY dia
       ORDER BY dia DESC`
-  ).bind(VE_OFFSET, VE_OFFSET, from, to).all();
+  ).bind(...args).all();
+
+  // Desglose por mesa del mismo período: con qué mesa gana el salón.
+  const porJuegoRows = await env.DB.prepare(
+    `SELECT game_id,
+            COALESCE(SUM(CASE WHEN type = 'bet' THEN amount END), 0) AS apostado,
+            COALESCE(SUM(CASE WHEN type = 'win' THEN amount END), 0) AS premios,
+            COUNT(CASE WHEN type = 'bet' THEN 1 END)                  AS giros,
+            COUNT(DISTINCT CASE WHEN type = 'bet' THEN user_id END)   AS jugadores
+       FROM transactions
+      WHERE date(created_at, ?) BETWEEN ? AND ?
+        AND type IN ('bet', 'win')
+      GROUP BY game_id`
+  ).bind(VE_OFFSET, from, to).all();
+
+  const porJuego = (porJuegoRows.results || []).map((r) => {
+    const id = r.game_id || 'catatumbo';
+    return {
+      ...r,
+      game_id: id,
+      label: (JUEGOS[id] && JUEGOS[id].label) || id,
+      juego: r.apostado - r.premios,
+    };
+  }).sort((a, b) => b.apostado - a.apostado);
 
   const dias = (rows.results || []).map((d) => ({
     ...d,
@@ -115,7 +158,12 @@ export async function reportDaily(request, env, url) {
     juego: acc.juego + d.juego,
   }), { recargas: 0, retiros: 0, apostado: 0, premios: 0, ajustes: 0, giros: 0, caja: 0, juego: 0 });
 
-  return json({ from, to, dias, total });
+  return json({
+    from, to, dias, total,
+    filtro_juego: juego,
+    por_juego: porJuego,
+    mesas: Object.entries(JUEGOS).map(([id, j]) => ({ id, label: j.label, activo: !!j.activo })),
+  });
 }
 
 // ─────────────────────────── Reporte por socio ───────────────────────
