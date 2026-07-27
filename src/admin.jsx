@@ -1482,6 +1482,60 @@
     const pesosTxt = vals.ltg_pesos || '';
     const pesos = pesosTxt.split(',').map((x) => Number(String(x).trim()));
     const sumaPesos = pesos.reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+    const [ventajaDeseada, setVentajaDeseada] = useState('');
+    const [avisoVentaja, setAvisoVentaja] = useState('');
+
+    // A partir del % que se quiere dejar a la casa, calcula qué tan seguido
+    // debe salir cada multiplicador (mismo despeje que ventajaPleno, al revés).
+    // Los pesos siguen una curva pareja (cada multiplicador pesa "r" veces
+    // menos que el anterior); se busca la "r" que da el promedio exacto que
+    // hace falta para llegar al porcentaje pedido.
+    const aplicarVentajaDeseada = () => {
+      const target = Number(ventajaDeseada);
+      if (!Number.isFinite(target)) return;
+      const min = Math.max(0, Number(vals.ltg_min) || 0);
+      const max = Math.max(min, Number(vals.ltg_max) || 1);
+      const rayosProm = (min + max) / 2;
+      const P = Math.min(1, rayosProm / 38);
+      if (P <= 0) {
+        setAvisoVentaja('Poné al menos un rayo (mínimo o máximo mayor a 0) para poder calcular.');
+        return;
+      }
+
+      const devuelve = 1 - target / 100;
+      let multProm = (devuelve * 38 - (1 - P) * 30) / P;
+      const piso = valores[0], techo = valores[valores.length - 1];
+      const ventajaDe = (mp) => Math.round((1 - (1 / 38) * (P * mp + (1 - P) * 30)) * 1000) / 10;
+      let aviso = '';
+      if (multProm < piso) {
+        multProm = piso;
+        aviso = `Con estos rayos no se puede pasar de ${String(ventajaDe(piso)).replace('.', ',')}%. Quedó lo más cerca posible.`;
+      }
+      if (multProm > techo) {
+        multProm = techo;
+        aviso = `Con estos rayos no se puede bajar de ${String(ventajaDe(techo)).replace('.', ',')}%. Quedó lo más cerca posible.`;
+      }
+
+      // multProm(t) = promedio ponderado con pesos e^(t·i); crece con t.
+      const multPromDeT = (t) => {
+        let sw = 0, swv = 0;
+        for (let i = 0; i < valores.length; i++) { const w = Math.exp(t * i); sw += w; swv += w * valores[i]; }
+        return swv / sw;
+      };
+      let lo = -60, hi = 60;
+      for (let it = 0; it < 80; it++) {
+        const mid = (lo + hi) / 2;
+        if (multPromDeT(mid) < multProm) lo = mid; else hi = mid;
+      }
+      const t = (lo + hi) / 2;
+      const crudos = valores.map((_, i) => Math.exp(t * i));
+      const sumaCrudos = crudos.reduce((a, b) => a + b, 0);
+      const nuevosPesos = crudos.map((w) => Math.round((w / sumaCrudos) * 1000) / 10);
+
+      setAvisoVentaja(aviso);
+      setVals({ ...vals, ltg_pesos: nuevosPesos.join(',') });
+      guardar({ ltg_pesos: nuevosPesos.join(',') });
+    };
 
     // Ventaja calculada en vivo, con lo que hay escrito en pantalla.
     const calc = (() => {
@@ -1563,6 +1617,37 @@
           <br /><b>Casa fuerte:</b> el pleno rinde un poco más que el resto; los premios grandes salen
           menos seguido.
         </div>
+
+        {/* Porcentaje a mano */}
+        <div style={{ fontSize: 11, color: '#999', letterSpacing: 1, marginBottom: 6 }}>
+          O PONÉ VOS EL PORCENTAJE
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 8 }}>
+          <Campo label="VENTAJA QUE QUERÉS DEJARLE A LA CASA (%)">
+            <input
+              style={{ ...S.input, maxWidth: 160 }}
+              type="number" step="0.1" placeholder="ej: 15 o 2"
+              value={ventajaDeseada}
+              onChange={(e) => { setVentajaDeseada(e.target.value); setAvisoVentaja(''); }}
+            />
+          </Campo>
+          <Boton tono="oro" disabled={guardando || ventajaDeseada === ''} onClick={aplicarVentajaDeseada}>
+            CALCULAR Y APLICAR
+          </Boton>
+        </div>
+        <div style={{ fontSize: 11, color: '#888', marginBottom: 8, lineHeight: 1.5 }}>
+          Escribí el porcentaje que querés que le deje el pleno a la casa (puede ser 2, 15, lo que sea) y
+          el sistema recalcula los 8 pesos de abajo para llegar lo más cerca posible. El resultado real
+          queda mostrado arriba, en "Le deja a la casa (pleno)".
+        </div>
+        {avisoVentaja && (
+          <div style={{
+            marginBottom: 14, padding: '10px 14px', borderRadius: 6, fontSize: 13,
+            background: 'rgba(255,216,74,0.1)', border: '1px solid #8a6a1a', color: '#ffd84a',
+          }}>
+            {avisoVentaja}
+          </div>
+        )}
 
         {/* Ajuste fino */}
         <div style={{ fontSize: 11, color: '#999', letterSpacing: 1, marginBottom: 6 }}>
