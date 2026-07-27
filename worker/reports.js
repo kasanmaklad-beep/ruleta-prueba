@@ -98,7 +98,10 @@ export async function reportDaily(request, env, url) {
   // y retiros no pertenecen a ninguna (son de la billetera), así que en ese
   // caso la caja queda en cero a propósito: la plata entra al salón, no a
   // una mesa. Lo que sí es por mesa es el juego (apostado − premios).
-  const filtroJuego = juego ? 'AND game_id = ?' : '';
+  // COALESCE y no `game_id = ?` a secas: un movimiento sin mesa (de antes de
+  // la Etapa 2, o de la ventana entre migrar y publicar) cuenta como Catatumbo,
+  // que era la única mesa. Sin esto quedaría afuera del filtro.
+  const filtroJuego = juego ? "AND COALESCE(game_id, 'catatumbo') = ?" : '';
   const args = juego
     ? [VE_OFFSET, VE_OFFSET, from, to, juego]
     : [VE_OFFSET, VE_OFFSET, from, to];
@@ -119,8 +122,10 @@ export async function reportDaily(request, env, url) {
   ).bind(...args).all();
 
   // Desglose por mesa del mismo período: con qué mesa gana el salón.
+  // El COALESCE va en el GROUP BY, no solo al mostrar: si no, los movimientos
+  // sin mesa arman su propio grupo y Catatumbo aparece dos veces en la tabla.
   const porJuegoRows = await env.DB.prepare(
-    `SELECT game_id,
+    `SELECT COALESCE(game_id, 'catatumbo') AS game_id,
             COALESCE(SUM(CASE WHEN type = 'bet' THEN amount END), 0) AS apostado,
             COALESCE(SUM(CASE WHEN type = 'win' THEN amount END), 0) AS premios,
             COUNT(CASE WHEN type = 'bet' THEN 1 END)                  AS giros,
@@ -128,18 +133,14 @@ export async function reportDaily(request, env, url) {
        FROM transactions
       WHERE date(created_at, ?) BETWEEN ? AND ?
         AND type IN ('bet', 'win')
-      GROUP BY game_id`
+      GROUP BY COALESCE(game_id, 'catatumbo')`
   ).bind(VE_OFFSET, from, to).all();
 
-  const porJuego = (porJuegoRows.results || []).map((r) => {
-    const id = r.game_id || 'catatumbo';
-    return {
-      ...r,
-      game_id: id,
-      label: (JUEGOS[id] && JUEGOS[id].label) || id,
-      juego: r.apostado - r.premios,
-    };
-  }).sort((a, b) => b.apostado - a.apostado);
+  const porJuego = (porJuegoRows.results || []).map((r) => ({
+    ...r,
+    label: (JUEGOS[r.game_id] && JUEGOS[r.game_id].label) || r.game_id,
+    juego: r.apostado - r.premios,
+  })).sort((a, b) => b.apostado - a.apostado);
 
   const dias = (rows.results || []).map((d) => ({
     ...d,
