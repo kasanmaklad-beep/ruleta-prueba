@@ -4,6 +4,16 @@
   "name": "ruleta-git",
   "compatibility_date": "2024-12-01",
   "main": "worker/index.js",
+  // El dominio propio entra directo al salón.
+  // OJO: al declarar "routes", Cloudflare apaga la dirección workers.dev si no
+  // se pide explícitamente. Sin este true se cae
+  // ruleta-git.kasanmaklad.workers.dev, que es donde apuntan el ícono ya
+  // instalado en los teléfonos y los enlaces de prueba repartidos.
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "mycrosis.com", "custom_domain": true },
+    { "pattern": "www.mycrosis.com", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
