@@ -75,7 +75,10 @@
     var i = st[0], setI = st[1];
     var mesa = MESAS[i];
     var ltg = rayosDeMuestra(mesa);
-    var bets = React.useState([])[0];
+    // Se puede apostar de mentira: sirve para tantear con el dedo dónde cae
+    // cada ficha (los splits y las esquinas son lo difícil de acertar).
+    var be = React.useState([]);
+    var bets = be[0], setBets = be[1];
     var ganador = mesa.orden[13];
 
     return e('div', null,
@@ -83,15 +86,20 @@
         '⚡ VOLTIO — las mesas por dentro'),
       e('div', { style: { fontSize: 13, color: '#9a8a66', margin: '6px 0 16px', lineHeight: 1.6 } },
         'Etapa 3b: el cilindro y el paño se arman con la ficha de la mesa. Nada de esto ' +
-        'cambia el sorteo, que lo resuelve el servidor.'),
+        'cambia el sorteo, que lo resuelve el servidor. Tocá el paño para probar dónde cae ' +
+        'cada ficha (son de mentira): en las mesas europeas mirá el borde del 0, que ahí ' +
+        'entran los splits 0/1, 0/2, 0/3, los dos tríos y los primeros cuatro.'),
 
       e('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 } },
         MESAS.map(function (m, k) {
           return e('button', {
             key: m.id, className: 'tab' + (k === i ? ' on' : ''),
-            onClick: function () { setI(k); },
+            onClick: function () { setI(k); setBets([]); },
           }, m.label);
-        })),
+        }).concat([
+          e('button', { key: 'limpiar', className: 'tab', onClick: function () { setBets([]); } },
+            'Limpiar fichas'),
+        ])),
 
       e('div', { style: { fontSize: 12, color: '#bba876', marginBottom: 14, letterSpacing: 1 } },
         [mesa.ruedaLabel, mesa.casillas + ' casillas',
@@ -114,10 +122,19 @@
             key: 't-' + mesa.id,
             mesa: mesa,
             bets: bets,
-            onPlaceBet: function () {},
-            onRemoveBet: function () {},
+            onPlaceBet: function (b) { setBets(function (bs) { return bs.concat([b]); }); },
+            onRemoveBet: function (type, payload) {
+              setBets(function (bs) {
+                for (var k = bs.length - 1; k >= 0; k--) {
+                  if (bs[k].type === type && String(bs[k].payload) === String(payload)) {
+                    return bs.slice(0, k).concat(bs.slice(k + 1));
+                  }
+                }
+                return bs;
+              });
+            },
             selectedChip: 5,
-            disabled: true,
+            disabled: false,
             theme: 'classic',
             lightningNumbers: ltg,
             rotateLabels: false,

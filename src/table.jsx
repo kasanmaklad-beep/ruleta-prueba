@@ -233,6 +233,50 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
       x: cx - 9, y: 0, w: 18, h: alto,
       chipX: cx, chipY: alto / 2,      // ficha al medio de la raya, siempre visible
     });
+  } else {
+    // ── Las combinaciones del cero en la europea ──────────────────────────
+    // Con un solo cero el top line no existe, pero el 0 SÍ se combina con la
+    // primera columna, como en cualquier mesa europea de verdad. Todas van
+    // sobre el borde que separa la columna del 0 del 1-2-3:
+    //
+    //        ┌─────┬─────      y=0            ← primeros cuatro (0,1,2,3)
+    //        │     │  3        y=½ celda      ← split 0-3
+    //        │     ├─────      y=1 celda      ← trío 0-2-3
+    //        │  0  │  2        y=1½ celdas    ← split 0-2
+    //        │     ├─────      y=2 celdas     ← trío 0-1-2
+    //        │     │  1        y=2½ celdas    ← split 0-1
+    //        └─────┴─────
+    //
+    // Los pagos son los de siempre por cantidad de números (split 17, calle
+    // 11, cuatro 8) y en una rueda de 37 le dejan a la casa el mismo 2,7%
+    // que el resto de la mesa: no son apuestas "trampa" como el top line de
+    // cinco números de la americana, que paga 6 y se queda con el 7,9%.
+    const cx = ZERO_W;
+    const combos = [
+      { type: 'corner', numbers: [0, 1, 2, 3], y: 0 },              // primeros cuatro
+      { type: 'split',  numbers: [0, 3],       y: NUM_H * 0.5 },
+      { type: 'street', numbers: [0, 2, 3],    y: NUM_H },          // trío
+      { type: 'split',  numbers: [0, 2],       y: NUM_H * 1.5 },
+      { type: 'street', numbers: [0, 1, 2],    y: NUM_H * 2 },      // trío
+      { type: 'split',  numbers: [0, 1],       y: NUM_H * 2.5 },
+    ];
+    for (const c of combos) {
+      const esSplit = c.type === 'split';
+      // Los tríos y el cuatro van en el vértice; los splits en el tramo de
+      // celda que queda entre vértice y vértice, que es lo que el jugador
+      // apunta con el dedo.
+      const w = esSplit ? 18 : 26;
+      const h = esSplit ? 30 : 26;
+      // El cuatro está pegado al borde de arriba: se lo baja para que la
+      // zona (y la ficha) queden dentro del paño.
+      const arriba = c.y === 0;
+      hotspots.push({
+        type: c.type, payload: c.numbers.join('-'),
+        numbers: c.numbers,
+        x: cx - w / 2, y: arriba ? 0 : c.y - h / 2, w, h: arriba ? h / 2 + 3 : h,
+        chipX: cx, chipY: arriba ? 10 : c.y,
+      });
+    }
   }
   // BASKET no aplica en americana (basket = top-line aquí). Lo omitimos para no duplicar.
 
