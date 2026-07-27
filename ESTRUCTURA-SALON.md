@@ -138,8 +138,10 @@ van apareciendo cuando estén listas.
 
 ## 6. Decisiones que quedan abiertas (se deciden sobre la marcha)
 
-- **Nombre del salón** (lo que ve el jugador arriba de las mesas): ¿"Catatumbo
-  Casino"? ¿"Salón Catatumbo"? Lo elige el dueño en la Etapa 1.
+- ~~**Nombre del salón**~~ → **DECIDIDO (27/07): VOLTIO**, "salón de juegos".
+  Elegido sobre Olimpo comparando maquetas (ver `maquetas/salon-voltio-olimpo.html`).
+  Marca dorada con rayo, lema "Jugá con energía". Universal, apropiable, y
+  compatible con la etapa futura de mesas en dólares.
 - **Qué mesa se construye primero después de Catatumbo** (sugerencia: la
   americana clásica — es la misma rueda que ya está probada, solo sin
   animales; la europea trae rueda nueva y cuenta nueva de rayos).

@@ -195,7 +195,7 @@ function WinCelebration({ amount, lightning, isMobile }) {
   );
 }
 
-function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpenWallet }) {
+function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenCashier, onOpenWallet }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
 
   // Topes POR CASILLA del paño. Manda el servidor: esto es para frenar la
@@ -787,6 +787,14 @@ function RouletteApp({ user, config, onLogout, onOpenAdmin, onOpenCashier, onOpe
                 </div>
               )}
               <div style={{ display: 'flex', gap: 6 }}>
+                {onOpenSalon && (
+                  <button onClick={onOpenSalon} style={{
+                    padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
+                    border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.4)', color: '#ffd84a',
+                    fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
+                    letterSpacing: 1, cursor: 'pointer',
+                  }}>SALÓN</button>
+                )}
                 {onOpenWallet && (
                   <button onClick={onOpenWallet} style={{
                     padding: isMobile ? '2px 6px' : '5px 10px', borderRadius: 4,
@@ -1682,17 +1690,20 @@ function AppRoot() {
 
   // A qué pantalla mandar según la URL y lo que el usuario tiene permitido.
   // Al entrar (raíz) cada uno cae en su lugar de trabajo: el dueño en su panel,
-  // el taquillero en la taquilla y el jugador en la mesa. El dueño no entra a
-  // jugar, entra a administrar; para la mesa está "VOLVER AL JUEGO" (/juego).
+  // el taquillero en la taquilla y el jugador en el SALÓN (elige mesa ahí).
+  // El dueño no entra a jugar, entra a administrar; para las mesas está el
+  // botón SALÓN, y /juego sigue siendo la entrada directa a Catatumbo.
   const pantallaPara = (u) => {
     const ruta = rutaActual();
     if (ruta === '/admin' && u.role === 'admin') return 'admin';
     if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
     if (ruta === '/billetera') return 'billetera';
     if (ruta === '/juego') return 'game';
+    if (ruta === '/salon') return 'salon';
     if (ruta === '/') {
       if (u.role === 'admin') return 'admin';
       if (u.role === 'cashier') return 'taquilla';
+      return 'salon';
     }
     return 'game';
   };
@@ -1723,6 +1734,17 @@ function AppRoot() {
   const volverAlJuego = () => {
     window.history.pushState({}, '', '/juego');
     setStatus('game');
+    window.Api.me().then((d) => {
+      if (d && d.user) setUser(d.user);
+      if (d && d.config) setConfig(d.config);
+    }).catch(() => {});
+  };
+
+  // Al salón siempre con el saldo fresco: se llega desde la mesa o la caja,
+  // y en las dos el saldo pudo haber cambiado.
+  const irAlSalon = () => {
+    window.history.pushState({}, '', '/salon');
+    setStatus('salon');
     window.Api.me().then((d) => {
       if (d && d.user) setUser(d.user);
       if (d && d.config) setConfig(d.config);
@@ -1778,10 +1800,22 @@ function AppRoot() {
   const esAdmin = user && user.role === 'admin';
   const esTaquillero = user && (user.role === 'cashier' || user.role === 'admin');
 
+  if (status === 'salon') {
+    return <SalonScreen
+      user={user}
+      onEntrarMesa={() => volverAlJuego()}
+      onOpenWallet={() => ir('/billetera', 'billetera')}
+      onOpenCashier={esTaquillero ? () => ir('/taquilla', 'taquilla') : null}
+      onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}
+      onLogout={salir}
+    />;
+  }
+
   return <RouletteApp
     user={user}
     config={config}
     onLogout={salir}
+    onOpenSalon={irAlSalon}
     onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}
     onOpenCashier={esTaquillero ? () => ir('/taquilla', 'taquilla') : null}
     onOpenWallet={() => ir('/billetera', 'billetera')}

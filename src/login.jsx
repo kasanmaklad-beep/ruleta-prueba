@@ -108,10 +108,15 @@
         }}>
           <div style={{ textAlign: 'center', marginBottom: 22 }}>
             <div style={{
-              fontSize: 24, fontWeight: 900, letterSpacing: 3, color: '#d4a94a',
-              textShadow: '0 2px 4px rgba(0,0,0,0.8)',
-            }}>⚡ RULETA CATATUMBO ⚡</div>
-            <div style={{ fontSize: 11, letterSpacing: 2, color: '#888', marginTop: 6 }}>
+              fontSize: 26, fontWeight: 900, letterSpacing: 3,
+              background: 'linear-gradient(180deg, #fff3b0, #ffd84a 55%, #b8860b)',
+              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
+              textShadow: '0 0 18px rgba(255,216,74,0.2)',
+            }}>⚡ VOLTIO</div>
+            <div style={{ fontSize: 9, letterSpacing: 4, color: '#b88a28', marginTop: 4 }}>
+              SALÓN DE JUEGOS
+            </div>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: '#888', marginTop: 8 }}>
               {registro ? 'Creá tu cuenta' : 'Ingresá para jugar'}
             </div>
           </div>

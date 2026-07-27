@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Maqueta — Salón: Voltio vs Olimpo</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1c1c1c; font-family: Georgia, serif; color: #fff;
+    display: flex; gap: 40px; justify-content: center; align-items: flex-start;
+    padding: 30px 20px; flex-wrap: wrap;
+  }
+  .etiqueta {
+    text-align: center; color: #999; font-size: 13px; letter-spacing: 3px;
+    margin-bottom: 12px; text-transform: uppercase;
+  }
+  .telefono {
+    width: 375px; height: 740px; border-radius: 28px; overflow: hidden;
+    border: 3px solid #333; box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+    background: radial-gradient(ellipse at 50% 0%, #2a1a08 0%, #140d04 55%, #0a0a0a 100%);
+    display: flex; flex-direction: column;
+  }
+  /* ── Barra superior, igual al juego ── */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-bottom: 1px solid #3a2a10;
+    background: rgba(0,0,0,0.35);
+  }
+  .saldo { text-align: right; }
+  .saldo .lbl { font-size: 8px; letter-spacing: 2px; color: #999; }
+  .saldo .val { font-size: 16px; font-weight: 900; color: #fff; }
+  .botoncito {
+    font-size: 10px; letter-spacing: 1px; color: #ddd; border: 1px solid #555;
+    border-radius: 4px; padding: 4px 8px; background: rgba(255,255,255,0.05);
+    margin-left: 6px;
+  }
+  /* ── Marcas ── */
+  .marca { display: flex; flex-direction: column; line-height: 1; }
+  .marca .nombre { font-weight: 900; letter-spacing: 2px; }
+  .marca .sub { font-size: 8px; letter-spacing: 3px; color: #b88a28; margin-top: 3px; }
+
+  .voltio .nombre {
+    font-size: 21px;
+    background: linear-gradient(180deg, #fff3b0, #ffd84a 55%, #b8860b);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    text-shadow: 0 0 18px rgba(255,216,74,0.35);
+  }
+  .olimpo .nombre {
+    font-size: 21px; color: #f3e3b8; letter-spacing: 5px;
+    text-shadow: 0 1px 0 #7a5c1e, 0 0 16px rgba(243,227,184,0.25);
+  }
+
+  /* ── Contenido del salón ── */
+  .salon { flex: 1; padding: 18px 16px; overflow: hidden; }
+  .bienvenida { text-align: center; margin-bottom: 16px; }
+  .bienvenida .hola { font-size: 11px; color: #999; letter-spacing: 2px; }
+  .bienvenida .titulo { font-size: 15px; color: #e8d9a0; letter-spacing: 3px; margin-top: 4px; }
+
+  .mesa {
+    border-radius: 12px; padding: 16px; margin-bottom: 14px; position: relative;
+    background: linear-gradient(160deg, rgba(60,38,10,0.9), rgba(20,12,4,0.95));
+    border: 1px solid #b88a28;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,216,74,0.15);
+  }
+  .mesa .cinta {
+    position: absolute; top: 10px; right: 10px; font-size: 8px; letter-spacing: 2px;
+    color: #0a0a0a; background: linear-gradient(180deg, #ffe98a, #d4a017);
+    border-radius: 3px; padding: 3px 7px; font-weight: 700;
+  }
+  .mesa .icono { font-size: 34px; }
+  .mesa h2 { font-size: 19px; letter-spacing: 2px; color: #ffd84a; margin: 6px 0 4px; }
+  .mesa .detalle { font-size: 11px; color: #bba876; line-height: 1.6; }
+  .mesa .fila { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 12px; }
+  .mesa .apuesta { font-size: 10px; color: #888; }
+  .mesa .apuesta b { color: #ddd; font-size: 12px; }
+  .entrar {
+    font-family: Georgia, serif; font-size: 13px; font-weight: 700; letter-spacing: 2px;
+    color: #1a1205; padding: 10px 22px; border: 1px solid #8a6a1a; border-radius: 6px;
+    background: linear-gradient(180deg, #ffe98a, #d4a017);
+    box-shadow: 0 0 14px rgba(255,216,74,0.35);
+  }
+  .mesa.apagada { border-color: #3a3a3a; filter: saturate(0.25) brightness(0.75); }
+  .mesa.apagada .cinta { background: #555; color: #ccc; }
+  .mesa.apagada .entrar {
+    background: #2a2a2a; color: #777; border-color: #444; box-shadow: none;
+  }
+  .pie {
+    text-align: center; font-size: 9px; color: #666; letter-spacing: 2px;
+    padding: 10px 0 14px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ VERSIÓN VOLTIO ═══════════════ -->
+<div>
+  <div class="etiqueta">Opción A — Voltio</div>
+  <div class="telefono">
+    <div class="topbar">
+      <div class="marca voltio">
+        <div class="nombre">⚡ VOLTIO</div>
+        <div class="sub">SALÓN DE JUEGOS</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div class="saldo"><div class="lbl">SALDO</div><div class="val">$10,000</div></div>
+        <span class="botoncito">CAJA</span><span class="botoncito">SALIR</span>
+      </div>
+    </div>
+    <div class="salon">
+      <div class="bienvenida">
+        <div class="hola">BIENVENIDO, PRUEBA</div>
+        <div class="titulo">— ELEGÍ TU MESA —</div>
+      </div>
+
+      <div class="mesa">
+        <div class="cinta">MESA INSIGNIA</div>
+        <div class="icono">🐆⚡</div>
+        <h2>CATATUMBO</h2>
+        <div class="detalle">Ruleta americana 0/00 · 38 animales<br/>Rayos con premios hasta <b style="color:#ffd84a">500x</b></div>
+        <div class="fila">
+          <div class="apuesta">APUESTA DESDE<br/><b>$1</b></div>
+          <button class="entrar">ENTRAR</button>
+        </div>
+      </div>
+
+      <div class="mesa apagada">
+        <div class="cinta">PRÓXIMAMENTE</div>
+        <div class="icono">🎡</div>
+        <h2>EUROPEA CLÁSICA</h2>
+        <div class="detalle">Ruleta europea de un solo cero<br/>La favorita de los jugadores finos</div>
+        <div class="fila">
+          <div class="apuesta">&nbsp;</div>
+          <button class="entrar">MUY PRONTO</button>
+        </div>
+      </div>
+    </div>
+    <div class="pie">VOLTIO · JUGÁ CON ENERGÍA</div>
+  </div>
+</div>
+
+<!-- ═══════════════ VERSIÓN OLIMPO ═══════════════ -->
+<div>
+  <div class="etiqueta">Opción B — Olimpo</div>
+  <div class="telefono">
+    <div class="topbar">
+      <div class="marca olimpo">
+        <div class="nombre">🏛 OLIMPO</div>
+        <div class="sub">SALÓN DE JUEGOS</div>
+      </div>
+      <div style="display:flex;align-items:center;">
+        <div class="saldo"><div class="lbl">SALDO</div><div class="val">$10,000</div></div>
+        <span class="botoncito">CAJA</span><span class="botoncito">SALIR</span>
+      </div>
+    </div>
+    <div class="salon">
+      <div class="bienvenida">
+        <div class="hola">BIENVENIDO, PRUEBA</div>
+        <div class="titulo">— ELEGÍ TU MESA —</div>
+      </div>
+
+      <div class="mesa">
+        <div class="cinta">MESA INSIGNIA</div>
+        <div class="icono">🐆⚡</div>
+        <h2>CATATUMBO</h2>
+        <div class="detalle">Ruleta americana 0/00 · 38 animales<br/>Rayos con premios hasta <b style="color:#ffd84a">500x</b></div>
+        <div class="fila">
+          <div class="apuesta">APUESTA DESDE<br/><b>$1</b></div>
+          <button class="entrar">ENTRAR</button>
+        </div>
+      </div>
+
+      <div class="mesa apagada">
+        <div class="cinta">PRÓXIMAMENTE</div>
+        <div class="icono">🎡</div>
+        <h2>EUROPEA CLÁSICA</h2>
+        <div class="detalle">Ruleta europea de un solo cero<br/>La favorita de los jugadores finos</div>
+        <div class="fila">
+          <div class="apuesta">&nbsp;</div>
+          <button class="entrar">MUY PRONTO</button>
+        </div>
+      </div>
+    </div>
+    <div class="pie">OLIMPO · DONDE JUEGAN LOS DIOSES</div>
+  </div>
+</div>
+
+</body>
+</html>

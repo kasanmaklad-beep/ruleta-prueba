@@ -1,8 +1,8 @@
 {
-  "name": "Ruleta Catatumbo",
-  "short_name": "Catatumbo",
-  "description": "Ruleta Catatumbo — American Roulette con multiplicadores hasta 500x",
-  "start_url": "/juego",
+  "name": "Voltio — Salón de Juegos",
+  "short_name": "Voltio",
+  "description": "Voltio — Salón de juegos. Mesa insignia: Ruleta Catatumbo con multiplicadores hasta 500x",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",
