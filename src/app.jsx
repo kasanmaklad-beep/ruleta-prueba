@@ -446,7 +446,15 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
     window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })))
       .then((server) => {
         serverSpinRef.current = server;
-        if (typeof server.balance === 'number') setBalance(server.balance);
+        // OJO: `server.balance` ya trae el premio sumado — el servidor sortea y
+        // acredita antes de que la bola caiga. Mostrarlo acá le cantaba al
+        // jugador que había ganado con la rueda todavía girando. Durante el
+        // giro se muestra el saldo con lo apostado descontado pero SIN el
+        // premio; el premio entra en handleSpinEnd, cuando para la rueda.
+        if (typeof server.balance === 'number') {
+          const premio = typeof server.win === 'number' ? server.win : 0;
+          setBalance(server.balance - premio);
+        }
         // Modo prueba: se anota el giro con lo apostado y lo ganado.
         if (pruebaTotal > 0) {
           const stake = finales.reduce((s, b) => s + b.amount, 0);
