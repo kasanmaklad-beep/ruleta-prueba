@@ -68,6 +68,14 @@ cada vez, una vez que la base esté hecha.
 El dueño podrá **encender y apagar mesas** desde el panel (una mesa apagada no
 aparece en el salón, pero sus números siguen en los reportes).
 
+**Moneda por mesa (visión a futuro, aprobada de palabra el 27/07):** la ficha
+de cada mesa llevará también su **moneda** (Bs o USD). La billetera pasa a
+tener dos bolsillos, cada uno con su circuito de recarga y retiro. Regla de
+oro: **el sistema nunca convierte entre bolsillos** — quien juega en dólares
+recarga en dólares. Convertir adentro traería de vuelta el problema de la
+casa de cambio y sumaría el riesgo de la tasa. Se construye recién cuando el
+salón en Bs esté rodando (sería una Etapa 6).
+
 ## 4. Avisos importantes del negocio (leer antes de pedir la europea)
 
 1. **La ruleta europea le deja MENOS ganancia a la casa.** Con un solo cero, la
