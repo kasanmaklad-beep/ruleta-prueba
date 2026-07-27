@@ -1,14 +1,24 @@
-// Paño de apuestas americano clásico (layout de casino con 0 y 00)
-// Sistema completo con apuestas internas: straight, split, street, corner, six-line, top-line, basket
-
-// Pagos (sin contar la apuesta original): straight 29 (Lightning), split 17, street 11, corner 8,
-// six-line 5, top-line (0,00,1,2,3) 6, basket (0,00,2 o 0,1,2 o 00,2,3) 11.
+// Paño de apuestas. Se arma según la FICHA DE LA MESA (prop `mesa`):
+//   dobleCero  → americana (0 y 00) o europea (un solo cero, sin top line)
+//   animales   → cada casilla lleva su animalito, o solo el número
+//   rayos      → se dibujan los multiplicadores Lightning, o no existen
+//   pagoPleno  → 29 a 1 en las mesas con rayos, 35 a 1 en las clásicas
+// Sin ficha se dibuja Catatumbo (americana, con animales y con rayos), que es
+// lo que había antes de que el paño fuera configurable.
+//
+// Apuestas internas: straight, split, street, corner, six-line y top-line
+// (esta última solo existe donde hay 00).
+//
+// Pagos (sin contar la apuesta original): pleno 29 con rayos / 35 sin ellos,
+// split 17, street 11, corner 8, six-line 5, top-line (0,00,1,2,3) 6.
 // Aquí calcWin retorna pago BRUTO incluyendo la apuesta (amount * (payout+1)).
 
 // ═══════════════════════════════════════════════════════════════
 //  ANIMALITOS — cada casilla lleva su animal (estilo Lotto Activo).
 //  Los colores rojo/negro siguen siendo los de la ruleta americana:
 //  esto es puramente visual, no cambia pagos ni sorteo.
+//  Solo se dibujan en las mesas con animales; y la Ballena (00) no existe
+//  en las europeas, porque ahí no hay 00.
 // ═══════════════════════════════════════════════════════════════
 // [emoji, nombre, artículo] — el artículo lo usa la voz ("¡Salió la Paloma!")
 const ANIMALS = {
@@ -29,12 +39,24 @@ const ANIMALS = {
 window.ANIMALS = ANIMALS;
 function animalOf(n) { return ANIMALS[n] || ['', '']; }
 
-function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, theme, lightningNumbers, rotateLabels, winningNumber }) {
+function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, theme, lightningNumbers, rotateLabels, winningNumber, mesa }) {
+  // ── La ficha de la mesa ────────────────────────────────────────────────
+  // Sin ficha se asume la mesa insignia (americana, animales y rayos).
+  const dobleCero = !mesa || mesa.dobleCero !== false;
+  const conAnimales = !mesa || mesa.animales !== false;
+  const conRayos = !mesa || mesa.rayos !== false;
+  // En una mesa sin rayos no hay nada que encender aunque llegue un Map.
+  const ltg = conRayos && lightningNumbers ? lightningNumbers : new Map();
+
   // Helper: contra-rotación de textos cuando el paño está girado 90° (móvil vertical)
   const rotText = (cx, cy) => rotateLabels ? `rotate(-90 ${cx} ${cy})` : undefined;
-  // 'classic' = paño de animalitos (turquesa con bordes blancos, estilo Lotto Activo)
+  // 'classic' = paño de animalitos (turquesa con bordes blancos, estilo Lotto
+  // Activo). En una mesa sin animales ese turquesa no significa nada, así que
+  // va el verde de casino de toda la vida.
   const felt = {
-    classic: { bg: '#0f8ea8', border: '#ffffff', text: '#ffffff' },
+    classic: conAnimales
+      ? { bg: '#0f8ea8', border: '#ffffff', text: '#ffffff' }
+      : { bg: '#0a6b3a', border: '#ffffff', text: '#ffffff' },
     modern: { bg: '#062418', border: '#d4af37', text: '#e8d890' },
     lightning: { bg: '#0a1838', border: '#5ab8ff', text: '#c9e5ff' },
   }[theme] || { bg: '#0f8ea8', border: '#ffffff', text: '#ffffff' };
@@ -68,8 +90,21 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     return { x, y, w: NUM_W, h: NUM_H, cx: x + NUM_W / 2, cy: y + NUM_H / 2 };
   };
 
-  const zeroRect = () => ({ x: 0, y: 0, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 0.75 });
+  // La columna de los ceros: dos casillas en la americana, una sola —del alto
+  // completo— en la europea.
+  const zeroRect = () => dobleCero
+    ? { x: 0, y: 0, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 0.75 }
+    : { x: 0, y: 0, w: ZERO_W, h: NUM_H * 3, cx: ZERO_W / 2, cy: NUM_H * 1.5 };
   const dzeroRect = () => ({ x: 0, y: NUM_H * 1.5, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 2.25 });
+
+  // Rectángulo de cualquier casilla del paño. Devuelve null si esa casilla no
+  // existe en esta mesa (el 00 en una europea).
+  const rectDe = (n) => {
+    const s = String(n);
+    if (s === '0') return zeroRect();
+    if (s === '00') return dobleCero ? dzeroRect() : null;
+    return cellRect(n);
+  };
 
   // ───────────────────────────────────────────────
   // Construir HOTSPOTS para apuestas internas
@@ -81,11 +116,13 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     const r = cellRect(n);
     hotspots.push({ type: 'straight', payload: n, numbers: [n], x: r.x, y: r.y, w: r.w, h: r.h, chipX: r.cx, chipY: r.cy });
   }
-  // STRAIGHT 0 / 00
+  // STRAIGHT 0 (y 00, donde exista)
   const z = zeroRect();
   hotspots.push({ type: 'straight', payload: 0, numbers: [0], x: z.x, y: z.y, w: z.w, h: z.h, chipX: z.cx, chipY: z.cy });
-  const dz = dzeroRect();
-  hotspots.push({ type: 'straight', payload: '00', numbers: ['00'], x: dz.x, y: dz.y, w: dz.w, h: dz.h, chipX: dz.cx, chipY: dz.cy });
+  if (dobleCero) {
+    const dz = dzeroRect();
+    hotspots.push({ type: 'straight', payload: '00', numbers: ['00'], x: dz.x, y: dz.y, w: dz.w, h: dz.h, chipX: dz.cx, chipY: dz.cy });
+  }
 
   // SPLIT horizontales (entre números adyacentes en la misma fila): n y n+3 (col→col+1)
   // Ej: 1|4, 2|5, 3|6, ..., 33|36
@@ -118,8 +155,8 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
       chipX: cx, chipY: yBorder,
     });
   }
-  // SPLIT 0-00
-  {
+  // SPLIT 0-00 — solo donde hay dos ceros
+  if (dobleCero) {
     const cx = ZERO_W / 2;
     const cy = NUM_H * 1.5;
     hotspots.push({ type: 'split', payload: '0-00', numbers: [0, '00'], x: cx - 12, y: cy - 8, w: 24, h: 16, chipX: cx, chipY: cy });
@@ -184,7 +221,10 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
   // Ahora es la raya completa, que es lo que un jugador busca. Es la única
   // apuesta sobre ese borde (no hay splits entre los ceros y el 1-2-3), así
   // que no le quita el lugar a nada.
-  {
+  //
+  // No existe en la europea: son cinco números y ahí solo hay cuatro (el 00
+  // no está). El servidor también la rechaza en esas mesas.
+  if (dobleCero) {
     const cx = ZERO_W;                 // borde entre los ceros y el 1-2-3
     const alto = NUM_H * 3;            // de arriba abajo
     hotspots.push({
@@ -258,10 +298,13 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
                 <stop offset="100%" stopColor={accentGlow} stopOpacity="0" />
               </radialGradient>
             </defs>
-            {/* 0 */}
-            <CellRect x={0} y={0} w={ZERO_W} h={NUM_H * 1.5} fill="#0d7a2e" stroke={felt.border} />
-            {/* 00 */}
-            <CellRect x={0} y={NUM_H * 1.5} w={ZERO_W} h={NUM_H * 1.5} fill="#0d7a2e" stroke={felt.border} />
+            {/* La columna de los ceros: 0 y 00 en la americana, solo el 0 —del
+                alto completo— en la europea. */}
+            <CellRect x={0} y={0} w={ZERO_W} h={dobleCero ? NUM_H * 1.5 : NUM_H * 3}
+              fill="#0d7a2e" stroke={felt.border} />
+            {dobleCero && (
+              <CellRect x={0} y={NUM_H * 1.5} w={ZERO_W} h={NUM_H * 1.5} fill="#0d7a2e" stroke={felt.border} />
+            )}
 
             {/* Números 1..36 */}
             {Array.from({ length: 36 }, (_, i) => i + 1).map((n) => {
@@ -273,7 +316,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
 
             {/* Highlight de hover */}
             {hover && hover.numbers && hover.numbers.map((n, i) => {
-              const r = n === 0 ? zeroRect() : n === '00' ? dzeroRect() : cellRect(n);
+              const r = rectDe(n);
               if (!r) return null;
               return (
                 <rect
@@ -287,66 +330,90 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               );
             })}
 
-            {/* 0 (Delfín) y 00 (Ballena) */}
-            {[
-              { key: '0', label: '0', cy: NUM_H * 0.75 },
-              { key: '00', label: '00', cy: NUM_H * 2.25 },
-            ].map((z) => {
-              const [emoji, name] = animalOf(z.key);
-              const cx = ZERO_W / 2;
+            {/* Los ceros: con su animal (Delfín / Ballena) donde los hay, y en
+                la europea uno solo, del alto de la columna. */}
+            {(dobleCero ? [0, '00'] : [0]).map((k) => {
+              const r = rectDe(k);
+              const [emoji, name] = animalOf(k);
+              const label = String(k);
               return (
-                <g key={'z' + z.key} transform={rotText(cx, z.cy)}>
-                  <text x={cx} y={z.cy - 11} fontSize="15" textAnchor="middle"
-                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>{emoji}</text>
-                  <text x={cx} y={z.cy + 8} fill="#fff" fontSize="19" fontWeight="900"
-                    fontFamily="Georgia, serif" textAnchor="middle"
-                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{z.label}</text>
-                  <text x={cx} y={z.cy + 19} fill="#fff" fontSize="7" fontWeight="700"
-                    fontFamily="Inter, Helvetica, Arial, sans-serif" letterSpacing="0.3"
-                    textAnchor="middle" opacity="0.95"
-                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{name}</text>
+                <g key={'z' + label} transform={rotText(r.cx, r.cy)}>
+                  {conAnimales ? (
+                    <>
+                      <text x={r.cx} y={r.cy - 11} fontSize="15" textAnchor="middle"
+                        style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>{emoji}</text>
+                      <text x={r.cx} y={r.cy + 8} fill="#fff" fontSize="19" fontWeight="900"
+                        fontFamily="Georgia, serif" textAnchor="middle"
+                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{label}</text>
+                      <text x={r.cx} y={r.cy + 19} fill="#fff" fontSize="7" fontWeight="700"
+                        fontFamily="Inter, Helvetica, Arial, sans-serif" letterSpacing="0.3"
+                        textAnchor="middle" opacity="0.95"
+                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{name}</text>
+                    </>
+                  ) : (
+                    // Sin animales el número manda: va solo y bien grande.
+                    <text x={r.cx} y={r.cy + 9} fill="#fff" fontSize="26" fontWeight="900"
+                      fontFamily="Georgia, serif" textAnchor="middle"
+                      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{label}</text>
+                  )}
                 </g>
               );
             })}
 
-            {/* Números 1..36 con su animalito (emoji arriba, número, nombre abajo) */}
+            {/* Números 1..36. Con animales: emoji arriba, número, nombre abajo.
+                Sin animales: solo el número, grande y centrado. */}
             {Array.from({ length: 36 }, (_, i) => i + 1).map((n) => {
               const r = cellRect(n);
-              const isLtg = lightningNumbers && lightningNumbers.has(n);
+              const isLtg = ltg.has(n);
               const [emoji, name] = animalOf(n);
+              const brilloLtg = {
+                textShadow: isLtg
+                  ? `0 0 8px ${accent}, 0 0 14px ${accentGlow}, 0 1px 2px rgba(0,0,0,0.9)`
+                  : '0 1px 2px rgba(0,0,0,0.8)',
+              };
               // El grupo se contra-rota completo: así el bloque queda derecho y
               // apilado en vertical tanto en escritorio como en el paño rotado (móvil).
               return (
                 <g key={'t' + n} transform={rotText(r.cx, r.cy)}>
-                  <text x={r.cx} y={r.cy - 12} fontSize="17" textAnchor="middle"
-                    style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>
-                    {emoji}
-                  </text>
-                  <text x={r.cx} y={r.cy + 9}
-                    fill={isLtg ? '#fff5b0' : '#fff'}
-                    fontSize={isLtg ? "19" : "17"}
-                    fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
-                    style={{
-                      textShadow: isLtg
-                        ? `0 0 8px ${accent}, 0 0 14px ${accentGlow}, 0 1px 2px rgba(0,0,0,0.9)`
-                        : '0 1px 2px rgba(0,0,0,0.8)',
-                    }}
-                  >
-                    {n}
-                  </text>
-                  <text x={r.cx} y={r.cy + 22} fill="#fff" fontSize="7.5"
-                    fontWeight="700" fontFamily="Inter, Helvetica, Arial, sans-serif"
-                    letterSpacing="0.3" textAnchor="middle" opacity="0.95"
-                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>
-                    {name}
-                  </text>
+                  {conAnimales ? (
+                    <>
+                      <text x={r.cx} y={r.cy - 12} fontSize="17" textAnchor="middle"
+                        style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>
+                        {emoji}
+                      </text>
+                      <text x={r.cx} y={r.cy + 9}
+                        fill={isLtg ? '#fff5b0' : '#fff'}
+                        fontSize={isLtg ? "19" : "17"}
+                        fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
+                        style={brilloLtg}
+                      >
+                        {n}
+                      </text>
+                      <text x={r.cx} y={r.cy + 22} fill="#fff" fontSize="7.5"
+                        fontWeight="700" fontFamily="Inter, Helvetica, Arial, sans-serif"
+                        letterSpacing="0.3" textAnchor="middle" opacity="0.95"
+                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>
+                        {name}
+                      </text>
+                    </>
+                  ) : (
+                    <text x={r.cx} y={r.cy + 9}
+                      fill={isLtg ? '#fff5b0' : '#fff'}
+                      fontSize={isLtg ? "28" : "26"}
+                      fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
+                      style={brilloLtg}
+                    >
+                      {n}
+                    </text>
+                  )}
                 </g>
               );
             })}
 
-            {/* ═══ LIGHTNING OVERLAYS — sobre celdas afectadas ═══ */}
-            {[...Array(36).keys()].map((i) => i + 1).concat([0, '00']).filter((n) => lightningNumbers && lightningNumbers.has(n)).map((n) => {
-              const r = n === 0 ? zeroRect() : n === '00' ? dzeroRect() : cellRect(n);
+            {/* ═══ LIGHTNING OVERLAYS — sobre celdas afectadas ═══
+                En una mesa sin rayos `ltg` está vacío y no se dibuja nada. */}
+            {[...ltg.keys()].filter((n) => rectDe(n)).map((n) => {
+              const r = rectDe(n);
               return (
                 <g key={'ltg-overlay-' + n}>
                   {/* Aura radial pulsante */}
@@ -381,9 +448,9 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
             })}
 
             {/* Multiplicador grande arriba de cada celda Lightning */}
-            {[...Array(36).keys()].map((i) => i + 1).concat([0, '00']).filter((n) => lightningNumbers && lightningNumbers.has(n)).map((n) => {
-              const r = n === 0 ? zeroRect() : n === '00' ? dzeroRect() : cellRect(n);
-              const mult = lightningNumbers.get(n);
+            {[...ltg.keys()].filter((n) => rectDe(n)).map((n) => {
+              const r = rectDe(n);
+              const mult = ltg.get(n);
               return (
                 <g key={'lt-mult-' + n} transform={rotText(r.cx, r.y - 2)}>
                   {/* Pill background */}
@@ -449,7 +516,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
             {/* ═══ MARCADOR 3D del número ganador ═══ */}
             {winningNumber != null && (() => {
               const n = winningNumber;
-              const r = n === 0 ? zeroRect() : n === '00' ? dzeroRect() : cellRect(n);
+              const r = rectDe(n);
               if (!r) return null;
               const cx = r.cx;
               const cy = r.cy;
@@ -813,8 +880,11 @@ function shade(hex, percent) {
 
 // ───────────────────────────────────────────────
 // CALCULAR GANANCIA — soporta TODOS los tipos
+// El pago del pleno lo pone la mesa: 29 a 1 donde hay rayos que lo compensan,
+// 35 a 1 en una mesa clásica. Espejo de calcWin en worker/index.js, que es el
+// que manda de verdad.
 // ───────────────────────────────────────────────
-function calcWin(bet, result, lightningNumbers) {
+function calcWin(bet, result, lightningNumbers, pagoPleno = 29) {
   const { type, amount, numbers, payload } = bet;
   const n = result;
   let win = 0;
@@ -823,7 +893,7 @@ function calcWin(bet, result, lightningNumbers) {
 
   // Pagos (payout = ganancia neta a 1; pago bruto = amount * (payout+1))
   const PAYOUT = {
-    straight: 29,
+    straight: pagoPleno,
     split: 17,
     street: 11,
     corner: 8,

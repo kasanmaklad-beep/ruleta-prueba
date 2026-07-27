@@ -1,5 +1,13 @@
-// Ruleta Americana 3D con física realista
-// Orden oficial de casillas en ruleta americana (empezando por 0, sentido horario):
+// Cilindro 3D con física realista.
+//
+// El orden de las casillas NO se decide acá: lo manda la ficha de la mesa
+// (prop `orden`), que viene del servidor en /api/games. Tiene que ser el mismo
+// orden con el que el servidor sorteó, porque el resultado llega como índice
+// dentro de ese arreglo: si los dos órdenes no coinciden, la bola cae en un
+// número distinto al que salió.
+//
+// Este de acá abajo es el de la americana (0 y 00, 38 casillas) y se usa solo
+// como respaldo, cuando todavía no llegó la ficha de la mesa.
 const AMERICAN_WHEEL_ORDER = [
   0, 28, 9, 26, 30, 11, 7, 20, 32, 17, 5, 22, 34, 15, 3, 24, 36, 13, 1,
   '00', 27, 10, 25, 29, 12, 8, 19, 31, 18, 6, 21, 33, 16, 4, 23, 35, 14, 2
@@ -21,13 +29,15 @@ window.numColor = numColor;
 // ═══════════════════════════════════════════════════════════════════
 // RouletteWheel — rueda 3D con bola animada físicamente
 // Props:
-//   spinning, resultIndex (index en AMERICAN_WHEEL_ORDER), onSpinEnd,
+//   orden (orden de casillas de la mesa: 38 en la americana, 37 en la europea),
+//   spinning, resultIndex (índice dentro de `orden`), onSpinEnd,
 //   spinDuration, theme ('classic'|'modern'|'lightning'),
 //   lightningNumbers (Map<number|'00', multiplier>),
 //   lightningIntensity, zoomed (boolean)
 // ═══════════════════════════════════════════════════════════════════
 
 function RouletteWheel({
+  orden,
   spinning,
   resultIndex,
   onSpinEnd,
@@ -38,7 +48,10 @@ function RouletteWheel({
   zoomed = false,
   freeSpin = false,   // gira sin resultado (apuestas abiertas, como en el casino)
 }) {
-  const N = AMERICAN_WHEEL_ORDER.length; // 38
+  // Sin ficha de mesa se dibuja la americana: es lo que había antes de que la
+  // rueda fuera configurable, así que una pantalla vieja no cambia en nada.
+  const casillas = (Array.isArray(orden) && orden.length > 0) ? orden : AMERICAN_WHEEL_ORDER;
+  const N = casillas.length;            // 38 en la americana, 37 en la europea
   const pocketAngle = 360 / N;
 
   // Rotación de la rueda (grados)
@@ -272,7 +285,7 @@ function RouletteWheel({
   const BALL_TRACK_R = OUTER_R - 8; // pista de la bola al borde
 
   // Construir pockets
-  const pockets = AMERICAN_WHEEL_ORDER.map((n, i) => {
+  const pockets = casillas.map((n, i) => {
     const angle = i * pocketAngle;
     const color = numColor(n);
     const isLightning = lightningNumbers.has(n);
@@ -528,6 +541,7 @@ function RouletteWheel({
           {/* ═══ Marcador del número ganador ═══ */}
           {!spinning && resultIndex != null && (() => {
             const p = pockets[resultIndex];
+            if (!p) return null;   // índice de otra rueda: no se marca nada
             const cx = WHEEL_SIZE / 2;
             const cy = WHEEL_SIZE / 2;
             const a1 = (p.angle - pocketAngle / 2 - 90) * Math.PI / 180;

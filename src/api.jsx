@@ -64,6 +64,9 @@
     },
 
     // ── Juego ──
+    // El catálogo del salón: la ficha de cada mesa (rueda y su orden, animales,
+    // rayos, pago del pleno). Con eso el cliente sabe cómo dibujarse.
+    games() { return req('/api/games'); },
     // El servidor resuelve el giro completo: recibe las apuestas y devuelve
     // { resultIndex, resultNum, lightning, win, capped, winDetails, balance }.
     // `game` es la mesa del salón donde se juega: queda guardada en cada

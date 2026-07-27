@@ -24,6 +24,20 @@ check "la europea le deja 2,7%" '.mesas[] | select(.id=="europea") | .ventaja_re
 check "solo Catatumbo está encendida" '[.mesas[] | select(.activo)] | length == 1' "$R"
 
 echo
+echo "── El catálogo manda el orden de la rueda (Etapa 3b) ──"
+# El navegador dibuja las casillas con ESTE orden y el servidor devuelve el
+# resultado como una posición dentro de él. Si no coincidieran, la bola caería
+# en un número distinto al que salió.
+check "Catatumbo manda las 38 casillas en orden" \
+  '.mesas[] | select(.id=="catatumbo") | .orden | length == 38' "$R"
+check "la europea manda 37 y ninguna es el 00" \
+  '.mesas[] | select(.id=="europea") | (.orden|length==37) and ((.orden|map(tostring)|index("00"))==null)' "$R"
+ORD=$(echo "$R" | jq -c '.mesas[] | select(.id=="catatumbo") | .orden')
+G=$(post /api/game/spin "$PLT" '{"bets":[{"type":"color","payload":"red","amount":1}],"game":"catatumbo"}')
+check "el número que sale es el que está en esa posición del orden" \
+  "(${ORD}[.resultIndex] | tostring) == (.resultNum | tostring)" "$G"
+
+echo
 echo "── Mesas apagadas: no se puede jugar ──"
 R=$(post /api/game/spin "$PLT" '{"bets":[{"type":"color","payload":"red","amount":100}],"game":"europea"}')
 check "la europea (apagada) rechaza el giro" '.error | test("no existe o está cerrada")' "$R"

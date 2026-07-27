@@ -262,8 +262,11 @@ export function infoRayos(settings) {
   };
 }
 
-// El catálogo tal como lo ve el cliente: sin el orden de la rueda (no le sirve
-// para nada y es ruido) pero con lo que define cómo se dibuja y cuánto paga.
+// El catálogo tal como lo ve el cliente: todo lo que define cómo se dibuja la
+// mesa y cuánto paga. El `orden` de la rueda va incluido a propósito: el
+// cilindro del navegador tiene que dibujar las casillas EN EL MISMO ORDEN que
+// usó el servidor para sortear, o la bola caería en un número distinto al que
+// salió. Una sola fuente de verdad (RUEDAS) evita esa desincronización.
 export function catalogoMesas() {
   return Object.keys(JUEGOS).map((id) => {
     const j = juegoDe(id);
@@ -272,6 +275,7 @@ export function catalogoMesas() {
       label: j.label,
       rueda: j.rueda,
       rueda_label: j.ruedaLabel,
+      orden: j.ordenRueda,
       casillas: j.casillas,
       doble_cero: j.dobleCero,
       animales: j.animales,

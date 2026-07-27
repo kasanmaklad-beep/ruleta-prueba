@@ -41,10 +41,57 @@ const ESPERA_RONDA_MS = HOLD_RUEDA_MS + HOLD_PANO_MS;   // 9s (antes 15s)
 // celular y el jugador tampoco los mira.
 const HISTORIAL_MAX = 10;
 
-// Qué mesa del salón es esta pantalla. Viaja en cada giro para que los
-// reportes puedan separar la plata por juego. Cuando la ruleta se vuelva
-// configurable (Etapa 3) va a llegar desde la mesa elegida en el salón.
-const JUEGO_ID = 'catatumbo';
+// ── La mesa que se está jugando ───────────────────────────────────────────
+// La FICHA manda: qué rueda (y en qué orden), si las casillas llevan animales,
+// si hay rayos y cuánto paga el pleno. Viene del servidor en /api/games, así
+// que el paño, el cilindro y el sorteo hablan siempre del mismo catálogo.
+// El id viaja además en cada giro, para separar la plata por mesa en los
+// reportes. Cuál mesa es la elige por ahora esta constante; en la Etapa 3c la
+// va a elegir el jugador en el salón.
+const MESA_POR_DEFECTO = 'catatumbo';
+
+// Respaldo mientras el catálogo no llegó (o si la llamada falla): la mesa
+// insignia, que es la única encendida. Sin esto la pantalla quedaría en blanco
+// por un problema de red.
+const FICHA_CATATUMBO = {
+  id: 'catatumbo',
+  label: 'Catatumbo',
+  ruedaLabel: 'Americana (0 y 00)',
+  orden: window.AMERICAN_WHEEL_ORDER,
+  casillas: 38,
+  dobleCero: true,
+  animales: true,
+  rayos: true,
+  pagoPleno: 29,
+};
+
+// La ficha del servidor viene en snake_case; los componentes la usan en
+// camelCase. Un solo lugar donde se traduce.
+function fichaDeMesa(m) {
+  if (!m) return null;
+  return {
+    id: m.id,
+    label: m.label,
+    ruedaLabel: m.rueda_label,
+    orden: m.orden,
+    casillas: m.casillas,
+    dobleCero: !!m.doble_cero,
+    animales: !!m.animales,
+    rayos: !!m.rayos,
+    pagoPleno: m.pago_pleno,
+    activa: !!m.activo,
+  };
+}
+
+// Mesa pedida por la dirección (…/juego?mesa=europea). Es el puente para
+// probar una mesa nueva antes de que el salón sepa mandarla (Etapa 3c). Solo
+// vale para mesas ENCENDIDAS del catálogo: con una apagada se ignora y se
+// juega la de siempre, así nadie llega por un enlace a una mesa cerrada.
+function mesaDelEnlace() {
+  try {
+    return (new URLSearchParams(window.location.search).get('mesa') || '').trim().toLowerCase();
+  } catch (e) { return ''; }
+}
 
 // Estilos de sonido del giro que puede elegir el jugador (botón 🔊 en la cabecera)
 const SPIN_SOUND_OPTIONS = [
@@ -200,8 +247,11 @@ function WinCelebration({ amount, lightning, isMobile }) {
   );
 }
 
-function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenCashier, onOpenWallet }) {
+function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, onOpenCashier, onOpenWallet }) {
   const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+  // La ficha de la mesa: de acá sale cómo se dibujan el cilindro y el paño.
+  const ficha = mesa || FICHA_CATATUMBO;
 
   // Topes POR CASILLA del paño. Manda el servidor: esto es para frenar la
   // ficha al ponerla, en vez de rechazar la jugada con el cilindro girando.
@@ -448,7 +498,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
     }
     setLastBets(finales.map(b => ({ ...b })));
     setMessage('¡No más apuestas!');
-    window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })), JUEGO_ID)
+    window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })), ficha.id)
       .then((server) => {
         serverSpinRef.current = server;
         // OJO: `server.balance` ya trae el premio sumado — el servidor sortea y
@@ -491,7 +541,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
         setMessage(err && err.message ? err.message : 'No se pudo girar');
         window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {});
       });
-  }, [runSpinAnimation]);
+  }, [runSpinAnimation, ficha.id, pruebaTotal]);
 
   const startSpin = useCallback(() => {
     if (phase !== 'betting' || bets.length === 0) {
@@ -587,9 +637,10 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
 
     setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, HISTORIAL_MAX));
 
-    // Voz: "Número ganador: catorce, Paloma" (+ el premio si ganó)
+    // Voz: "Número ganador: catorce, Paloma" (+ el premio si ganó). En una mesa
+    // sin animales canta solo el número: ahí la Paloma no existe.
     if (window.Voice) {
-      const animal = (window.ANIMALS || {})[resultNum];
+      const animal = ficha.animales ? (window.ANIMALS || {})[resultNum] : null;
       window.Voice.anunciarGanador(resultNum, animal ? animal[1] : null, animal ? animal[2] : null);
       if (total > 0) setTimeout(() => window.Voice.anunciarPremio(total), 1400);
     }
@@ -620,7 +671,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
       setWinDetails(null);
       setMessage('Haz tu apuesta');
     }, ESPERA_RONDA_MS);
-  }, [resultNum]);
+  }, [resultNum, ficha.animales]);
 
   // Auto-spin
   useEffect(() => {
@@ -694,11 +745,19 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
             overflow: 'hidden',
             textOverflow: 'ellipsis',
           }}>
-            {isMobile ? '⚡ CATATUMBO' : '⚡ RULETA CATATUMBO ⚡'}
+            {isMobile
+              ? `⚡ ${ficha.label.toUpperCase()}`
+              : `⚡ ${ficha.label.toUpperCase()} ⚡`}
           </div>
           {!isMobile && (
             <div style={{ fontSize: 11, letterSpacing: 3, color: '#888', marginTop: 2 }}>
-              AMERICAN · 0 · 00 · MULTIPLICADORES HASTA 500x
+              {[
+                (ficha.ruedaLabel || '').toUpperCase(),
+                ficha.animales ? `${ficha.casillas} ANIMALES` : null,
+                ficha.rayos
+                  ? 'MULTIPLICADORES HASTA 500x'
+                  : `PLENO PAGA ${ficha.pagoPleno} A 1`,
+              ].filter(Boolean).join(' · ')}
             </div>
           )}
         </div>
@@ -906,6 +965,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
             mensaje={message}
             gano={winAmount > 0}
             isMobile={isMobile}
+            conAnimales={ficha.animales}
           />
         ) : (
           <span>{message}</span>
@@ -1002,6 +1062,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
                   : { top: '50%', marginTop: -310 }),
               }}>
                 <RouletteWheel
+                  orden={ficha.orden}
                   spinning={phase === 'spinning'}
                   freeSpin={phase === 'openbets'}
                   resultIndex={phase === 'spinning' || phase === 'result' ? resultIndex : null}
@@ -1064,6 +1125,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
                     position: 'relative',
                   }}>
                     <BettingTable
+                      mesa={ficha}
                       bets={bets}
                       onPlaceBet={placeBet}
                       onRemoveBet={removeBet}
@@ -1232,6 +1294,7 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
                       left: 0,
                     }}>
                       <BettingTable
+                        mesa={ficha}
                         bets={bets}
                         onPlaceBet={placeBet}
                         onRemoveBet={removeBet}
@@ -1302,12 +1365,16 @@ function RouletteApp({ user, config, onLogout, onOpenSalon, onOpenAdmin, onOpenC
                   letterSpacing: 1,
                   color: '#aaa',
                 }}>
-                  <span><b style={{ color: '#fff' }}>PLENO</b> 1 nº · 29:1</span>
+                  {/* El pleno lo paga la mesa (29:1 con rayos, 35:1 sin ellos)
+                      y el top-line solo existe donde hay 00. */}
+                  <span><b style={{ color: '#fff' }}>PLENO</b> 1 nº · {ficha.pagoPleno}:1</span>
                   <span><b style={{ color: '#fff' }}>SPLIT</b> 2 nº · 17:1</span>
                   <span><b style={{ color: '#fff' }}>CALLE</b> 3 nº · 11:1</span>
                   <span><b style={{ color: '#fff' }}>CUATRO</b> 4 nº · 8:1</span>
                   <span><b style={{ color: '#fff' }}>LÍNEA</b> 6 nº · 5:1</span>
-                  <span><b style={{ color: '#fff' }}>TOP-LINE</b> 0,00,1,2,3 · 6:1</span>
+                  {ficha.dobleCero && (
+                    <span><b style={{ color: '#fff' }}>TOP-LINE</b> 0,00,1,2,3 · 6:1</span>
+                  )}
                 </div>
                 <div style={{ fontSize: 10, color: '#666', textAlign: 'center', letterSpacing: 1 }}>
                   CLIC IZQ: APOSTAR · CLIC DER: RETIRAR · APUNTA A LAS LÍNEAS Y ESQUINAS PARA APUESTAS INTERNAS
@@ -1505,8 +1572,9 @@ function generateBoltPath(seed) {
 // Es el momento que el jugador espera, así que va grande: la figura del animal,
 // el número en su color y el nombre. Antes era un círculo de 56px y, cuando
 // ganaba, el animal ni se mostraba — el mensaje solo decía cuánto ganó.
-function GanadorGrande({ n, color, mensaje, gano, isMobile }) {
-  const animal = (window.ANIMALS || {})[n] || null;   // [emoji, nombre, artículo]
+function GanadorGrande({ n, color, mensaje, gano, isMobile, conAnimales = true }) {
+  // [emoji, nombre, artículo] — en una mesa sin animales queda solo el número.
+  const animal = (conAnimales && (window.ANIMALS || {})[n]) || null;
   const fondo = color === 'red' ? '#b8101a' : color === 'black' ? '#151515' : '#0d7a2e';
 
   const dFicha = isMobile ? 62 : 92;
@@ -1692,6 +1760,10 @@ function AppRoot() {
   const [user, setUser] = useState(null);
   // Límites vigentes (topes, mínimos). Vienen con /api/me.
   const [config, setConfig] = useState(null);
+  // Catálogo de mesas del salón (/api/games) y cuál se está jugando. Hoy la
+  // mesa es fija; en la Etapa 3c la elige el jugador en el salón.
+  const [mesas, setMesas] = useState(null);
+  const [mesaId] = useState(MESA_POR_DEFECTO);
 
   const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
 
@@ -1740,6 +1812,27 @@ function AppRoot() {
       })
       .catch(() => { window.Api.logout(); setStatus('login'); });
   }, []);
+
+  // El catálogo de mesas, apenas hay sesión. Si falla se juega igual: la mesa
+  // insignia tiene su ficha de respaldo en el cliente.
+  useEffect(() => {
+    if (!user || !window.Api || !window.Api.games) return;
+    window.Api.games()
+      .then((d) => setMesas(d && Array.isArray(d.mesas) ? d.mesas : null))
+      .catch(() => {});
+  }, [user]);
+
+  // La ficha de la mesa en juego. Null = todavía no se puede dibujar (llegó una
+  // mesa que no es la insignia y el catálogo no está): mejor esperar que
+  // dibujar una rueda equivocada, porque el resultado viene como índice del
+  // orden de casillas y caería en otro número.
+  const fichaMesa = (() => {
+    const pedida = (mesas || []).find((m) => m.id === mesaDelEnlace() && m.activo);
+    if (pedida) return fichaDeMesa(pedida);
+    const cruda = (mesas || []).find((m) => m.id === mesaId);
+    if (cruda) return fichaDeMesa(cruda);
+    return mesaId === FICHA_CATATUMBO.id ? FICHA_CATATUMBO : null;
+  })();
 
   // Refresca el usuario al volver al juego: el saldo pudo cambiar en la billetera.
   // Va a /juego (y no a la raíz) para que al recargar la página el dueño y el
@@ -1824,9 +1917,20 @@ function AppRoot() {
     />;
   }
 
+  if (!fichaMesa) {
+    return (
+      <div style={{
+        minHeight: '100vh', background: '#0a0604', color: '#d4a94a',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: 'Georgia, serif', letterSpacing: 2,
+      }}>Abriendo la mesa…</div>
+    );
+  }
+
   return <RouletteApp
     user={user}
     config={config}
+    mesa={fichaMesa}
     onLogout={salir}
     onOpenSalon={irAlSalon}
     onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}

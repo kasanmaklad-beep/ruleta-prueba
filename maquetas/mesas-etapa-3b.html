@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>VOLTIO — el paño y el cilindro de cada mesa (Etapa 3b)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; background: #07050a; color: #eee; }
+  body { font-family: Georgia, serif; }
+  * { box-sizing: border-box; }
+  @keyframes ltgFlicker { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+  @keyframes pocketLtgPulse { 0% { opacity: 0.20; } 100% { opacity: 0.55; } }
+  @keyframes ltgAuraPulse { 0% { opacity: 0.45; transform: scale(0.85); } 100% { opacity: 0.95; transform: scale(1.15); } }
+  @keyframes winnerPulse { 0% { opacity: 0.25; } 100% { opacity: 0.65; } }
+  @keyframes winnerFlick { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+  @keyframes winnerAura { 0% { opacity: 0.5; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.25); } }
+  .tab {
+    padding: 8px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #8b6a20; background: rgba(0,0,0,0.4); color: #d4a94a;
+    font-family: Georgia, serif; font-weight: 700; letter-spacing: 1; font-size: 13px;
+  }
+  .tab.on { background: linear-gradient(180deg, #d4a94a, #8b6a20); color: #1a1006; }
+</style>
+</head>
+<body>
+<!--
+  Maqueta de verificación de la Etapa 3b del Salón.
+  Dibuja el cilindro y el paño REALES (public/wheel.js y public/table.js) con la
+  ficha de cada mesa del catálogo, sin necesidad de entrar al juego ni de
+  encender las mesas apagadas. Sirve para mirar de un vistazo qué cambia entre
+  una mesa y otra: los ceros, los animales y los rayos.
+  Ver ESTRUCTURA-SALON.md.
+-->
+<div id="app" style="padding:18px 16px 40px"></div>
+
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../public/wheel.js"></script>
+<script src="../public/table.js"></script>
+<script>
+(function () {
+  var e = React.createElement;
+
+  // Las mismas fichas que devuelve /api/games (worker/lib.js → JUEGOS).
+  var ORDEN_AMERICANA = window.AMERICAN_WHEEL_ORDER;
+  var ORDEN_EUROPEA = [
+    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+    5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+  ];
+
+  var MESAS = [
+    { id: 'catatumbo', label: 'Catatumbo', ruedaLabel: 'Americana (0 y 00)',
+      orden: ORDEN_AMERICANA, casillas: 38, dobleCero: true, animales: true, rayos: true, pagoPleno: 29 },
+    { id: 'americana', label: 'Americana Clásica', ruedaLabel: 'Americana (0 y 00)',
+      orden: ORDEN_AMERICANA, casillas: 38, dobleCero: true, animales: false, rayos: false, pagoPleno: 35 },
+    { id: 'europea', label: 'Europea Clásica', ruedaLabel: 'Europea (un solo cero)',
+      orden: ORDEN_EUROPEA, casillas: 37, dobleCero: false, animales: false, rayos: false, pagoPleno: 35 },
+    { id: 'europea_animales', label: 'Europea Catatumbo', ruedaLabel: 'Europea (un solo cero)',
+      orden: ORDEN_EUROPEA, casillas: 37, dobleCero: false, animales: true, rayos: true, pagoPleno: 29 },
+  ];
+
+  // Rayos de muestra: se toman casillas de la propia rueda, así en la europea
+  // nunca cae uno en el 00 (que ahí no existe).
+  function rayosDeMuestra(mesa) {
+    if (!mesa.rayos) return new Map();
+    var m = new Map();
+    m.set(mesa.orden[5], 50);
+    m.set(mesa.orden[13], 150);
+    m.set(mesa.orden[24], 500);
+    return m;
+  }
+
+  function Maqueta() {
+    var st = React.useState(0);
+    var i = st[0], setI = st[1];
+    var mesa = MESAS[i];
+    var ltg = rayosDeMuestra(mesa);
+    var bets = React.useState([])[0];
+    var ganador = mesa.orden[13];
+
+    return e('div', null,
+      e('div', { style: { fontSize: 24, fontWeight: 900, letterSpacing: 3, color: '#ffd84a' } },
+        '⚡ VOLTIO — las mesas por dentro'),
+      e('div', { style: { fontSize: 13, color: '#9a8a66', margin: '6px 0 16px', lineHeight: 1.6 } },
+        'Etapa 3b: el cilindro y el paño se arman con la ficha de la mesa. Nada de esto ' +
+        'cambia el sorteo, que lo resuelve el servidor.'),
+
+      e('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 } },
+        MESAS.map(function (m, k) {
+          return e('button', {
+            key: m.id, className: 'tab' + (k === i ? ' on' : ''),
+            onClick: function () { setI(k); },
+          }, m.label);
+        })),
+
+      e('div', { style: { fontSize: 12, color: '#bba876', marginBottom: 14, letterSpacing: 1 } },
+        [mesa.ruedaLabel, mesa.casillas + ' casillas',
+         mesa.animales ? 'con animales' : 'sin animales',
+         mesa.rayos ? 'con rayos' : 'sin rayos',
+         'pleno paga ' + mesa.pagoPleno + ' a 1'].join('  ·  ')),
+
+      e('div', { style: { display: 'flex', gap: 26, alignItems: 'flex-start', flexWrap: 'wrap' } },
+        e('div', { style: { width: 520, height: 520, flexShrink: 0 } },
+          e(window.RouletteWheel, {
+            key: 'w-' + mesa.id,
+            orden: mesa.orden,
+            spinning: false,
+            resultIndex: 13,
+            lightningNumbers: ltg,
+            theme: 'classic',
+          })),
+        e('div', { style: { width: 794 } },
+          e(window.BettingTable, {
+            key: 't-' + mesa.id,
+            mesa: mesa,
+            bets: bets,
+            onPlaceBet: function () {},
+            onRemoveBet: function () {},
+            selectedChip: 5,
+            disabled: true,
+            theme: 'classic',
+            lightningNumbers: ltg,
+            rotateLabels: false,
+            winningNumber: ganador,
+          }))));
+  }
+
+  ReactDOM.createRoot(document.getElementById('app')).render(e(Maqueta));
+})();
+</script>
+</body>
+</html>
