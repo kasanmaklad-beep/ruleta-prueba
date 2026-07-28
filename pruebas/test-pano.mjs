@@ -85,12 +85,23 @@ const bordeAme = [
   ['arriba del todo ya no hay línea de cinco: es la casilla del 00', 4, 'straight 00'],
   ['split 00-3', NUM_H * 0.5, 'split 00-3'],
   ['trío 00-2-3', NUM_H, 'street 00-2-3'],
-  ['trío 0-00-2', NUM_H * 1.5, 'street 0-00-2'],
+  ['split 00-2', NUM_H * 1.25, 'split 00-2'],
+  ['split 0-2', NUM_H * 1.75, 'split 0-2'],
   ['trío 0-1-2', NUM_H * 2, 'street 0-1-2'],
   ['split 0-1', NUM_H * 2.5, 'split 0-1'],
   ['la punta de abajo: la línea de cinco', NUM_H * 3 - 4, 'topline 0-00-1-2-3'],
 ];
+
+// El medio de la raya es donde se tocan los dos splits del 2: cada mitad
+// tiene que dar el suyo y ninguna puede quedar muerta.
+const medioAme = [
+  ['justo arriba del medio entra 00-2', NUM_H * 1.5 - 4, 'split 00-2'],
+  ['justo abajo del medio entra 0-2', NUM_H * 1.5 + 4, 'split 0-2'],
+];
 for (const [nombre, y, esperado] of bordeAme) check(nombre, esperado, apuestaEn(ame, ZERO_W, y));
+for (const [nombre, y, esperado] of medioAme) check(nombre, esperado, apuestaEn(ame, ZERO_W, y));
+check('el basket 0-00-2 quedó afuera', 'no está',
+  ame.some((h) => h.payload === '0-00-2') ? 'sigue estando' : 'no está');
 
 console.log('\n── Americana: los ceros en su lugar y los vecinos enteros ──');
 check('el 00 arriba (del lado del 3)', 'straight 00', apuestaEn(ame, ZERO_W / 2, NUM_H * 0.75));

@@ -229,58 +229,65 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
   // Todas viven sobre la raya que separa la columna de ceros del 1-2-3, que
   // es donde el 00 toca al 3 y al 2, y el 0 al 2 y al 1:
   //
-  //        ┌─────┬─────      y=0
-  //        │ 00  │  3        y=½ celda      ← split 00-3
-  //        │     ├─────      y=1 celda      ← trío 00-2-3
-  //        ├─────┤  2        y=1½ celdas    ← trío 0-00-2
-  //        │  0  ├─────      y=2 celdas     ← trío 0-1-2
-  //        │     │  1        y=2½ celdas    ← split 0-1
-  //        └─────┴─────      y=3 celdas     ← línea de 5 (0,00,1,2,3)
+  //        ┌─────┬─────      arriba: nada
+  //        │ 00  │  3        ← split 00-3
+  //        │     ├─────      ← trío 00-2-3
+  //        │     │           ← split 00-2
+  //        ├─────┤  2
+  //        │     │           ← split 0-2
+  //        │  0  ├─────      ← trío 0-1-2
+  //        │     │  1        ← split 0-1
+  //        └─────┴─────      ← línea de 5 (0,00,1,2,3)
   //          1st 12  ...
   //
   // La línea de cinco va en la punta de ABAJO, del lado del 1 y de la primera
   // docena — en el mismo lugar que los primeros cuatro de la europea, para
-  // que el jugador la busque siempre ahí. Arriba, sobre el 3, no va nada:
-  // el dueño la sacó de ahí porque no hacía falta en las dos puntas.
-  // Antes ocupaba la raya ENTERA, lo que era cómodo pero dejaba afuera a los
-  // tríos, que son las apuestas de verdad de esa zona.
+  // que el jugador la busque siempre ahí.
   //
-  // Qué NO entra, y no es olvido: los splits 00-2 y 0-2. Caen a 21 píxeles de
-  // los tríos vecinos —el cero mide celda y media y el 2 una— y con el dedo
-  // en el celular nadie acertaría cuál quiso: entraría un trío creyendo que
-  // apostó un split. Mejor no ofrecer una apuesta que no se puede acertar.
+  // El reparto de la raya está medido tramo por tramo y no a ojo: los tríos
+  // van en los vértices (donde de verdad se cruzan tres casillas) y los
+  // splits se reparten lo que queda entre vértice y vértice, sin dejar huecos
+  // muertos ni pisarse. Los splits 00-2 y 0-2 son estrechos porque el cero
+  // mide celda y media y el 2 una sola, así que su tramo compartido es corto;
+  // aun así son las apuestas que el jugador pide, y entran.
+  //
+  // El basket 0-00-2 quedó afuera a pedido del dueño: existe en algunas mesas,
+  // pero casi nadie lo busca, y ocupaba justo el lugar de esos dos splits.
   //
   // OJO con la línea de cinco: paga 6 a 1 y le deja a la casa el 7,9%, contra
   // el 5,3% del resto de la mesa. Es la peor apuesta del paño americano y así
   // es en todas las mesas del mundo; se ofrece porque el jugador la conoce y
   // la busca, no porque convenga.
   const CEROS_AMERICANA = [
-    { type: 'split',   numbers: ['00', 3],          y: 0.5 },
-    { type: 'street',  numbers: ['00', 2, 3],       y: 1 },
-    { type: 'street',  numbers: [0, '00', 2],       y: 1.5 },
-    { type: 'street',  numbers: [0, 1, 2],          y: 2 },
-    { type: 'split',   numbers: [0, 1],             y: 2.5 },
-    { type: 'topline', numbers: [0, '00', 1, 2, 3], y: 3 },
+    // tipo · números · dónde va la ficha · desde dónde hasta dónde se toca
+    { type: 'split',   numbers: ['00', 3],          ficha: NUM_H * 0.5,
+      desde: NUM_H * 0.5 - 15, hasta: NUM_H * 0.5 + 15 },
+    { type: 'street',  numbers: ['00', 2, 3],       ficha: NUM_H,
+      desde: NUM_H - 13,       hasta: NUM_H + 13 },
+    { type: 'split',   numbers: ['00', 2],          ficha: NUM_H * 1.25,
+      desde: NUM_H + 13,       hasta: NUM_H * 1.5 },
+    { type: 'split',   numbers: [0, 2],             ficha: NUM_H * 1.75,
+      desde: NUM_H * 1.5,      hasta: NUM_H * 2 - 13 },
+    { type: 'street',  numbers: [0, 1, 2],          ficha: NUM_H * 2,
+      desde: NUM_H * 2 - 13,   hasta: NUM_H * 2 + 13 },
+    { type: 'split',   numbers: [0, 1],             ficha: NUM_H * 2.5,
+      desde: NUM_H * 2.5 - 15, hasta: NUM_H * 2.5 + 15 },
+    // La línea de cinco está pegada al borde de abajo: la zona se corre hacia
+    // adentro para no morder la fila de las docenas, y la ficha se sube para
+    // que no quede colgando fuera del paño.
+    { type: 'topline', numbers: [0, '00', 1, 2, 3], ficha: NUM_H * 3 - 10,
+      desde: NUM_H * 3 - 16,   hasta: NUM_H * 3 },
   ];
 
   if (dobleCero) {
     const cx = ZERO_W;
     for (const c of CEROS_AMERICANA) {
-      const esSplit = c.type === 'split';
-      const w = esSplit ? 18 : 26;
-      const h = esSplit ? 30 : 26;
-      // La línea de cinco está pegada al borde de abajo: la zona se corre
-      // hacia adentro para no morder la fila de las docenas, y la ficha se
-      // sube para que no quede colgando fuera del paño.
-      const abajo = c.y === 3;
-      const y = c.y * NUM_H;
+      const w = c.type === 'split' ? 18 : 26;
       hotspots.push({
         type: c.type, payload: c.numbers.join('-'),
         numbers: c.numbers,
-        x: cx - w / 2,
-        y: abajo ? y - h / 2 - 3 : y - h / 2,
-        w, h: abajo ? h / 2 + 3 : h,
-        chipX: cx, chipY: abajo ? y - 10 : y,
+        x: cx - w / 2, y: c.desde, w, h: c.hasta - c.desde,
+        chipX: cx, chipY: c.ficha,
       });
     }
   } else {
