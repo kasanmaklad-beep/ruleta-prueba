@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maqueta — Blackjack VOLTIO</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════
+   MAQUETA DEL BLACKJACK — para mirar y jugar en local (Etapa B1).
+   Ver ESTRUCTURA-BLACKJACK.md.
+
+   ⚠ ESTO NO ES LA PANTALLA DEFINITIVA. La de verdad es `src/blackjack.jsx`
+     y llega en la Etapa B3, dentro del salón, con la cabecera del saldo y el
+     botón SALÓN. Esta es una hoja suelta para decidir el aspecto y para
+     poder jugarle al motor antes de que exista la pantalla.
+
+   ⚠ VIVE EN public/ SOLO PORQUE ASÍ COMPARTE ORIGEN CON LA API (si no, el
+     navegador le bloquea las llamadas). Eso significa que se publicaría con
+     un `npm run deploy`. SACARLA DE public/ ANTES DE PUBLICAR.
+
+   Se abre en el servidor local, en /maqueta-blackjack.html.
+   No usa React ni compilación: es un archivo suelto, se edita y se recarga.
+
+   Lo único que hace es DIBUJAR lo que manda el servidor. No sabe cuánto vale
+   una mano, no sabe quién ganó y no conoce la carta tapada. Si algo de eso
+   apareciera acá adentro, estaría mal.
+  ════════════════════════════════════════════════════════════════════════
+-->
+<style>
+  :root{
+    --fondo:#0a0604; --paño:#0e3b2e; --oro:#ffd84a; --oro-suave:#d4a94a;
+    --texto:#e8dcc0; --tenue:#bba876; --borde:#b88a28;
+    --rojo:#c0392b; --verde:#4fd1a5;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{
+    margin:0; min-height:100vh; background:var(--fondo); color:var(--texto);
+    font-family:Georgia,'Times New Roman',serif;
+    display:flex; flex-direction:column; align-items:center;
+    padding:14px 12px 40px;
+  }
+  .marca{letter-spacing:6px; font-size:13px; color:var(--oro); font-weight:700}
+  .marca small{display:block; letter-spacing:3px; font-size:9px; color:var(--tenue); margin-top:3px}
+  .aviso{
+    max-width:520px; width:100%; margin:10px 0 4px; padding:7px 10px; border-radius:6px;
+    background:rgba(255,216,74,.07); border:1px solid rgba(255,216,74,.25);
+    font-size:10.5px; color:var(--tenue); line-height:1.5; text-align:center;
+  }
+
+  .mesa{
+    width:100%; max-width:520px; margin-top:12px; border-radius:16px; padding:16px 14px 18px;
+    background:radial-gradient(ellipse at 50% 0%, #14523f 0%, var(--paño) 55%, #07231b 100%);
+    border:1px solid var(--borde);
+    box-shadow:0 10px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,216,74,.15);
+  }
+
+  .fila-crupier{display:flex; align-items:center; gap:10px; margin-bottom:4px}
+  .avatar{
+    width:38px; height:38px; border-radius:50%; flex:none;
+    background:linear-gradient(160deg,#2a2118,#0f0b06);
+    border:1px solid var(--borde); display:grid; place-items:center; font-size:19px;
+  }
+  .quien{font-size:10px; letter-spacing:2.5px; color:var(--tenue)}
+  .cuenta{
+    font-size:12px; color:var(--oro); font-weight:700;
+    background:rgba(0,0,0,.35); border-radius:20px; padding:2px 10px; display:inline-block; margin-top:2px;
+  }
+
+  .cartas{display:flex; gap:6px; min-height:96px; align-items:flex-start; flex-wrap:wrap; margin:8px 0 14px}
+  .carta{
+    width:62px; height:90px; border-radius:8px; flex:none; position:relative;
+    background:linear-gradient(160deg,#fffdf5,#e8e2d0);
+    border:1px solid #b9b09a; box-shadow:0 3px 10px rgba(0,0,0,.5);
+    color:#1a1a1a; font-family:Georgia,serif;
+  }
+  .carta.roja{color:var(--rojo)}
+  .carta .r{position:absolute; font-size:13px; font-weight:700; line-height:1; left:5px; top:5px}
+  .carta .r2{left:auto; right:5px; top:auto; bottom:5px; transform:rotate(180deg)}
+  .carta .palo{position:absolute; inset:0; display:grid; place-items:center; font-size:30px}
+  .carta.tapada{
+    background:
+      repeating-linear-gradient(45deg,#7a1f1f 0 6px,#5e1616 6px 12px);
+    border-color:#3d0f0f;
+  }
+  .carta.tapada::after{
+    content:''; position:absolute; inset:6px; border:1px solid rgba(255,216,74,.35); border-radius:4px;
+  }
+  /* El reparto: la carta entra deslizándose desde arriba. */
+  @keyframes reparte{
+    from{transform:translateY(-90px) rotate(-8deg); opacity:0}
+    to{transform:none; opacity:1}
+  }
+  .carta.nueva{animation:reparte .34s cubic-bezier(.2,.8,.3,1) both}
+
+  .mano{border-radius:10px; padding:2px 8px 2px; margin:0 -8px}
+  .mano.activa{background:rgba(255,216,74,.07); box-shadow:inset 0 0 0 1px rgba(255,216,74,.3)}
+
+  .resultado{font-size:12px; letter-spacing:2px; font-weight:700; margin-top:-6px}
+  .gana{color:var(--verde)} .pierde{color:#e57373} .empate{color:var(--tenue)} .natural{color:var(--oro)}
+
+  .botones{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:14px}
+  button{
+    font-family:Georgia,serif; font-size:12px; letter-spacing:2px; font-weight:700;
+    padding:11px 16px; border-radius:8px; cursor:pointer; color:#1a1206;
+    background:linear-gradient(180deg,#ffe98a,#d4a017); border:1px solid #8a6a10;
+    box-shadow:0 3px 0 #6d5410, 0 5px 12px rgba(0,0,0,.45);
+  }
+  button:active{transform:translateY(2px); box-shadow:0 1px 0 #6d5410}
+  button[disabled]{opacity:.35; cursor:not-allowed; box-shadow:none; transform:none}
+  button.gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0; border-color:#2a2a2a; box-shadow:0 3px 0 #222}
+
+  .barra{
+    width:100%; max-width:520px; display:flex; justify-content:space-between; align-items:center;
+    margin-top:12px; font-size:11px; color:var(--tenue); letter-spacing:1px;
+  }
+  .saldo{color:var(--oro); font-size:15px; font-weight:700; letter-spacing:0}
+  .fichas{display:flex; gap:6px; justify-content:center; margin-top:12px; flex-wrap:wrap}
+  .ficha{
+    width:44px; height:44px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
+    font-size:12px; font-weight:700; color:#1a1206; font-family:Georgia,serif;
+    background:linear-gradient(160deg,#ffe98a,#c9950f); border:2px dashed rgba(0,0,0,.35);
+  }
+  .ficha.elegida{outline:2px solid var(--oro); outline-offset:2px}
+
+  .msg{max-width:520px; width:100%; margin-top:10px; font-size:11.5px; text-align:center; min-height:16px; line-height:1.5}
+  .msg.mal{color:#e57373}
+
+  form{display:flex; flex-direction:column; gap:8px; width:100%; max-width:300px; margin-top:18px}
+  input{
+    font-family:Georgia,serif; font-size:14px; padding:10px 12px; border-radius:8px;
+    background:#160f08; border:1px solid var(--borde); color:var(--texto);
+  }
+  .oculto{display:none !important}
+</style>
+</head>
+<body>
+
+<div class="marca">VOLTIO <small>MAQUETA · BLACKJACK</small></div>
+<div class="aviso">
+  Maqueta de la Etapa B1: la pantalla de verdad llega en la B3.<br>
+  Todo lo que ves lo decide el servidor — esta hoja sólo dibuja.
+</div>
+
+<!-- ── Entrar ─────────────────────────────────────────────────────────── -->
+<form id="entrar">
+  <input id="usuario" placeholder="usuario" autocomplete="username">
+  <input id="clave" type="password" placeholder="clave" autocomplete="current-password">
+  <button type="submit">ENTRAR</button>
+</form>
+
+<!-- ── La mesa ────────────────────────────────────────────────────────── -->
+<div id="juego" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center">
+
+  <div class="barra">
+    <span id="quien"></span>
+    <span>saldo <span class="saldo" id="saldo">—</span></span>
+  </div>
+
+  <div class="mesa">
+    <div class="fila-crupier">
+      <div class="avatar">🎩</div>
+      <div>
+        <div class="quien">CRUPIER</div>
+        <div class="cuenta" id="cuenta-crupier">—</div>
+      </div>
+    </div>
+    <div class="cartas" id="cartas-crupier"></div>
+
+    <div class="quien" style="margin-bottom:2px">TU MANO</div>
+    <div id="manos"></div>
+
+    <div class="botones" id="botones"></div>
+  </div>
+
+  <div class="fichas" id="fichas"></div>
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+// ── Hablar con el servidor ───────────────────────────────────────────────
+let TOKEN = null;
+async function api(ruta, metodo, cuerpo){
+  const res = await fetch(ruta, {
+    method: metodo || 'GET',
+    headers: Object.assign({'Content-Type':'application/json'}, TOKEN ? {Authorization:'Bearer '+TOKEN} : {}),
+    body: cuerpo ? JSON.stringify(cuerpo) : undefined,
+  });
+  const data = await res.json().catch(function(){ return {}; });
+  data.__status = res.status;
+  return data;
+}
+
+// ── Estado ───────────────────────────────────────────────────────────────
+// E es lo ÚLTIMO que dijo el servidor. Es la única fuente de verdad: acá no
+// se calcula ni se recuerda nada del juego.
+let E = null;
+let APUESTA = 10;
+let ocupado = false;
+// Qué cartas ya se dibujaron, para animar sólo las que llegan nuevas.
+let mostradas = new Set();
+
+const $ = function(id){ return document.getElementById(id); };
+const PALOS = { S:'♠', H:'♥', D:'♦', C:'♣' };
+const ROJOS = { H:1, D:1 };
+
+function decir(texto, mal){
+  $('msg').textContent = texto || '';
+  $('msg').className = 'msg' + (mal ? ' mal' : '');
+}
+
+// ── Dibujar una carta ────────────────────────────────────────────────────
+function dibujarCarta(carta, clave){
+  const d = document.createElement('div');
+  const nueva = !mostradas.has(clave);
+  if (nueva) mostradas.add(clave);
+
+  if (carta && typeof carta === 'object' && carta.tapada) {
+    d.className = 'carta tapada' + (nueva ? ' nueva' : '');
+    return d;
+  }
+  const rango = String(carta)[0], palo = String(carta)[1];
+  const cara = rango === 'T' ? '10' : rango;
+  d.className = 'carta' + (ROJOS[palo] ? ' roja' : '') + (nueva ? ' nueva' : '');
+  d.innerHTML = '<div class="r">' + cara + '</div>'
+              + '<div class="palo">' + PALOS[palo] + '</div>'
+              + '<div class="r r2">' + cara + '</div>';
+  return d;
+}
+
+const NOMBRE = { gana:'GANASTE', pierde:'PERDISTE', empate:'EMPATE', natural:'¡BLACKJACK!' };
+
+// ── Dibujar todo ─────────────────────────────────────────────────────────
+function pintar(){
+  $('saldo').textContent = (E.balance != null ? E.balance : 0).toLocaleString('es-VE');
+
+  // El crupier. Mientras la mano vive, la segunda carta viene tapada y el
+  // número que se muestra es sólo lo que se ve — el servidor no manda más.
+  const cc = $('cartas-crupier'); cc.innerHTML = '';
+  const cartasC = (E.crupier && E.crupier.cartas) || [];
+  cartasC.forEach(function(c, i){ cc.appendChild(dibujarCarta(c, 'c'+i)); });
+  $('cuenta-crupier').textContent = E.crupier
+    ? (E.crupier.total + (E.crupier.parcial ? ' + ?' : ''))
+    : '—';
+
+  // Las manos.
+  const cont = $('manos'); cont.innerHTML = '';
+  (E.manos || []).forEach(function(h){
+    const caja = document.createElement('div');
+    const activa = E.estado === 'jugando' && h.indice === E.mano_activa && h.estado === 'jugando';
+    caja.className = 'mano' + (activa ? ' activa' : '');
+
+    const fila = document.createElement('div');
+    fila.className = 'cartas';
+    h.cartas.forEach(function(c, i){ fila.appendChild(dibujarCarta(c, 'm'+h.indice+'-'+i)); });
+    caja.appendChild(fila);
+
+    const pie = document.createElement('div');
+    pie.style.cssText = 'display:flex; gap:10px; align-items:baseline; margin-top:-8px; margin-bottom:8px';
+    pie.innerHTML = '<span class="cuenta">' + h.total + (h.blando ? ' blando' : '') + '</span>'
+      + '<span style="font-size:10.5px; color:var(--tenue)">apuesta ' + h.apuesta + '</span>'
+      + (h.resultado
+          ? '<span class="resultado ' + h.resultado + '">' + NOMBRE[h.resultado]
+            + (h.pago ? ' · +' + h.pago : '') + '</span>'
+          : '');
+    caja.appendChild(pie);
+    cont.appendChild(caja);
+  });
+
+  // Los botones: los que dice el servidor, ni uno más.
+  const bs = $('botones'); bs.innerHTML = '';
+  if (E.estado === 'jugando') {
+    (E.acciones || []).forEach(function(a){
+      const b = document.createElement('button');
+      b.textContent = { pedir:'PEDIR', plantarse:'PLANTARME', doblar:'DOBLAR', dividir:'DIVIDIR' }[a] || a.toUpperCase();
+      if (a !== 'pedir') b.className = 'gris';
+      b.disabled = ocupado;
+      b.onclick = function(){ jugar(a); };
+      bs.appendChild(b);
+    });
+  } else {
+    const b = document.createElement('button');
+    b.textContent = 'APOSTAR ' + APUESTA;
+    b.disabled = ocupado;
+    b.onclick = apostar;
+    bs.appendChild(b);
+  }
+
+  // Las fichas sólo entre mano y mano.
+  $('fichas').style.display = E.estado === 'jugando' ? 'none' : 'flex';
+}
+
+function pintarFichas(){
+  const f = $('fichas'); f.innerHTML = '';
+  const min = (E && E.mesa && E.mesa.apuesta_min) || 10;
+  const max = (E && E.mesa && E.mesa.apuesta_max) || 500;
+  [min, min*2, min*5, min*10, max].filter(function(v, i, a){ return v <= max && a.indexOf(v) === i; })
+    .forEach(function(v){
+      const d = document.createElement('div');
+      d.className = 'ficha' + (v === APUESTA ? ' elegida' : '');
+      d.textContent = v;
+      d.onclick = function(){ APUESTA = v; pintarFichas(); pintar(); };
+      f.appendChild(d);
+    });
+}
+
+// ── Jugadas ──────────────────────────────────────────────────────────────
+// `version` va en CADA jugada: es lo que hace que un doble clic no reparta dos
+// cartas. El servidor lo exige, y con razón.
+async function jugar(accion){
+  if (ocupado) return;
+  ocupado = true; pintar();
+  const r = await api('/api/bj/' + accion, 'POST', { ronda: E.ronda, version: E.version });
+  ocupado = false;
+  if (r.error && !r.manos) { decir(r.error, true); pintar(); return; }
+  decir(r.error || '', !!r.error);
+  E = r; pintar();
+}
+
+async function apostar(){
+  if (ocupado) return;
+  ocupado = true; decir('');
+  const r = await api('/api/bj/apostar', 'POST', { mesa: 'blackjack', apuesta: APUESTA });
+  ocupado = false;
+  if (!r.ronda) { decir(r.error || 'No se pudo abrir la mano', true); pintar(); return; }
+  mostradas = new Set();   // mano nueva: todas las cartas se animan
+  E = r; pintar();
+  if (E.estado === 'cerrada') decir('Se resolvió en el reparto.');
+}
+
+// ── Entrar ───────────────────────────────────────────────────────────────
+$('entrar').onsubmit = async function(ev){
+  ev.preventDefault();
+  decir('');
+  const r = await api('/api/auth/login', 'POST', {
+    username: $('usuario').value.trim(), password: $('clave').value,
+  });
+  if (!r.token) { decir(r.error || 'No pude entrar', true); return; }
+  TOKEN = r.token;
+  const est = await api('/api/bj/ronda?mesa=blackjack');
+  if (!est.mesa) { decir(est.error || 'No encontré la mesa. ¿Corriste la migración 012?', true); return; }
+  if (!est.mesa.activo) {
+    decir('La mesa de blackjack está CERRADA. Encendela en local con:  '
+      + 'curl -X POST localhost:8795/api/admin/games/blackjack/activo -H "Authorization: Bearer <token de admin>" '
+      + '-H "Content-Type: application/json" -d \'{"activo":true}\'', true);
+  }
+  $('entrar').classList.add('oculto');
+  $('juego').classList.remove('oculto');
+  $('quien').textContent = ($('usuario').value.trim() || '').toUpperCase()
+    + ' · ' + (est.mesa.label || '') + ' · ' + est.mesa.mazos + ' mazos'
+    + ' · natural ' + (est.mesa.pago_natural === 1.5 ? '3:2' : est.mesa.pago_natural);
+  E = est;
+  APUESTA = est.mesa.apuesta_min || 10;
+  mostradas = new Set();
+  pintarFichas(); pintar();
+};
+</script>
+</body>
+</html>

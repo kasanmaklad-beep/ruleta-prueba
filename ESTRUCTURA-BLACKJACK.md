@@ -255,9 +255,16 @@ en producción:**
 - **Etapa B1 entera.** `worker/blackjack.js` es un archivo nuevo; el único punto
   de contacto con lo existente son las líneas de ruteo en `index.js`.
 - La **batería de verificación** (`pruebas/verificar-blackjack.mjs`), archivo nuevo.
-- La **maqueta de la mesa** en `maquetas/`, para mirarla en el celular y decidir
-  el aspecto antes de programar la pantalla — como se hizo con
-  `maquetas/mesas-etapa-3b.html`.
+- La **maqueta de la mesa**, para mirarla en el celular y decidir el aspecto
+  antes de programar la pantalla — como se hizo con
+  `maquetas/mesas-etapa-3b.html`. **Hecha:** `public/maqueta-blackjack.html`,
+  se abre en el servidor local en `/maqueta-blackjack.html` y juega contra el
+  motor de verdad.
+  ⚠ Está en `public/` y no en `maquetas/` por una sola razón: ahí comparte
+  origen con la API y el navegador la deja llamarla. Pero todo lo que está en
+  `public/` se publica. **Sacarla de `public/` antes de cualquier `npm run
+  deploy`,** y a más tardar cuando la Etapa B3 haga la pantalla de verdad, que
+  es la que la reemplaza.
 - Escribir la **migración 012** (correrla en producción es harina de otro costal).
 
 **Conviene esperar a que las tres ruletas estén abiertas:**
