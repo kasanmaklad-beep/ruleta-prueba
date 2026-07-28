@@ -118,7 +118,14 @@ function RouletteWheel({
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => { if (raf) cancelAnimationFrame(raf); };
+    // Al terminar el giro libre se corta el sonido SIEMPRE. Si lo que sigue es
+    // el aterrizaje, ese efecto lo vuelve a arrancar enseguida; pero si la
+    // tirada se cayó por el camino (el servidor no contestó, se cambió de
+    // pantalla), sin esto el ruido del cilindro se quedaba sonando solo.
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      if (window.AudioEngine) { try { window.AudioEngine.stopSpin(); } catch (e) {} }
+    };
     // eslint-disable-next-line
   }, [freeSpin]);
 

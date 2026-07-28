@@ -225,26 +225,65 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     });
   }
 
-  // TOP-LINE (5 números: 0, 00, 1, 2, 3) — toda la línea que separa la columna
-  // de los ceros de la primera columna de números.
+  // ── Las combinaciones de los ceros en la americana ────────────────────
+  // Todas viven sobre la raya que separa la columna de ceros del 1-2-3, que
+  // es donde el 00 toca al 3 y al 2, y el 0 al 2 y al 1:
   //
-  // Antes era un cuadradito de 28x28 escondido en el vértice del 3, sin nada
-  // que lo señalara: entraba la ficha, pero había que adivinar dónde tocar.
-  // Ahora es la raya completa, que es lo que un jugador busca. Es la única
-  // apuesta sobre ese borde (no hay splits entre los ceros y el 1-2-3), así
-  // que no le quita el lugar a nada.
+  //        ┌─────┬─────      y=0            ← línea de 5 (0,00,1,2,3)
+  //        │ 00  │  3        y=½ celda      ← split 00-3
+  //        │     ├─────      y=1 celda      ← trío 00-2-3
+  //        ├─────┤  2        y=1½ celdas    ← trío 0-00-2
+  //        │  0  ├─────      y=2 celdas     ← trío 0-1-2
+  //        │     │  1        y=2½ celdas    ← split 0-1
+  //        └─────┴─────      y=3 celdas     ← línea de 5, otra vez
   //
-  // No existe en la europea: son cinco números y ahí solo hay cuatro (el 00
-  // no está). El servidor también la rechaza en esas mesas.
+  // La línea de cinco números entra por las dos puntas: es la apuesta que el
+  // jugador busca en el borde exterior, y ahí no le quita el lugar a nada.
+  // Antes ocupaba la raya ENTERA, lo que era cómodo pero dejaba afuera a los
+  // tríos, que son las apuestas de verdad de esa zona.
+  //
+  // Qué NO entra, y no es olvido: los splits 00-2 y 0-2. Caen a 21 píxeles de
+  // los tríos vecinos —el cero mide celda y media y el 2 una— y con el dedo
+  // en el celular nadie acertaría cuál quiso: entraría un trío creyendo que
+  // apostó un split. Mejor no ofrecer una apuesta que no se puede acertar.
+  //
+  // OJO con la línea de cinco: paga 6 a 1 y le deja a la casa el 7,9%, contra
+  // el 5,3% del resto de la mesa. Es la peor apuesta del paño americano y así
+  // es en todas las mesas del mundo; se ofrece porque el jugador la conoce y
+  // la busca, no porque convenga.
+  const CEROS_AMERICANA = [
+    { type: 'topline', numbers: [0, '00', 1, 2, 3], y: 0 },
+    { type: 'split',   numbers: ['00', 3],          y: 0.5 },
+    { type: 'street',  numbers: ['00', 2, 3],       y: 1 },
+    { type: 'street',  numbers: [0, '00', 2],       y: 1.5 },
+    { type: 'street',  numbers: [0, 1, 2],          y: 2 },
+    { type: 'split',   numbers: [0, 1],             y: 2.5 },
+    // La segunda entrada de la línea de cinco es la MISMA apuesta, así que no
+    // dibuja su propia ficha: si no, una sola apuesta se vería como dos.
+    { type: 'topline', numbers: [0, '00', 1, 2, 3], y: 3, sinFicha: true },
+  ];
+
   if (dobleCero) {
-    const cx = ZERO_W;                 // borde entre los ceros y el 1-2-3
-    const alto = NUM_H * 3;            // de arriba abajo
-    hotspots.push({
-      type: 'topline', payload: '0-00-1-2-3',
-      numbers: [0, '00', 1, 2, 3],
-      x: cx - 9, y: 0, w: 18, h: alto,
-      chipX: cx, chipY: alto / 2,      // ficha al medio de la raya, siempre visible
-    });
+    const cx = ZERO_W;
+    for (const c of CEROS_AMERICANA) {
+      const esSplit = c.type === 'split';
+      const w = esSplit ? 18 : 26;
+      const h = esSplit ? 30 : 26;
+      // Las dos puntas están pegadas al borde: la zona y la ficha se corren
+      // hacia adentro para no colgar fuera del paño ni morder las docenas.
+      const arriba = c.y === 0;
+      const abajo = c.y === 3;
+      const y = c.y * NUM_H;
+      hotspots.push({
+        type: c.type, payload: c.numbers.join('-'),
+        numbers: c.numbers,
+        sinFicha: !!c.sinFicha,
+        x: cx - w / 2,
+        y: arriba ? 0 : (abajo ? y - h / 2 - 3 : y - h / 2),
+        w, h: (arriba || abajo) ? h / 2 + 3 : h,
+        chipX: cx, chipY: arriba ? 10 : (abajo ? y - 10 : y),
+      });
+    }
   } else {
     // ── Las combinaciones del cero en la europea ──────────────────────────
     // Con un solo cero el top line no existe, pero el 0 SÍ se combina con la
@@ -763,7 +802,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               onHover={setHover}
               total={betTotalForKey(h.type, h.payload)}
               chipPos={{ x: h.chipX, y: h.chipY }}
-              showChip
+              showChip={!h.sinFicha}
               disabled={disabled}
               rotateChip={rotateLabels}
             />

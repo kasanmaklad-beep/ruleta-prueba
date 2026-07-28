@@ -14,11 +14,30 @@
     const tk = getToken();
     if (tk) headers['Authorization'] = 'Bearer ' + tk;
 
-    const res = await fetch(path, {
-      method: opts.method || 'GET',
-      headers,
-      body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
+    // Tiempo máximo de espera. Sin esto, si el servidor deja de contestar a
+    // mitad de una llamada (se cayó, se cortó la señal del teléfono) la
+    // promesa queda colgada PARA SIEMPRE: el juego se queda esperando una
+    // respuesta que no llega, con el cilindro girando y el sonido prendido.
+    const ms = opts.timeoutMs || 0;
+    const ctrl = (ms && typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const reloj = ctrl ? setTimeout(() => ctrl.abort(), ms) : null;
+
+    let res;
+    try {
+      res = await fetch(path, {
+        method: opts.method || 'GET',
+        headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+        signal: ctrl ? ctrl.signal : undefined,
+      });
+    } catch (e) {
+      if (ctrl && ctrl.signal.aborted) {
+        throw new Error('El servidor no respondió a tiempo. Probá de nuevo.');
+      }
+      throw new Error('No hay conexión con el servidor. Revisá tu internet.');
+    } finally {
+      if (reloj) clearTimeout(reloj);
+    }
 
     let data = null;
     try { data = await res.json(); } catch (e) { /* sin cuerpo */ }
@@ -71,7 +90,16 @@
     // { resultIndex, resultNum, lightning, win, capped, winDetails, balance }.
     // `game` es la mesa del salón donde se juega: queda guardada en cada
     // movimiento para poder separar la plata por juego en los reportes.
-    spin(bets, game) { return POST('/api/game/spin', { bets, game: game || 'catatumbo' }); },
+    // El giro lleva tiempo máximo: es la única llamada que ocurre con la
+    // rueda ya girando, así que si el servidor no contesta hay que cortar y
+    // devolverle las fichas al jugador en vez de dejarlo esperando.
+    spin(bets, game) {
+      return req('/api/game/spin', {
+        method: 'POST',
+        body: { bets, game: game || 'catatumbo' },
+        timeoutMs: 15000,
+      });
+    },
 
     // ── Billetera del jugador ──
     walletInfo() { return req('/api/wallet/info'); },
