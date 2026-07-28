@@ -17,6 +17,10 @@ import {
 } from './lib.js';
 
 import {
+  adminGames, adminCreateGame, adminUpdateGame, adminToggleGame,
+} from './games.js';
+
+import {
   register, login, me, updateProfile, changePassword,
   adminUsers, adminSetRole, adminSetStatus, adminResetPassword,
   adminDeposit, adminAdjust, adminGetSettings, adminPutSettings,
@@ -114,6 +118,14 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/admin/deposit')      return adminDeposit(request, env);
   if (method === 'POST' && path === '/api/admin/adjust')       return adminAdjust(request, env);
   if (method === 'GET'  && path === '/api/admin/settings')     return adminGetSettings(request, env);
+
+  // ── Panel: las mesas del salón ──
+  if (method === 'GET'  && path === '/api/admin/games')        return adminGames(request, env);
+  if (method === 'POST' && path === '/api/admin/games')        return adminCreateGame(request, env);
+  if (method === 'PUT'  && (m = path.match(/^\/api\/admin\/games\/([a-z0-9_]+)$/)))
+    return adminUpdateGame(request, env, m[1]);
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/games\/([a-z0-9_]+)\/activo$/)))
+    return adminToggleGame(request, env, m[1]);
   if (method === 'PUT'  && path === '/api/admin/settings')     return adminPutSettings(request, env);
 
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/role$/)))
@@ -213,7 +225,7 @@ async function gameSpin(request, env) {
 
   // En qué mesa se está jugando. La ficha manda: define la rueda, si hay
   // rayos, cuánto paga el pleno y qué apuestas son válidas.
-  const mesa = mesaJugable(body.game);
+  const mesa = await mesaJugable(env, body.game);
   if (!mesa) return json({ error: 'Esa mesa no existe o está cerrada' }, 400);
   const gameId = mesa.id;
 
@@ -350,7 +362,7 @@ async function gameSpin(request, env) {
 async function listGames(request, env) {
   const auth = await requireAuth(request, env);
   if (auth.error) return auth.response;
-  return json({ mesas: catalogoMesas() });
+  return json({ mesas: await catalogoMesas(env) });
 }
 
 // ═══════════════════════════════════════════════════════════════════════

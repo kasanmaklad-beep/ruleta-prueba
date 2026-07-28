@@ -10,15 +10,23 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import {
-  json, str, requireAdmin, VE_OFFSET, todayVE, getSettings, settingNum, JUEGOS,
+  json, str, requireAdmin, VE_OFFSET, todayVE, getSettings, settingNum, catalogoInterno,
 } from './lib.js';
 
 // Mesa por la que se está filtrando, si se pidió una. Devuelve null cuando
-// hay que mostrar todo junto (que es lo normal).
-function gameFilter(url) {
+// hay que mostrar todo junto (que es lo normal). Se valida contra el catálogo
+// de la base: una mesa inventada en la dirección no filtra nada.
+function gameFilter(url, catalogo) {
   const g = str(url.searchParams.get('game'), 40);
   if (!g || g === 'todos') return null;
-  return JUEGOS[g] ? g : null;
+  return catalogo.some((m) => m.id === g) ? g : null;
+}
+
+// El nombre lindo de una mesa. Si el id ya no está en el catálogo (una mesa
+// vieja que se borró) se muestra el id crudo: el historial no se pierde.
+function etiquetaDeMesa(catalogo, id) {
+  const m = catalogo.find((x) => x.id === id);
+  return (m && m.label) || id;
 }
 
 // Rango de fechas pedido, con tope de un año para no barrer la base entera.
@@ -92,7 +100,8 @@ export async function reportDaily(request, env, url) {
   if (auth.error) return auth.response;
 
   const { from, to } = dateRange(url, 30);
-  const juego = gameFilter(url);
+  const catalogo = await catalogoInterno(env);
+  const juego = gameFilter(url, catalogo);
 
   // Filtrando por mesa solo cuentan los movimientos DE esa mesa. Las recargas
   // y retiros no pertenecen a ninguna (son de la billetera), así que en ese
@@ -138,7 +147,7 @@ export async function reportDaily(request, env, url) {
 
   const porJuego = (porJuegoRows.results || []).map((r) => ({
     ...r,
-    label: (JUEGOS[r.game_id] && JUEGOS[r.game_id].label) || r.game_id,
+    label: etiquetaDeMesa(catalogo, r.game_id),
     juego: r.apostado - r.premios,
   })).sort((a, b) => b.apostado - a.apostado);
 
@@ -163,7 +172,7 @@ export async function reportDaily(request, env, url) {
     from, to, dias, total,
     filtro_juego: juego,
     por_juego: porJuego,
-    mesas: Object.entries(JUEGOS).map(([id, j]) => ({ id, label: j.label, activo: !!j.activo })),
+    mesas: catalogo.map((m) => ({ id: m.id, label: m.label, activo: m.activo })),
   });
 }
 

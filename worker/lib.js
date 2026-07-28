@@ -96,10 +96,13 @@ export const RUEDAS = {
 };
 
 // ── Las mesas del salón ───────────────────────────────────────────────────
-// El catálogo de VOLTIO. Hoy vive acá porque las mesas todavía no se crean
-// desde el panel; en la Etapa 4 pasa a la base de datos (ver
-// ESTRUCTURA-SALON.md). El `id` es lo que se guarda en cada movimiento, así
-// que una vez usado NO se cambia: rompería el historial.
+// EL CATÁLOGO DE VERDAD VIVE EN LA BASE (tabla `games`, migración 011): es lo
+// que el dueño toca desde el panel. Esta lista de acá abajo quedó como RED DE
+// SEGURIDAD y arranque: se usa tal cual si la tabla todavía no existe (código
+// nuevo desplegado antes de correr la migración) o si viniera vacía. Los
+// valores tienen que coincidir con lo que siembra la migración.
+// El `id` es lo que se guarda en cada movimiento, así que una vez usado NO se
+// cambia: rompería el historial.
 //
 // `activo: false` = la mesa existe y se anuncia en el salón, pero no se puede
 // jugar. Se encienden de a una en la Etapa 5, cada una después de verificar
@@ -117,6 +120,11 @@ export const JUEGOS = {
     rayos: true,
     pagoPleno: 29,
     activo: true,
+    orden: 10,
+    icono: '🐆⚡',
+    color: '#ffd84a',
+    detalle1: 'Ruleta americana 0/00 · 38 animales',
+    detalle2: 'Rayos con premios hasta 500x',
   },
   americana: {
     label: 'Americana Clásica',
@@ -125,6 +133,11 @@ export const JUEGOS = {
     rayos: false,
     pagoPleno: 35,
     activo: false,
+    orden: 20,
+    icono: '🎩',
+    color: '#4fd1a5',
+    detalle1: 'Ruleta americana de toda la vida',
+    detalle2: 'Sin animales · el pleno paga 35 a 1',
   },
   europea: {
     label: 'Europea Clásica',
@@ -133,6 +146,11 @@ export const JUEGOS = {
     rayos: false,
     pagoPleno: 35,
     activo: false,
+    orden: 30,
+    icono: '🎡',
+    color: '#a78bfa',
+    detalle1: 'Ruleta europea de un solo cero',
+    detalle2: 'La favorita de los jugadores finos',
   },
   europea_animales: {
     label: 'Europea Catatumbo',
@@ -141,17 +159,35 @@ export const JUEGOS = {
     rayos: true,
     pagoPleno: 29,
     activo: false,
+    orden: 40,
+    icono: '🐆🎡',
+    color: '#ffd84a',
+    detalle1: 'Europea de un solo cero · con animales',
+    detalle2: 'Rayos con premios hasta 500x',
   },
 };
 
-// La ficha de una mesa. Sin id válido devuelve null.
-export function juegoDe(id) {
-  const j = JUEGOS[id];
-  if (!j) return null;
+// Arma la ficha completa de una mesa a partir de una fila (de la base o de la
+// red de seguridad de arriba) y de su rueda. Devuelve null si la rueda que
+// dice no existe: mejor no dibujar nada que dibujar una ruleta inventada.
+function armarFicha(id, j) {
+  if (!id || !j) return null;
   const rueda = RUEDAS[j.rueda];
   if (!rueda) return null;
+  const pleno = Number(j.pagoPleno != null ? j.pagoPleno : j.pago_pleno);
   return {
-    id, ...j,
+    id,
+    label: j.label || id,
+    rueda: j.rueda,
+    animales: !!j.animales,
+    rayos: !!j.rayos,
+    pagoPleno: Number.isFinite(pleno) ? pleno : 35,
+    activo: !!j.activo,
+    orden: Number.isFinite(Number(j.orden)) ? Number(j.orden) : 100,
+    icono: j.icono || null,
+    color: j.color || null,
+    detalle1: j.detalle1 || null,
+    detalle2: j.detalle2 || null,
     ordenRueda: rueda.orden,
     casillas: rueda.orden.length,
     dobleCero: rueda.dobleCero,
@@ -159,13 +195,47 @@ export function juegoDe(id) {
   };
 }
 
+// Lee las mesas de la base. Devuelve null si la tabla todavía no existe (el
+// código nuevo desplegado antes de correr la migración) o si vino vacía: ahí
+// manda la red de seguridad, y el salón sigue abierto igual.
+async function mesasDeLaBase(env) {
+  try {
+    const r = await env.DB.prepare(
+      `SELECT id, label, rueda, animales, rayos, pago_pleno, activo, orden,
+              icono, color, detalle1, detalle2
+         FROM games ORDER BY orden, id`
+    ).all();
+    const filas = r.results || [];
+    return filas.length ? filas : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Todas las mesas, en fichas listas para usar. Es la única puerta de entrada
+// al catálogo: todo lo demás pasa por acá.
+export async function catalogoInterno(env) {
+  const filas = await mesasDeLaBase(env);
+  if (filas) return filas.map((f) => armarFicha(f.id, f)).filter(Boolean);
+  return Object.keys(JUEGOS)
+    .map((id) => armarFicha(id, JUEGOS[id]))
+    .filter(Boolean)
+    .sort((a, b) => a.orden - b.orden);
+}
+
+// La ficha de una mesa por id. Sin id válido devuelve null.
+export async function juegoDe(env, id) {
+  const cat = await catalogoInterno(env);
+  return cat.find((m) => m.id === id) || null;
+}
+
 export const JUEGO_POR_DEFECTO = 'catatumbo';
 
 // Devuelve la ficha de una mesa válida y ENCENDIDA, o null.
 // Sin dato (cliente viejo que todavía no lo manda) cae en la mesa por defecto.
-export function mesaJugable(raw) {
+export async function mesaJugable(env, raw) {
   const id = (raw == null || raw === '') ? JUEGO_POR_DEFECTO : String(raw).trim().toLowerCase();
-  const j = juegoDe(id);
+  const j = await juegoDe(env, id);
   if (!j || !j.activo) return null;
   return j;
 }
@@ -267,24 +337,79 @@ export function infoRayos(settings) {
 // cilindro del navegador tiene que dibujar las casillas EN EL MISMO ORDEN que
 // usó el servidor para sortear, o la bola caería en un número distinto al que
 // salió. Una sola fuente de verdad (RUEDAS) evita esa desincronización.
-export function catalogoMesas() {
-  return Object.keys(JUEGOS).map((id) => {
-    const j = juegoDe(id);
+export async function catalogoMesas(env) {
+  const cat = await catalogoInterno(env);
+  return cat.map((j) => ({
+    id: j.id,
+    label: j.label,
+    rueda: j.rueda,
+    rueda_label: j.ruedaLabel,
+    orden: j.ordenRueda,
+    casillas: j.casillas,
+    doble_cero: j.dobleCero,
+    animales: j.animales,
+    rayos: j.rayos,
+    pago_pleno: j.pagoPleno,
+    activo: j.activo,
+    // Presentación: lo que el salón usa para armar la tarjeta.
+    icono: j.icono,
+    color: j.color,
+    detalle1: j.detalle1,
+    detalle2: j.detalle2,
+    ventaja_resto_mesa: ventajaMesa(j.casillas),
+  }));
+}
+
+// ── Alta y edición de una mesa (lo que valida el panel) ───────────────────
+// Devuelve { error } o { mesa } con los campos ya limpios y listos para
+// guardar. La regla que no se negocia: SIN RAYOS EL PLENO PAGA 35. Los 29
+// existen solo donde los multiplicadores compensan; permitirlos en una mesa
+// clásica sería quedarse con el 21% del pleno, y eso no se arregla después.
+export function validarMesa(body, { creando = false } = {}) {
+  const out = {};
+
+  if (creando) {
+    const id = String(body.id || '').trim().toLowerCase();
+    if (!/^[a-z][a-z0-9_]{2,23}$/.test(id)) {
+      return { error: 'El id va en minúsculas, empieza con letra y lleva entre 3 y 24 caracteres (letras, números y guion bajo)' };
+    }
+    out.id = id;
+  }
+
+  const label = str(body.label, 40);
+  if (!label || label.length < 2) return { error: 'Falta el nombre de la mesa' };
+  out.label = label;
+
+  const rueda = String(body.rueda || '').trim().toLowerCase();
+  if (!RUEDAS[rueda]) return { error: 'Esa rueda no existe (americana o europea)' };
+  out.rueda = rueda;
+
+  out.animales = body.animales ? 1 : 0;
+  out.rayos = body.rayos ? 1 : 0;
+
+  const pleno = Number(body.pago_pleno);
+  if (![29, 35].includes(pleno)) {
+    return { error: 'El pleno paga 35 a 1 (mesa clásica) o 29 a 1 (mesa con rayos)' };
+  }
+  if (pleno === 29 && !out.rayos) {
     return {
-      id: j.id,
-      label: j.label,
-      rueda: j.rueda,
-      rueda_label: j.ruedaLabel,
-      orden: j.ordenRueda,
-      casillas: j.casillas,
-      doble_cero: j.dobleCero,
-      animales: j.animales,
-      rayos: j.rayos,
-      pago_pleno: j.pagoPleno,
-      activo: j.activo,
-      ventaja_resto_mesa: ventajaMesa(j.casillas),
+      error: 'Una mesa SIN rayos tiene que pagar 35 a 1. Con 29 a 1 y sin multiplicadores '
+        + 'la casa se quedaría con más del 20% del pleno: espanta al jugador y no se nota hasta que es tarde.',
     };
-  });
+  }
+  out.pago_pleno = pleno;
+
+  out.activo = body.activo ? 1 : 0;
+
+  const orden = Number(body.orden);
+  out.orden = Number.isInteger(orden) && orden >= 0 && orden <= 9999 ? orden : 100;
+
+  out.icono = str(body.icono, 12);
+  out.color = /^#[0-9a-fA-F]{6}$/.test(String(body.color || '')) ? String(body.color) : null;
+  out.detalle1 = str(body.detalle1, 80);
+  out.detalle2 = str(body.detalle2, 80);
+
+  return { mesa: out };
 }
 
 export async function getSettings(env) {

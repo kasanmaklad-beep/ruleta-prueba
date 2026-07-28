@@ -45,6 +45,21 @@ R=$(post /api/game/spin "$PLT" '{"bets":[{"type":"color","payload":"red","amount
 check "una mesa inventada también" '.error | test("no existe o está cerrada")' "$R"
 
 echo
+echo "── Las mesas se manejan desde el panel (Etapa 4) ──"
+R=$(get /api/admin/games "$ADT")
+check "el panel lista las mesas con sus cuentas" \
+  '(.mesas | length) >= 4 and (.mesas[0] | has("ventaja_pleno")) and (.mesas[0] | has("rondas"))' "$R"
+check "y dice si el catálogo ya está en la base" '.en_la_base == true' "$R"
+R=$(post /api/admin/games "$ADT" '{"id":"mesa_trampa","label":"Trampa","rueda":"europea","animales":false,"rayos":false,"pago_pleno":29}')
+check "no deja guardar 29 a 1 en una mesa SIN rayos" '.error | test("tiene que pagar 35")' "$R"
+R=$(post /api/admin/games "$ADT" '{"id":"mesa_rara","label":"Rara","rueda":"marciana","animales":false,"rayos":false,"pago_pleno":35}')
+check "ni una rueda que no existe" '.error | test("rueda no existe")' "$R"
+R=$(post /api/admin/games/catatumbo/activo "$ADT" '{"activo":false}')
+check "no deja apagar la última mesa encendida" '.error | test("única mesa encendida")' "$R"
+R=$(get /api/games "$PLT")
+check "el jugador recibe la presentación de cada mesa" '.mesas[] | select(.id=="catatumbo") | .icono != null and .detalle1 != null' "$R"
+
+echo
 echo "── El panel informa las dos ruedas ──"
 # La prueba fija el perfil que quiere medir: no se puede asumir en qué quedó
 # la configuración de una corrida anterior.

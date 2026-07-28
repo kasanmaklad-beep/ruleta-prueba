@@ -2,7 +2,7 @@
 // Props: { user, onExit(), onLogout() }  — onExit vuelve al juego
 //
 // Pestañas: Resumen · Jugadores · Socios · Recargas · Retiros ·
-//           Reportes · Configuración
+//           Mesas · Reportes · Configuración
 (function () {
   const { useState, useEffect, useCallback, useRef } = React;
   const U = window.UI;
@@ -40,6 +40,7 @@
       { id: 'socios', label: 'SOCIOS' },
       { id: 'recargas', label: 'RECARGAS', badge: pend.recargas_pendientes },
       { id: 'retiros', label: 'RETIROS', badge: pend.retiros_pendientes },
+      { id: 'mesas', label: 'MESAS' },
       { id: 'reportes', label: 'REPORTES' },
       { id: 'config', label: 'CONFIGURACIÓN' },
     ];
@@ -97,6 +98,7 @@
           {tab === 'socios' && <TabSocios {...props} />}
           {tab === 'recargas'    && <TabRecargas {...props} />}
           {tab === 'retiros'     && <TabRetiros {...props} />}
+          {tab === 'mesas'       && <TabMesas {...props} />}
           {tab === 'reportes'    && <TabReportes {...props} />}
           {tab === 'config'      && <TabConfig {...props} />}
         </div>
@@ -1455,6 +1457,277 @@
     { key: 'cupo_alert', label: 'Avisar fichas bajas del socio (Bs)', tipo: 'number',
       ayuda: 'Cuando las fichas de un socio bajan de este número, le sale un aviso en su taquilla y a vos en las alertas.' },
   ];
+
+  // ═══════════════════════ Las mesas del salón ════════════════════════════
+  //  Etapa 4: el dueño arma sus mesas sin tocar código. Lo que se decide acá
+  //  cambia lo que el jugador ve en el salón y cómo se dibuja la ruleta.
+  //
+  //  La regla del pleno la hace cumplir el servidor, pero la pantalla la
+  //  respeta también: al sacarle los rayos a una mesa, el pago vuelve solo a
+  //  35 a 1. Un pleno de 29 sin rayos deja a la casa con más del 20%, y eso
+  //  no se ve hasta que el jugador se cansa y no vuelve.
+  // ═══════════════════════════════════════════════════════════════════════
+
+  const MESA_NUEVA = {
+    id: '', label: '', rueda: 'americana', animales: false, rayos: false,
+    pago_pleno: 35, activo: false, orden: 100, icono: '🎡', color: '#ffd84a',
+    detalle1: '', detalle2: '',
+  };
+
+  function TabMesas({ setMsg }) {
+    const [datos, setDatos] = useState(null);
+    const [editando, setEditando] = useState(null);   // ficha en edición o alta
+    const [creando, setCreando] = useState(false);
+    const [guardando, setGuardando] = useState(false);
+
+    const cargar = useCallback(() => {
+      window.Api.adminGames()
+        .then(setDatos)
+        .catch((err) => setMsg({ kind: 'err', text: err.message }));
+    }, [setMsg]);
+
+    useEffect(() => { cargar(); }, [cargar]);
+
+    const aplicar = async (fn, exito) => {
+      setGuardando(true);
+      try {
+        setDatos(await fn());
+        setEditando(null);
+        setCreando(false);
+        setMsg({ kind: 'ok', text: exito });
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+      finally { setGuardando(false); }
+    };
+
+    const prender = (m) => aplicar(
+      () => window.Api.adminToggleGame(m.id, !m.activo),
+      m.activo ? `${m.label} quedó cerrada: ya no se puede entrar.`
+               : `${m.label} está abierta. Los jugadores ya la ven en el salón.`
+    );
+
+    const guardar = () => {
+      const m = editando;
+      if (creando) return aplicar(() => window.Api.adminCreateGame(m), `Mesa "${m.label}" creada.`);
+      return aplicar(() => window.Api.adminUpdateGame(m.id, m), `${m.label} guardada.`);
+    };
+
+    if (!datos) return <div style={{ color: '#888' }}>Cargando…</div>;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={S.card}>
+          <div style={S.titulo}>LAS MESAS DEL SALÓN</div>
+          <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>
+            Acá se arman las mesas de VOLTIO. Lo que guardes cambia al instante lo que el
+            jugador ve en el salón y cómo se dibuja la ruleta: no hay que publicar nada.
+            {!datos.en_la_base && (
+              <div style={{ color: '#ff9a9a', marginTop: 8 }}>
+                Las mesas todavía no están en la base: se ven las de siempre, pero no se
+                pueden tocar hasta correr la migración 011.
+              </div>
+            )}
+          </div>
+          {datos.en_la_base && !editando && (
+            <div style={{ marginTop: 14 }}>
+              <Boton onClick={() => { setEditando({ ...MESA_NUEVA }); setCreando(true); }}>
+                + MESA NUEVA
+              </Boton>
+            </div>
+          )}
+        </div>
+
+        {editando && (
+          <FormularioMesa
+            mesa={editando}
+            setMesa={setEditando}
+            creando={creando}
+            ruedas={datos.ruedas}
+            guardando={guardando}
+            onGuardar={guardar}
+            onCancelar={() => { setEditando(null); setCreando(false); }}
+          />
+        )}
+
+        {datos.mesas.map((m) => (
+          <FichaMesa
+            key={m.id}
+            m={m}
+            puedeEditar={datos.en_la_base}
+            onPrender={() => prender(m)}
+            onEditar={() => { setEditando({ ...m }); setCreando(false); }}
+            guardando={guardando}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // Una mesa en la lista: cómo está armada, qué le deja a la casa y los dos
+  // botones de todos los días.
+  function FichaMesa({ m, onPrender, onEditar, puedeEditar, guardando }) {
+    return (
+      <div style={{
+        ...S.card,
+        borderColor: m.activo ? '#8b6a20' : '#333',
+        opacity: m.activo ? 1 : 0.75,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 26 }}>{m.icono || '🎡'}</div>
+          <div style={{ flex: 1, minWidth: 140 }}>
+            <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 1, color: m.color || '#ffd84a' }}>
+              {m.label}
+            </div>
+            <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
+              {m.id} · {m.rueda_label} · {m.casillas} casillas
+              {m.animales ? ' · con animales' : ' · sin animales'}
+              {m.rayos ? ' · con rayos' : ' · sin rayos'}
+            </div>
+          </div>
+          <div style={{
+            fontSize: 10, letterSpacing: 2, fontWeight: 900, padding: '4px 9px', borderRadius: 4,
+            color: m.activo ? '#0a0a0a' : '#ccc',
+            background: m.activo ? 'linear-gradient(180deg, #ffe98a, #d4a017)' : '#444',
+          }}>{m.activo ? 'ABIERTA' : 'CERRADA'}</div>
+        </div>
+
+        <div style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+          gap: 10, marginTop: 12,
+        }}>
+          <Dato chico titulo="Pleno" valor={`${m.pago_pleno} a 1`} />
+          <Dato chico titulo="Le deja el pleno" valor={`${m.ventaja_pleno}%`}
+                color={m.ventaja_pleno >= 0 ? '#7ee08a' : '#ff9a9a'}
+                detalle={m.ventaja_pleno < 0 ? 'la casa PIERDE' : null} />
+          <Dato chico titulo="Le deja el resto" valor={`${m.ventaja_resto_mesa}%`} />
+          <Dato chico titulo="Rondas jugadas" valor={m.rondas.toLocaleString('es-VE')} />
+        </div>
+
+        {puedeEditar && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+            <Boton chico tono={m.activo ? 'rojo' : 'verde'} onClick={onPrender} disabled={guardando}>
+              {m.activo ? 'CERRAR MESA' : 'ABRIR MESA'}
+            </Boton>
+            <Boton chico tono="gris" onClick={onEditar} disabled={guardando}>EDITAR</Boton>
+            {m.rondas > 0 && (
+              <div style={{ fontSize: 10, color: '#777', alignSelf: 'center' }}>
+                Ya tiene historial: el id no se cambia ni se borra.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function FormularioMesa({ mesa, setMesa, creando, ruedas, guardando, onGuardar, onCancelar }) {
+    const set = (campo, valor) => setMesa({ ...mesa, [campo]: valor });
+
+    // Sin rayos el pleno vuelve solo a 35: es la regla del negocio, no una
+    // preferencia. Con rayos se puede elegir.
+    const setRayos = (v) => setMesa({ ...mesa, rayos: v, pago_pleno: v ? mesa.pago_pleno : 35 });
+
+    const rueda = (ruedas || []).find((r) => r.id === mesa.rueda);
+
+    return (
+      <div style={{ ...S.card, borderColor: '#d4a94a' }}>
+        <div style={S.titulo}>{creando ? 'MESA NUEVA' : `EDITANDO ${mesa.label.toUpperCase()}`}</div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+          {creando && (
+            <div>
+              <Campo label="ID (NO SE PUEDE CAMBIAR DESPUÉS)">
+                <input style={S.input} value={mesa.id}
+                       placeholder="europea_vip"
+                       onChange={(e) => set('id', e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} />
+              </Campo>
+              <div style={{ fontSize: 11, color: '#888', marginTop: 4, lineHeight: 1.5 }}>
+                Queda escrito en cada movimiento de la mesa. Por eso no se cambia: rompería el historial.
+              </div>
+            </div>
+          )}
+
+          <Campo label="NOMBRE QUE VE EL JUGADOR">
+            <input style={S.input} value={mesa.label} onChange={(e) => set('label', e.target.value)} />
+          </Campo>
+
+          <Campo label="RUEDA">
+            <select style={S.input} value={mesa.rueda} onChange={(e) => set('rueda', e.target.value)}>
+              {(ruedas || []).map((r) => (
+                <option key={r.id} value={r.id}>{r.label} — {r.casillas} casillas</option>
+              ))}
+            </select>
+          </Campo>
+
+          <Campo label="PLENO">
+            <select style={S.input} value={mesa.pago_pleno}
+                    onChange={(e) => set('pago_pleno', Number(e.target.value))}
+                    disabled={!mesa.rayos}>
+              <option value={35}>Paga 35 a 1 (mesa clásica)</option>
+              {mesa.rayos && <option value={29}>Paga 29 a 1 (lo compensan los rayos)</option>}
+            </select>
+          </Campo>
+
+          <Campo label="ORDEN EN EL SALÓN">
+            <input style={S.input} type="number" value={mesa.orden}
+                   onChange={(e) => set('orden', Number(e.target.value))} />
+          </Campo>
+
+          <Campo label="ÍCONO">
+            <input style={S.input} value={mesa.icono || ''} onChange={(e) => set('icono', e.target.value)} />
+          </Campo>
+
+          <Campo label="COLOR DEL NOMBRE">
+            <input style={{ ...S.input, padding: 4, height: 44 }} type="color"
+                   value={mesa.color || '#ffd84a'} onChange={(e) => set('color', e.target.value)} />
+          </Campo>
+
+          <Campo label="PRIMERA LÍNEA EN LA TARJETA">
+            <input style={S.input} value={mesa.detalle1 || ''} onChange={(e) => set('detalle1', e.target.value)} />
+          </Campo>
+
+          <Campo label="SEGUNDA LÍNEA">
+            <input style={S.input} value={mesa.detalle2 || ''} onChange={(e) => set('detalle2', e.target.value)} />
+          </Campo>
+        </div>
+
+        <div style={{ display: 'flex', gap: 18, marginTop: 14, flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!mesa.animales} onChange={(e) => set('animales', e.target.checked)} />
+            Con animalitos
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!mesa.rayos} onChange={(e) => setRayos(e.target.checked)} />
+            Con rayos (Lightning)
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!mesa.activo} onChange={(e) => set('activo', e.target.checked)} />
+            Abierta al público
+          </label>
+        </div>
+
+        <div style={{
+          marginTop: 14, padding: 12, borderRadius: 8,
+          background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
+          fontSize: 12, color: '#bba876', lineHeight: 1.7,
+        }}>
+          {rueda && (
+            <>Con esta rueda, el color, la docena y la línea le dejan a la casa{' '}
+            <b style={{ color: '#ffd84a' }}>{rueda.ventaja_resto_mesa}%</b>.{' '}</>
+          )}
+          {mesa.rayos
+            ? 'El pleno lo ajustan los rayos, que se configuran en CONFIGURACIÓN y valen para todo el salón.'
+            : `Sin rayos, el pleno paga 35 a 1 y le deja a la casa lo mismo que el resto de la mesa. Es lo correcto: con 29 a 1 y sin multiplicadores se quedaría con más del 20%.`}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <Boton tono="verde" onClick={onGuardar} disabled={guardando || !mesa.label || (creando && !mesa.id)}>
+            {guardando ? 'GUARDANDO…' : (creando ? 'CREAR MESA' : 'GUARDAR')}
+          </Boton>
+          <Boton tono="gris" onClick={onCancelar} disabled={guardando}>CANCELAR</Boton>
+        </div>
+      </div>
+    );
+  }
 
   function TabConfig({ setMsg }) {
     const [vals, setVals] = useState(null);

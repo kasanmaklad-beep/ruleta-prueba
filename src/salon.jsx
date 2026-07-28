@@ -13,43 +13,26 @@
 (() => {
   const { useState, useEffect } = React;
 
-  // Cómo se le vende cada mesa al jugador. Si mañana aparece una mesa nueva y
-  // nadie escribió su frase, igual se anuncia: el texto se arma con la ficha.
-  const PRESENTACION = {
-    catatumbo: {
-      icono: '🐆⚡',
-      cinta: 'MESA INSIGNIA',
-      detalle: ['Ruleta americana 0/00 · 38 animales', 'Rayos con premios hasta 500x'],
-    },
-    americana: {
-      icono: '🎩',
-      detalle: ['Ruleta americana de toda la vida', 'Sin animales · el pleno paga 35 a 1'],
-    },
-    europea: {
-      icono: '🎡',
-      detalle: ['Ruleta europea de un solo cero', 'La favorita de los jugadores finos'],
-    },
-    europea_animales: {
-      icono: '🐆🎡',
-      detalle: ['Europea de un solo cero · con animales', 'Rayos con premios hasta 500x'],
-    },
-  };
+  // La ficha del servidor, vestida para la tarjeta. El ícono, el color y las
+  // dos líneas los escribe el dueño en el panel (Etapa 4); si una mesa nueva
+  // vino sin ellos, igual se anuncia: el texto se arma con la ficha.
+  const DORADO = '#ffd84a';
 
-  // La ficha del servidor, vestida para la tarjeta.
   function paraLaTarjeta(m) {
-    const p = PRESENTACION[m.id] || {};
     const auto = [
       `Ruleta ${m.doble_cero ? 'americana 0/00' : 'europea, un solo cero'} · ${m.casillas} casillas`,
       m.rayos ? 'Rayos con premios hasta 500x' : `El pleno paga ${m.pago_pleno} a 1`,
     ];
+    const detalle = [m.detalle1, m.detalle2].filter(Boolean);
     return {
       id: m.id,
       nombre: (m.label || m.id).toUpperCase(),
-      icono: p.icono || '🎡',
+      icono: m.icono || '🎡',
+      color: m.color || DORADO,
       // La cinta la manda el estado real: una mesa cerrada siempre se anuncia
-      // como lo que viene, nunca con su título de venta.
-      cinta: m.activo ? (p.cinta || 'MESA ABIERTA') : 'PRÓXIMAMENTE',
-      detalle: p.detalle || auto,
+      // como lo que viene, nunca con un título de venta.
+      cinta: m.activo ? 'MESA ABIERTA' : 'PRÓXIMAMENTE',
+      detalle: detalle.length ? detalle : auto,
       // La ficha más chica de la mesa. Hoy es la misma en todas.
       apuestaDesde: m.activo ? 1 : null,
       activa: !!m.activo,
@@ -77,7 +60,9 @@
 
         <div style={{ fontSize: isMobile ? 28 : 34 }}>{mesa.icono}</div>
         <div style={{
-          fontSize: isMobile ? 17 : 19, letterSpacing: 2, color: '#ffd84a',
+          fontSize: isMobile ? 17 : 19, letterSpacing: 2,
+          // El color se lo pone el dueño a cada mesa; el dorado es el de casa.
+          color: apagada ? '#ffd84a' : mesa.color,
           fontWeight: 900, margin: '6px 0 4px',
         }}>{mesa.nombre}</div>
         <div style={{ fontSize: 11, color: '#bba876', lineHeight: 1.6 }}>
