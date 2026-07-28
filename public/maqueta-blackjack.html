@@ -75,6 +75,17 @@
       linear-gradient(180deg,#155843 0%, var(--paño) 55%, #06251c 100%);
     box-shadow:inset 0 2px 10px rgba(0,0,0,.55);
   }
+  /* La marca estampada en el fieltro, en la banda del arco — que es donde va
+     en las mesas de verdad y es la única franja que nunca tapan las cartas.
+     Va HUNDIDA, no escrita encima: el logo de una mesa está serigrafiado y
+     casi no se ve, se nota cuando la luz le pega. De ahí el relieve (una luz
+     arriba, una sombra abajo) y lo bajo de la opacidad: no compite con nada. */
+  .marca-paño{
+    text-align:center; margin:-16px 0 4px; pointer-events:none;
+    font-size:23px; letter-spacing:11px; font-weight:700; font-family:Georgia,serif;
+    color:rgba(255,236,190,.13);
+    text-shadow:0 1px 0 rgba(255,255,255,.07), 0 -1px 1px rgba(0,0,0,.35);
+  }
 
   /* El arco del crupier: la línea que en la mesa separa su zona de la del
      jugador, curvada como el borde de la mesa. */
@@ -172,6 +183,8 @@
     margin-top:12px; font-size:11px; color:var(--tenue); letter-spacing:1px;
   }
   .saldo{color:var(--oro); font-size:15px; font-weight:700; letter-spacing:0}
+  .sonido{cursor:pointer; font-size:14px; opacity:.8; user-select:none}
+  .sonido.mudo{opacity:.35}
   /* ── Las fichas ────────────────────────────────────────────────────────
      Cada valor tiene SU color, como en cualquier casino: el jugador aprende
      a leer la apuesta de un vistazo, sin contar números. Se respeta la
@@ -259,7 +272,7 @@
 
   <div class="barra">
     <span id="quien"></span>
-    <span>saldo <span class="saldo" id="saldo">—</span></span>
+    <span><span class="sonido" id="sonido" title="Sonido">🔊</span> saldo <span class="saldo" id="saldo">—</span></span>
   </div>
 
   <div class="mesa">
@@ -274,6 +287,7 @@
     <div class="cartas" id="cartas-crupier"></div>
 
     <div class="arco"></div>
+    <div class="marca-paño">VOLTIO</div>
     <div class="letrero" id="letrero"></div>
 
     <div class="quien" style="margin-bottom:2px" id="rotulo-jugador">TU MANO</div>
@@ -338,6 +352,103 @@ const $ = function(id){ return document.getElementById(id); };
 const PALOS = { S:'♠', H:'♥', D:'♦', C:'♣' };
 const ROJOS = { H:1, D:1 };
 
+// ── El sonido de la mesa ─────────────────────────────────────────────────
+// Todo se fabrica acá con Web Audio: ni un archivo, ni una descarga. Son tres
+// ruidos y ninguno dura más de un cuarto de segundo — en una mesa lo que se
+// oye es el golpe seco de la arcilla y el roce de la carta, no una orquesta.
+// El navegador no deja sonar hasta que el usuario tocó algo, así que el
+// contexto se crea recién en el primer toque.
+let AC = null;
+let MUDO = false;
+
+function audio(){
+  if (MUDO) return null;
+  if (!AC) {
+    try { AC = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { return null; }
+  }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+// Un pedazo de ruido blanco, que es la materia prima de casi todo golpe.
+function ruido(ac, dur){
+  const n = Math.max(1, Math.floor(ac.sampleRate * dur));
+  const buf = ac.createBuffer(1, n, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+function golpe(ac, t, { frec, q, vol, dur }){
+  const src = ac.createBufferSource(); src.buffer = ruido(ac, dur);
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass';
+  bp.frequency.value = frec; bp.Q.value = q;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  src.connect(bp); bp.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + dur + 0.01);
+}
+
+function tono(ac, t, frec, vol, dur, tipo){
+  const o = ac.createOscillator(); o.type = tipo || 'triangle'; o.frequency.value = frec;
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0008, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+
+// La ficha: el golpe seco de la arcilla contra el paño, más el tintineo de
+// caer sobre las que ya están.
+function sonarFicha(){
+  const ac = audio(); if (!ac) return;
+  const t = ac.currentTime;
+  golpe(ac, t, { frec: 1500, q: 1.1, vol: 0.30, dur: 0.07 });
+  tono(ac, t + 0.004, 2550, 0.05, 0.05);
+  tono(ac, t + 0.010, 3350, 0.035, 0.045);
+}
+
+// La carta: el roce del cartón al deslizarse sobre el fieltro.
+function sonarCarta(){
+  const ac = audio(); if (!ac) return;
+  const t = ac.currentTime;
+  const src = ac.createBufferSource(); src.buffer = ruido(ac, 0.14);
+  const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.8;
+  bp.frequency.setValueAtTime(3200, t);
+  bp.frequency.exponentialRampToValueAtTime(700, t + 0.13);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0008, t);
+  g.gain.exponentialRampToValueAtTime(0.16, t + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + 0.14);
+  src.connect(bp); bp.connect(g); g.connect(ac.destination);
+  src.start(t); src.stop(t + 0.15);
+}
+
+// El cierre de la mano. Corto: un resultado no se festeja diez segundos.
+function sonarResultado(manos){
+  const ac = audio(); if (!ac) return;
+  const t = ac.currentTime;
+  const res = (manos || []).map(function(h){ return h.resultado; });
+  if (res.indexOf('natural') >= 0) {
+    [784, 988, 1319, 1568].forEach(function(f, i){ tono(ac, t + i * 0.075, f, 0.12, 0.3); });
+  } else if (res.indexOf('gana') >= 0) {
+    [660, 880].forEach(function(f, i){ tono(ac, t + i * 0.085, f, 0.11, 0.26); });
+  } else if (res.every(function(r){ return r === 'empate'; })) {
+    tono(ac, t, 440, 0.07, 0.2);
+  } else {
+    tono(ac, t, 200, 0.10, 0.3, 'sine');
+    tono(ac, t + 0.06, 150, 0.08, 0.32, 'sine');
+  }
+}
+
+// Cuántas cartas nuevas lleva este dibujado, para que suenen una detrás de
+// otra y no todas encimadas.
+let cartasNuevas = 0;
+let primerDibujado = true;
+
 function decir(texto, mal){
   $('msg').textContent = texto || '';
   $('msg').className = 'msg' + (mal ? ' mal' : '');
@@ -347,7 +458,16 @@ function decir(texto, mal){
 function dibujarCarta(carta, clave){
   const d = document.createElement('div');
   const nueva = !mostradas.has(clave);
-  if (nueva) mostradas.add(clave);
+  if (nueva) {
+    mostradas.add(clave);
+    // Cada carta nueva suena al llegar, escalonada como el reparto. En el
+    // primer dibujado no: si el jugador recarga la página en medio de una
+    // mano, no tienen que sonarle de golpe las cuatro cartas que ya estaban.
+    if (!primerDibujado) {
+      const cuando = cartasNuevas++ * 130;
+      setTimeout(sonarCarta, cuando);
+    }
+  }
 
   if (carta && typeof carta === 'object' && carta.tapada) {
     d.className = 'carta tapada' + (nueva ? ' nueva' : '');
@@ -366,6 +486,7 @@ const NOMBRE = { gana:'GANASTE', pierde:'PERDISTE', empate:'EMPATE', natural:'¡
 
 // ── Dibujar todo ─────────────────────────────────────────────────────────
 function pintar(){
+  cartasNuevas = 0;
   $('saldo').textContent = (E.balance != null ? E.balance : 0).toLocaleString('es-VE');
 
   // El crupier. Mientras la mano vive, la segunda carta viene tapada y el
@@ -482,7 +603,10 @@ function zonaDeApuesta(monto, editable){
   // más. Con la mano en juego no se toca: esas fichas ya están apostadas.
   if (editable) {
     c.title = 'Tocá para sacar la última ficha';
-    c.onclick = function(){ if (!ocupado && PILA.length) { PILA.pop(); pintar(); } };
+    c.onclick = function(){
+      if (ocupado || !PILA.length) return;
+      PILA.pop(); sonarFicha(); pintar();
+    };
   }
 
   const pila = document.createElement('div');
@@ -516,6 +640,7 @@ function pintarFichas(){
     d.onclick = function(){
       if (montoApuesta() + x.v > max) return;
       PILA.push(x.v);
+      sonarFicha();
       decir('');
       pintar();
     };
@@ -533,7 +658,14 @@ async function jugar(accion){
   ocupado = false;
   if (r.error && !r.manos) { decir(r.error, true); pintar(); return; }
   decir(r.error || '', !!r.error);
-  E = r; pintar();
+  E = r; pintar(); cierre(r);
+}
+
+// El sonido del resultado, después de que terminaron de caer las cartas: si
+// suena encima del reparto no se entiende ninguno de los dos.
+function cierre(r){
+  if (!r || r.estado !== 'cerrada') return;
+  setTimeout(function(){ sonarResultado(r.manos); }, cartasNuevas * 130 + 260);
 }
 
 async function apostar(){
@@ -543,7 +675,7 @@ async function apostar(){
   ocupado = false;
   if (!r.ronda) { decir(r.error || 'No se pudo abrir la mano', true); pintar(); return; }
   mostradas = new Set();   // mano nueva: todas las cartas se animan
-  E = r; pintar();
+  E = r; pintar(); cierre(r);
   if (E.estado === 'cerrada') decir('Se resolvió en el reparto.');
 }
 
@@ -573,10 +705,11 @@ $('entrar').onsubmit = async function(ev){
   const nat = est.mesa.pago_natural === 1.5 ? '3 A 2'
             : est.mesa.pago_natural === 1.2 ? '6 A 5'
             : est.mesa.pago_natural + ' A 1';
+  // Dos renglones, cada uno entero: cortado a mitad de frase se lee como un
+  // error. El tercero se lo lleva la marca del paño, que va justo arriba.
   $('letrero').innerHTML = '<b>EL BLACKJACK PAGA ' + nat + '</b>'
-    // Cada renglón entero: cortado a mitad de frase se lee como un error.
-    + 'EL CRUPIER SE PLANTA EN 17'
-    + '<br>APUESTAS DE ' + est.mesa.apuesta_min + ' A ' + est.mesa.apuesta_max;
+    + 'EL CRUPIER SE PLANTA EN 17 · APUESTAS '
+    + est.mesa.apuesta_min + ' A ' + est.mesa.apuesta_max;
 
   E = est;
   // El círculo arranca vacío, como en la mesa: las fichas las pone el jugador.
@@ -584,7 +717,18 @@ $('entrar').onsubmit = async function(ev){
   // apretar un botón.
   PILA = [];
   mostradas = new Set();
+  primerDibujado = true;   // lo que ya estaba en la mesa no suena
   pintar();
+  primerDibujado = false;
+};
+
+// El botón de silencio. Suena poco y corto, pero nadie tiene por qué
+// aguantarse el sonido de una mesa si no quiere.
+$('sonido').onclick = function(){
+  MUDO = !MUDO;
+  $('sonido').textContent = MUDO ? '🔇' : '🔊';
+  $('sonido').className = 'sonido' + (MUDO ? ' mudo' : '');
+  if (!MUDO) sonarFicha();
 };
 </script>
 </body>

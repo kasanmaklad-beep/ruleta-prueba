@@ -251,6 +251,18 @@ tiene que heredar:
 - **Los avisos de error viven fuera de la mesa.** Si están adentro, un error
   al entrar se escribe en una parte de la página que todavía no se muestra y
   el jugador se queda mirando una pantalla muda.
+- **El sonido se fabrica, no se descarga.** Tres ruidos con Web Audio, ninguno
+  de más de un cuarto de segundo: el golpe de la ficha contra el paño, el roce
+  de la carta al deslizarse, y el cierre de la mano. Sin un solo archivo. Y
+  botón de silencio, que nadie tiene por qué aguantarse el ruido de una mesa.
+- **La marca del paño va en la banda del arco**, hundida en el fieltro (como
+  serigrafiada), no en el centro: el centro se lo comen las cartas y la marca
+  se lee cortada.
+- **La voz del crupier queda pedida para más adelante** (dueño, 28/07): que
+  cante la mano — "quince", "el crupier se planta en dieciocho", "blackjack".
+  No hay que inventar nada: la ruleta ya lo hace con Web Speech API y voz en
+  español (Paulina es-MX), en `src/audio.jsx`. Se copia el mecanismo y se le
+  cambian las frases. Va después de que la pantalla funcione, no antes.
 - **Prueba de cierre:** jugar una mano completa desde el celular, recargar la
   página en medio de la mano y que siga donde estaba.
 
