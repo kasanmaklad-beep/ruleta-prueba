@@ -53,7 +53,7 @@
      hace que deje de parecer un recuadro y empiece a parecer una mesa. */
   .mesa{
     width:100%; max-width:520px; margin-top:12px;
-    border-radius:20px 20px 46px 46px; padding:9px;
+    border-radius:46px 46px 20px 20px; padding:9px;
     background:
       linear-gradient(180deg,#4a3520 0%,#2a1c0e 45%,#3d2a16 100%);
     box-shadow:
@@ -63,7 +63,7 @@
     border:1px solid #14100a;
   }
   .paño{
-    border-radius:14px 14px 40px 40px; padding:12px 13px 14px; position:relative; overflow:hidden;
+    border-radius:40px 40px 14px 14px; padding:14px 13px 12px; position:relative; overflow:hidden;
     background:
       /* el pozo de luz que cae sobre la mesa */
       radial-gradient(ellipse 130% 70% at 50% 2%, rgba(255,255,255,.13), transparent 62%),
@@ -81,25 +81,26 @@
      casi no se ve, se nota cuando la luz le pega. De ahí el relieve (una luz
      arriba, una sombra abajo) y lo bajo de la opacidad: no compite con nada. */
   .marca-paño{
-    text-align:center; margin:-16px 0 4px; pointer-events:none;
+    text-align:center; margin:0 0 3px; pointer-events:none;
     font-size:23px; letter-spacing:11px; font-weight:700; font-family:Georgia,serif;
     color:rgba(255,236,190,.13);
     text-shadow:0 1px 0 rgba(255,255,255,.07), 0 -1px 1px rgba(0,0,0,.35);
   }
 
   /* El arco del crupier: la línea que en la mesa separa su zona de la del
-     jugador, curvada como el borde de la mesa. */
+     jugador. Curva hacia ABAJO porque el crupier está abajo — el arco
+     siempre abraza el lado del crupier. */
   .arco{
-    height:24px; margin:6px -13px 0; pointer-events:none;
-    border-top:2px solid rgba(255,238,200,.32);
-    border-radius:50% 50% 0 0 / 100% 100% 0 0;
-    box-shadow:0 -5px 0 -3px rgba(255,216,74,.14);
+    height:19px; margin:0 -13px 3px; pointer-events:none;
+    border-bottom:2px solid rgba(255,238,200,.32);
+    border-radius:0 0 50% 50% / 0 0 100% 100%;
+    box-shadow:0 5px 0 -3px rgba(255,216,74,.14);
   }
   /* La leyenda impresa en el paño: las reglas de la casa. No es adorno —
      son las dos que el jugador tiene que saber antes de sentarse, y salen
      de la ficha de la mesa, no escritas a mano. */
   .letrero{
-    text-align:center; margin:-10px 0 8px; line-height:1.75;
+    text-align:center; margin:0 0 8px; line-height:1.75;
     color:rgba(255,236,190,.42); letter-spacing:1.6px; font-size:9px;
     text-shadow:0 1px 0 rgba(0,0,0,.5);
   }
@@ -132,9 +133,9 @@
      de verdad. El índice va arriba a la izquierda justamente para que se siga
      leyendo aunque la de al lado la tape; y así entran cinco cartas en el
      ancho de un teléfono sin que se corten a otro renglón. */
-  .cartas{display:flex; min-height:112px; align-items:flex-start; margin:8px 0 8px; padding-left:2px}
+  .cartas{display:flex; min-height:106px; align-items:flex-start; margin:6px 0 6px; padding-left:2px}
   .carta{
-    width:76px; height:110px; border-radius:9px; flex:none; position:relative;
+    width:74px; height:104px; border-radius:9px; flex:none; position:relative;
     margin-left:-16px;
     background:linear-gradient(160deg,#fffdf5,#ece6d6 70%,#ddd5c0);
     border:1px solid #b9b09a;
@@ -153,14 +154,6 @@
   .carta .idx .p{font-size:11px; display:block; margin-top:1px}
   .carta .palo{position:absolute; inset:0; display:grid; place-items:center; font-size:38px}
   .carta .palo.as{font-size:52px}
-  /* Las figuras. Como en la baraja: la misma media figura arriba y repetida
-     boca abajo, de modo que la carta no tiene derecho ni revés. */
-  .carta .fig{position:absolute; left:15px; right:15px; top:5px; bottom:5px; display:flex; flex-direction:column}
-  .carta .fig svg{width:100%; height:50%; fill:currentColor; display:block}
-  .carta .fig svg:last-child{transform:rotate(180deg)}
-  /* La cara va del color del papel, recortada sobre la silueta: es lo que la
-     hace una cara y no una mancha. */
-  .carta .fig .cara{fill:#f6f2e6}
   .carta.tapada{
     background:
       repeating-linear-gradient(45deg,#7a1f1f 0 6px,#5e1616 6px 12px);
@@ -182,10 +175,12 @@
   .resultado{font-size:12px; letter-spacing:2px; font-weight:700; margin-top:-6px}
   .gana{color:var(--verde)} .pierde{color:#e57373} .empate{color:var(--tenue)} .natural{color:var(--oro)}
 
-  .botones{display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-top:14px}
+  /* Los tres botones tienen que entrar en UNA fila: si DOBLAR se va a un
+     segundo renglón, en un teléfono queda debajo del borde y no se ve. */
+  .botones{display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin-top:10px}
   button{
-    font-family:Georgia,serif; font-size:12px; letter-spacing:2px; font-weight:700;
-    padding:11px 16px; border-radius:8px; cursor:pointer; color:#1a1206;
+    font-family:Georgia,serif; font-size:11.5px; letter-spacing:1.2px; font-weight:700;
+    padding:11px 11px; border-radius:8px; cursor:pointer; color:#1a1206;
     background:linear-gradient(180deg,#ffe98a,#d4a017); border:1px solid #8a6a10;
     box-shadow:0 3px 0 #6d5410, 0 5px 12px rgba(0,0,0,.45);
   }
@@ -290,8 +285,20 @@
     <span><span class="sonido" id="sonido" title="Sonido">🔊</span> saldo <span class="saldo" id="saldo">—</span></span>
   </div>
 
+  <!-- La mesa dada vuelta: el jugador ARRIBA y el crupier ABAJO. Es al revés
+       de una mesa de casino (donde el crupier está enfrente y uno tiene sus
+       cartas del lado de acá), pero es como lo pidió el dueño: así la mano
+       propia queda arriba de todo y el crupier justo encima de los botones.
+       El arco y el canto redondeado de la mesa acompañan el cambio. -->
   <div class="mesa">
    <div class="paño">
+    <div class="quien" style="margin-bottom:2px" id="rotulo-jugador">TU MANO</div>
+    <div id="manos"></div>
+
+    <div class="arco"></div>
+    <div class="marca-paño">VOLTIO</div>
+    <div class="letrero" id="letrero"></div>
+
     <div class="fila-crupier">
       <div class="avatar">🎩</div>
       <div>
@@ -300,13 +307,6 @@
       </div>
     </div>
     <div class="cartas" id="cartas-crupier"></div>
-
-    <div class="arco"></div>
-    <div class="marca-paño">VOLTIO</div>
-    <div class="letrero" id="letrero"></div>
-
-    <div class="quien" style="margin-bottom:2px" id="rotulo-jugador">TU MANO</div>
-    <div id="manos"></div>
 
     <div class="botones" id="botones"></div>
    </div>
@@ -367,49 +367,11 @@ const $ = function(id){ return document.getElementById(id); };
 const PALOS = { S:'♠', H:'♥', D:'♦', C:'♣' };
 const ROJOS = { H:1, D:1 };
 
-// ── Las figuras ──────────────────────────────────────────────────────────
-// Rey, reina y jota dibujados a mano en SVG: nada que descargar, y como
-// heredan el color de la carta salen negros o rojos solos, según el palo.
-// La cara va del color del papel recortada sobre la silueta — eso es lo que
-// la hace una cara y no una mancha.
-// El cuerpo lleva el escote en rombo del color del papel: sin él la cabeza y
-// los hombros se funden en una sola mancha y no se entiende qué se está
-// mirando. Es el mismo truco de las barajas de toda la vida.
-const CUERPO = '<path d="M2.5 44v-8.5q4.5-3.6 14.5-4.6 10 1 14.5 4.6V44z"/>'
-             + '<path class="cara" d="M17 30.9 21.6 36.4 17 41.2 12.4 36.4z"/>';
-const OJOS = '<circle cx="14.8" cy="20.8" r=".9"/><circle cx="19.2" cy="20.8" r=".9"/>';
-const BOCA = '<path d="M15.2 24.6q1.8 1.5 3.6 0-.8 1.95-1.8 1.95t-1.8-1.95z"/>';
-
-const FIGURAS_CARTA = {
-  // El rey: corona de puntas y barba partida. La barba llega hasta antes del
-  // cuerpo, así queda papel en el medio y no se pegan.
-  K: '<svg viewBox="0 0 34 44">'
-   + '<path d="M4 16V4.5l6.6 5.2L17 2l6.4 7.7L30 4.5V16z"/>'
-   + '<circle cx="17" cy="22" r="6.9"/>'
-   + '<ellipse class="cara" cx="17" cy="21.2" rx="4.7" ry="5.3"/>'
-   + OJOS
-   + '<path d="M12.5 24.3q4.5 3.1 9 0-1.7 5.4-4.5 5.4t-4.5-5.4z"/>'
-   + CUERPO + '</svg>',
-  // La reina: diadema de tres joyas sobre una banda, y dos mechones largos.
-  // Se probó con el pelo como una sola masa y le comía el cuerpo entero.
-  Q: '<svg viewBox="0 0 34 44">'
-   + '<circle cx="17" cy="8.2" r="1.8"/><circle cx="11.6" cy="10.2" r="1.35"/><circle cx="22.4" cy="10.2" r="1.35"/>'
-   + '<path d="M9.4 16q0-4.8 7.6-4.8t7.6 4.8z"/>'
-   + '<circle cx="17" cy="22" r="7"/>'
-   + '<path d="M10.4 25.2q-1.5 5.2-1.5 9.3h3.1q0-4.2 1.1-8.3z"/>'
-   + '<path d="M23.6 25.2q1.5 5.2 1.5 9.3H22q0-4.2-1.1-8.3z"/>'
-   + '<ellipse class="cara" cx="17" cy="21.4" rx="4.7" ry="5.3"/>'
-   + OJOS + BOCA
-   + CUERPO + '</svg>',
-  // La jota: gorro blando con pluma y sin barba — es el joven de la baraja.
-  J: '<svg viewBox="0 0 34 44">'
-   + '<path d="M23.4 9 30.2 1.2l1.1 4.4z"/>'
-   + '<circle cx="17" cy="22" r="6.7"/>'
-   + '<path d="M6.9 16q0-8.2 10.1-8.2T27.1 16z"/>'
-   + '<ellipse class="cara" cx="17" cy="21.4" rx="4.8" ry="5.4"/>'
-   + OJOS + BOCA
-   + CUERPO + '</svg>',
-};
+// NOTA: se probó dibujar rey, reina y jota como figuritas en SVG. Se veía
+// como un juego de cartas de juguete, no como una mesa de casino, así que se
+// sacó. La carta seria es la sobria: el valor con su palo en la esquina y el
+// palo grande en el medio. Si algún día se quieren figuras de verdad hay que
+// traer una baraja ilustrada como imágenes; dibujadas a mano no dan el nivel.
 
 // ── El sonido de la mesa ─────────────────────────────────────────────────
 // Todo se fabrica acá con Web Audio: ni un archivo, ni una descarga. Son tres
@@ -538,11 +500,7 @@ function dibujarCarta(carta, clave){
   d.className = 'carta' + (ROJOS[palo] ? ' roja' : '') + (nueva ? ' nueva' : '');
 
   const indice = '<span class="v">' + valor + '</span><span class="p">' + simbolo + '</span>';
-  // La figura va dos veces: derecha arriba y boca abajo abajo, como en la
-  // baraja. Las demás llevan su palo en el medio, y el as más grande.
-  const centro = FIGURAS_CARTA[rango]
-    ? '<div class="fig">' + FIGURAS_CARTA[rango] + FIGURAS_CARTA[rango] + '</div>'
-    : '<div class="palo' + (rango === 'A' ? ' as' : '') + '">' + simbolo + '</div>';
+  const centro = '<div class="palo' + (rango === 'A' ? ' as' : '') + '">' + simbolo + '</div>';
 
   d.innerHTML = '<div class="idx">' + indice + '</div>'
               + centro
