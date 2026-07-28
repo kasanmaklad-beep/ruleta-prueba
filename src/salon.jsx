@@ -1,35 +1,60 @@
 // ════════════════════════════════════════════════════════════════════════
 //  VOLTIO — el salón de juegos.
-//  La pantalla donde el jugador elige a qué mesa entrar. Hoy la lista de
-//  mesas vive acá (Etapa 1); cuando exista el catálogo en el panel del
-//  dueño (Etapa 4) pasará a venir del servidor.
+//  La pantalla donde el jugador elige a qué mesa entrar.
+//
+//  QUÉ mesas hay y cuáles están abiertas lo dice el servidor (/api/games):
+//  el salón no puede inventar una mesa ni dejar entrar a una cerrada, porque
+//  el giro se rechazaría igual. Acá abajo vive solo la PRESENTACIÓN de cada
+//  una (el ícono y la frase de venta), que es lo único que el servidor no
+//  sabe; en la Etapa 4, cuando el dueño arme las mesas desde el panel, eso
+//  también pasa a venir de la base.
 //  Ver ESTRUCTURA-SALON.md para el plan completo.
 // ════════════════════════════════════════════════════════════════════════
 (() => {
   const { useState, useEffect } = React;
 
-  // Las mesas del salón. `activa: false` = se muestra apagada, "PRÓXIMAMENTE":
-  // anuncia lo que viene sin dejar entrar.
-  const MESAS = [
-    {
-      id: 'catatumbo',
-      nombre: 'CATATUMBO',
+  // Cómo se le vende cada mesa al jugador. Si mañana aparece una mesa nueva y
+  // nadie escribió su frase, igual se anuncia: el texto se arma con la ficha.
+  const PRESENTACION = {
+    catatumbo: {
       icono: '🐆⚡',
       cinta: 'MESA INSIGNIA',
       detalle: ['Ruleta americana 0/00 · 38 animales', 'Rayos con premios hasta 500x'],
-      apuestaDesde: 1,
-      activa: true,
     },
-    {
-      id: 'europea',
-      nombre: 'EUROPEA CLÁSICA',
+    americana: {
+      icono: '🎩',
+      detalle: ['Ruleta americana de toda la vida', 'Sin animales · el pleno paga 35 a 1'],
+    },
+    europea: {
       icono: '🎡',
-      cinta: 'PRÓXIMAMENTE',
       detalle: ['Ruleta europea de un solo cero', 'La favorita de los jugadores finos'],
-      apuestaDesde: null,
-      activa: false,
     },
-  ];
+    europea_animales: {
+      icono: '🐆🎡',
+      detalle: ['Europea de un solo cero · con animales', 'Rayos con premios hasta 500x'],
+    },
+  };
+
+  // La ficha del servidor, vestida para la tarjeta.
+  function paraLaTarjeta(m) {
+    const p = PRESENTACION[m.id] || {};
+    const auto = [
+      `Ruleta ${m.doble_cero ? 'americana 0/00' : 'europea, un solo cero'} · ${m.casillas} casillas`,
+      m.rayos ? 'Rayos con premios hasta 500x' : `El pleno paga ${m.pago_pleno} a 1`,
+    ];
+    return {
+      id: m.id,
+      nombre: (m.label || m.id).toUpperCase(),
+      icono: p.icono || '🎡',
+      // La cinta la manda el estado real: una mesa cerrada siempre se anuncia
+      // como lo que viene, nunca con su título de venta.
+      cinta: m.activo ? (p.cinta || 'MESA ABIERTA') : 'PRÓXIMAMENTE',
+      detalle: p.detalle || auto,
+      // La ficha más chica de la mesa. Hoy es la misma en todas.
+      apuestaDesde: m.activo ? 1 : null,
+      activa: !!m.activo,
+    };
+  }
 
   const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US');
 
@@ -85,7 +110,7 @@
     );
   }
 
-  function SalonScreen({ user, onEntrarMesa, onOpenWallet, onOpenCashier, onOpenAdmin, onLogout }) {
+  function SalonScreen({ user, mesas, onEntrarMesa, onOpenWallet, onOpenCashier, onOpenAdmin, onLogout }) {
     const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
     useEffect(() => {
       const f = () => setIsMobile(window.innerWidth < 700);
@@ -158,7 +183,17 @@
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {MESAS.map((m) => (
+            {mesas == null && (
+              <div style={{ textAlign: 'center', color: '#8a7a52', fontSize: 12, padding: '24px 0' }}>
+                Abriendo el salón…
+              </div>
+            )}
+            {mesas != null && mesas.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#8a7a52', fontSize: 12, padding: '24px 0' }}>
+                No hay mesas para mostrar. Probá de nuevo en un rato.
+              </div>
+            )}
+            {(mesas || []).map(paraLaTarjeta).map((m) => (
               <TarjetaMesa key={m.id} mesa={m} isMobile={isMobile}
                            onEntrar={() => onEntrarMesa(m.id)} />
             ))}

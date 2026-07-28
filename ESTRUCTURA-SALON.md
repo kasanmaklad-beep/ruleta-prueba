@@ -119,7 +119,12 @@ más (la primera). Acá se rehace la cuenta de los rayos para la rueda de 37.
 
 ### Etapa 4 — El catálogo en manos del dueño
 En el panel: crear/editar mesas, encenderlas y apagarlas, topes y rayos por
-mesa. El salón muestra las mesas encendidas.
+mesa.
+
+*(Al cerrar la 3c el salón ya se arma con el catálogo del servidor y el juego
+abre la mesa elegida, así que acá queda solo mover el catálogo del código a la
+base y darle al dueño la pantalla para tocarlo. La frase de venta de cada mesa
+—ícono y dos líneas— sigue en `src/salon.jsx`; también se muda en esta etapa.)*
 - **Prueba de cierre:** el dueño crea la "Americana clásica" desde el panel
   sin tocar código, y aparece en el salón del celular.
 

@@ -46,8 +46,9 @@ const HISTORIAL_MAX = 10;
 // si hay rayos y cuánto paga el pleno. Viene del servidor en /api/games, así
 // que el paño, el cilindro y el sorteo hablan siempre del mismo catálogo.
 // El id viaja además en cada giro, para separar la plata por mesa en los
-// reportes. Cuál mesa es la elige por ahora esta constante; en la Etapa 3c la
-// va a elegir el jugador en el salón.
+// reportes. Cuál mesa se juega lo elige el jugador en el salón; esta constante
+// es a dónde se entra cuando nadie eligió nada (…/juego a secas, un enlace
+// viejo, o una mesa que se cerró).
 const MESA_POR_DEFECTO = 'catatumbo';
 
 // Respaldo mientras el catálogo no llegó (o si la llamada falla): la mesa
@@ -83,10 +84,11 @@ function fichaDeMesa(m) {
   };
 }
 
-// Mesa pedida por la dirección (…/juego?mesa=europea). Es el puente para
-// probar una mesa nueva antes de que el salón sepa mandarla (Etapa 3c). Solo
-// vale para mesas ENCENDIDAS del catálogo: con una apagada se ignora y se
-// juega la de siempre, así nadie llega por un enlace a una mesa cerrada.
+// Mesa pedida por la dirección (…/juego?mesa=europea). Es lo que escribe el
+// salón al entrar a una mesa, y también sirve para compartir un enlace o
+// probar una mesa nueva a mano. Vale solo para mesas ENCENDIDAS del catálogo:
+// con una cerrada se cae a la de siempre, así nadie queda trabado en una mesa
+// donde el servidor no lo dejaría jugar.
 function mesaDelEnlace() {
   try {
     return (new URLSearchParams(window.location.search).get('mesa') || '').trim().toLowerCase();
@@ -1760,10 +1762,12 @@ function AppRoot() {
   const [user, setUser] = useState(null);
   // Límites vigentes (topes, mínimos). Vienen con /api/me.
   const [config, setConfig] = useState(null);
-  // Catálogo de mesas del salón (/api/games) y cuál se está jugando. Hoy la
-  // mesa es fija; en la Etapa 3c la elige el jugador en el salón.
+  // Catálogo de mesas del salón (/api/games) y cuál se está jugando.
+  // La mesa la elige el jugador en el salón y viaja en la dirección
+  // (…/juego?mesa=europea): así se sostiene al recargar la página, al volver
+  // de la caja y en un enlace compartido.
   const [mesas, setMesas] = useState(null);
-  const [mesaId] = useState(MESA_POR_DEFECTO);
+  const [mesaId, setMesaId] = useState(() => mesaDelEnlace() || MESA_POR_DEFECTO);
 
   const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
 
@@ -1777,7 +1781,8 @@ function AppRoot() {
   // Al entrar (raíz) cada uno cae en su lugar de trabajo: el dueño en su panel,
   // el taquillero en la taquilla y el jugador en el SALÓN (elige mesa ahí).
   // El dueño no entra a jugar, entra a administrar; para las mesas está el
-  // botón SALÓN, y /juego sigue siendo la entrada directa a Catatumbo.
+  // botón SALÓN, y /juego es la entrada directa a la mesa (la del enlace, o
+  // la de siempre si no dice ninguna).
   const pantallaPara = (u) => {
     const ruta = rutaActual();
     if (ruta === '/admin' && u.role === 'admin') return 'admin';
@@ -1822,29 +1827,51 @@ function AppRoot() {
       .catch(() => {});
   }, [user]);
 
-  // La ficha de la mesa en juego. Null = todavía no se puede dibujar (llegó una
-  // mesa que no es la insignia y el catálogo no está): mejor esperar que
-  // dibujar una rueda equivocada, porque el resultado viene como índice del
-  // orden de casillas y caería en otro número.
+  // La ficha de la mesa en juego. Null = todavía no se puede dibujar (pidieron
+  // una mesa que no es la insignia y el catálogo todavía no llegó): mejor
+  // esperar que dibujar una rueda equivocada, porque el resultado viene como
+  // índice del orden de casillas y caería en otro número.
+  //
+  // Una mesa cerrada o desconocida (enlace viejo, mesa que se apagó) no deja
+  // la pantalla trabada: se cae a la mesa de siempre, que es lo que el jugador
+  // espera cuando toca un enlace que ya no existe.
   const fichaMesa = (() => {
-    const pedida = (mesas || []).find((m) => m.id === mesaDelEnlace() && m.activo);
-    if (pedida) return fichaDeMesa(pedida);
-    const cruda = (mesas || []).find((m) => m.id === mesaId);
-    if (cruda) return fichaDeMesa(cruda);
-    return mesaId === FICHA_CATATUMBO.id ? FICHA_CATATUMBO : null;
+    const cat = mesas || [];
+    if (cat.length === 0) return mesaId === FICHA_CATATUMBO.id ? FICHA_CATATUMBO : null;
+    const elegida = cat.find((m) => m.id === mesaId && m.activo);
+    if (elegida) return fichaDeMesa(elegida);
+    const deSiempre = cat.find((m) => m.id === MESA_POR_DEFECTO);
+    return deSiempre ? fichaDeMesa(deSiempre) : FICHA_CATATUMBO;
   })();
 
-  // Refresca el usuario al volver al juego: el saldo pudo cambiar en la billetera.
-  // Va a /juego (y no a la raíz) para que al recargar la página el dueño y el
-  // taquillero se queden en la mesa en vez de rebotar a su panel.
-  const volverAlJuego = () => {
-    window.history.pushState({}, '', '/juego');
+  // Si se pidió una mesa que no se puede jugar y se cayó a la de siempre, la
+  // dirección se corrige sola: si no, quedaría diciendo una mesa y mostrando
+  // otra, y ese enlace equivocado se seguiría compartiendo.
+  const idFicha = fichaMesa && fichaMesa.id;
+  useEffect(() => {
+    if (status !== 'game' || !idFicha || idFicha === mesaId) return;
+    setMesaId(idFicha);
+    window.history.replaceState({}, '', `/juego?mesa=${encodeURIComponent(idFicha)}`);
+  }, [status, idFicha, mesaId]);
+
+  // Entrar a una mesa desde el salón. La mesa viaja en la dirección para que
+  // al recargar la página se vuelva a abrir la misma.
+  const entrarAMesa = (id) => {
+    const mesa = id || MESA_POR_DEFECTO;
+    setMesaId(mesa);
+    window.history.pushState({}, '', `/juego?mesa=${encodeURIComponent(mesa)}`);
     setStatus('game');
     window.Api.me().then((d) => {
       if (d && d.user) setUser(d.user);
       if (d && d.config) setConfig(d.config);
     }).catch(() => {});
   };
+
+  // Refresca el usuario al volver al juego: el saldo pudo cambiar en la billetera.
+  // Va a /juego (y no a la raíz) para que al recargar la página el dueño y el
+  // taquillero se queden en la mesa en vez de rebotar a su panel. Se vuelve a
+  // la MISMA mesa que se estaba jugando, no a la de siempre.
+  const volverAlJuego = () => entrarAMesa(mesaId);
 
   // Al salón siempre con el saldo fresco: se llega desde la mesa o la caja,
   // y en las dos el saldo pudo haber cambiado.
@@ -1909,7 +1936,8 @@ function AppRoot() {
   if (status === 'salon') {
     return <SalonScreen
       user={user}
-      onEntrarMesa={() => volverAlJuego()}
+      mesas={mesas}
+      onEntrarMesa={entrarAMesa}
       onOpenWallet={() => ir('/billetera', 'billetera')}
       onOpenCashier={esTaquillero ? () => ir('/taquilla', 'taquilla') : null}
       onOpenAdmin={esAdmin ? () => ir('/admin', 'admin') : null}
