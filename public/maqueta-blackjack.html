@@ -37,14 +37,14 @@
     margin:0; min-height:100vh; background:var(--fondo); color:var(--texto);
     font-family:Georgia,'Times New Roman',serif;
     display:flex; flex-direction:column; align-items:center;
-    padding:14px 12px 40px;
+    padding:10px 12px 18px;
   }
-  .marca{letter-spacing:6px; font-size:13px; color:var(--oro); font-weight:700}
-  .marca small{display:block; letter-spacing:3px; font-size:9px; color:var(--tenue); margin-top:3px}
+  .marca{letter-spacing:6px; font-size:12px; color:var(--oro); font-weight:700}
+  .marca small{display:block; letter-spacing:3px; font-size:8px; color:var(--tenue); margin-top:2px}
   .aviso{
-    max-width:520px; width:100%; margin:10px 0 4px; padding:7px 10px; border-radius:6px;
+    max-width:520px; width:100%; margin:8px 0 2px; padding:5px 10px; border-radius:6px;
     background:rgba(255,216,74,.07); border:1px solid rgba(255,216,74,.25);
-    font-size:10.5px; color:var(--tenue); line-height:1.5; text-align:center;
+    font-size:9.5px; color:var(--tenue); line-height:1.5; text-align:center;
   }
 
   /* ── La mesa ───────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@
     border:1px solid #14100a;
   }
   .paño{
-    border-radius:14px 14px 40px 40px; padding:15px 13px 18px; position:relative; overflow:hidden;
+    border-radius:14px 14px 40px 40px; padding:12px 13px 14px; position:relative; overflow:hidden;
     background:
       /* el pozo de luz que cae sobre la mesa */
       radial-gradient(ellipse 130% 70% at 50% 2%, rgba(255,255,255,.13), transparent 62%),
@@ -79,7 +79,7 @@
   /* El arco del crupier: la línea que en la mesa separa su zona de la del
      jugador, curvada como el borde de la mesa. */
   .arco{
-    height:34px; margin:10px -13px 0; pointer-events:none;
+    height:24px; margin:6px -13px 0; pointer-events:none;
     border-top:2px solid rgba(255,238,200,.32);
     border-radius:50% 50% 0 0 / 100% 100% 0 0;
     box-shadow:0 -5px 0 -3px rgba(255,216,74,.14);
@@ -88,19 +88,12 @@
      son las dos que el jugador tiene que saber antes de sentarse, y salen
      de la ficha de la mesa, no escritas a mano. */
   .letrero{
-    text-align:center; margin:-14px 0 14px; line-height:1.9;
+    text-align:center; margin:-10px 0 8px; line-height:1.75;
     color:rgba(255,236,190,.42); letter-spacing:1.6px; font-size:9px;
     text-shadow:0 1px 0 rgba(0,0,0,.5);
   }
   .letrero b{display:block; font-size:11.5px; letter-spacing:2.6px; color:rgba(255,216,74,.62); font-weight:700}
 
-  /* La apuesta, como la ficha que en la mesa queda en el círculo. */
-  .apuesta{
-    width:42px; height:42px; border-radius:50%; display:grid; place-items:center; flex:none;
-    font-size:12px; font-weight:700; color:#1a1206; font-family:Georgia,serif;
-    background:linear-gradient(160deg,#ffe98a,#c9950f); border:2px dashed rgba(0,0,0,.3);
-    box-shadow:0 3px 8px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.5);
-  }
 
   .fila-crupier{display:flex; align-items:center; gap:10px; margin-bottom:4px}
   .avatar{
@@ -128,7 +121,7 @@
      de verdad. El índice va arriba a la izquierda justamente para que se siga
      leyendo aunque la de al lado la tape; y así entran cinco cartas en el
      ancho de un teléfono sin que se corten a otro renglón. */
-  .cartas{display:flex; min-height:116px; align-items:flex-start; margin:10px 0 14px; padding-left:2px}
+  .cartas{display:flex; min-height:112px; align-items:flex-start; margin:8px 0 8px; padding-left:2px}
   .carta{
     width:76px; height:110px; border-radius:9px; flex:none; position:relative;
     margin-left:-16px;
@@ -202,25 +195,36 @@
   .ficha:active{transform:translateY(3px) scale(.96)}
   .ficha[disabled]{opacity:.3; pointer-events:none}
 
-  /* El círculo donde van las fichas, pintado en el paño. */
+  /* ── El sitio de la apuesta ────────────────────────────────────────────
+     En una mesa de verdad el círculo está PINTADO en el paño y no se va a
+     ninguna parte: las fichas se ponen ahí y se quedan ahí mientras se juega
+     la mano. Por eso acá también está siempre, debajo de las cartas, que es
+     donde está en la mesa (el jugador tiene el círculo del lado de adentro y
+     las cartas del lado del crupier). */
+  .zona-apuesta{
+    display:flex; align-items:center; justify-content:center; gap:16px; margin:0 0 6px;
+  }
   .circulo{
-    width:104px; height:104px; border-radius:50%; margin:6px auto 12px; position:relative;
-    border:2px dashed rgba(255,236,190,.28);
-    box-shadow:inset 0 0 22px rgba(0,0,0,.35);
+    width:84px; height:84px; border-radius:50%; position:relative; flex:none;
+    border:2px solid rgba(255,236,190,.22);
+    box-shadow:
+      inset 0 0 0 5px rgba(0,0,0,.14),
+      inset 0 0 0 6px rgba(255,236,190,.13),
+      inset 0 0 22px rgba(0,0,0,.4);
     display:grid; place-items:center;
   }
+  .circulo.tocable{cursor:pointer}
   .circulo .rotulo{
-    font-size:8.5px; letter-spacing:2.5px; color:rgba(255,236,190,.35); text-align:center;
+    font-size:8px; letter-spacing:2.5px; color:rgba(255,236,190,.32); text-align:center; line-height:1.9;
   }
-  /* La pila: las fichas se ven de canto, una encima de la otra. */
-  .pila{position:absolute; bottom:14px; left:50%; transform:translateX(-50%); width:50px}
-  .pila .ficha{margin-top:-42px; cursor:default; pointer-events:none}
+  /* La pila: las fichas de canto, una encima de la otra. */
+  .pila{position:absolute; bottom:16px; left:50%; transform:translateX(-50%); width:50px}
+  .pila .ficha{margin-top:-42px; cursor:inherit; pointer-events:none; width:50px; height:50px}
   .pila .ficha:first-child{margin-top:0}
-  .total-apuesta{
-    position:absolute; bottom:-4px; left:50%; transform:translateX(-50%);
-    font-size:15px; font-weight:700; color:var(--oro); white-space:nowrap;
-    text-shadow:0 2px 4px rgba(0,0,0,.8);
-  }
+
+  .monto{text-align:left; line-height:1.15}
+  .monto b{display:block; font-size:21px; color:var(--oro); font-weight:700; text-shadow:0 2px 6px rgba(0,0,0,.7)}
+  .monto small{font-size:8px; letter-spacing:2.5px; color:rgba(255,236,190,.4)}
 
   .msg{max-width:520px; width:100%; margin-top:10px; font-size:11.5px; text-align:center; min-height:16px; line-height:1.5}
   .msg.mal{color:#e57373}
@@ -236,10 +240,7 @@
 <body>
 
 <div class="marca">VOLTIO <small>MAQUETA · BLACKJACK</small></div>
-<div class="aviso">
-  Maqueta de la Etapa B1: la pantalla de verdad llega en la B3.<br>
-  Todo lo que ves lo decide el servidor — esta hoja sólo dibuja.
-</div>
+<div class="aviso">Maqueta B1 · la pantalla de verdad llega en la B3 · todo lo decide el servidor</div>
 
 <!-- ── Entrar ─────────────────────────────────────────────────────────── -->
 <form id="entrar">
@@ -389,9 +390,8 @@ function pintar(){
     caja.appendChild(fila);
 
     const pie = document.createElement('div');
-    pie.style.cssText = 'display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:-4px; margin-bottom:10px';
-    pie.innerHTML = '<span class="apuesta">' + h.apuesta + '</span>'
-      + '<span class="cuenta">' + h.total
+    pie.style.cssText = 'display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:-2px; margin-bottom:6px';
+    pie.innerHTML = '<span class="cuenta">' + h.total
         + (h.blando ? ' <span class="nota">blando</span>' : '') + '</span>'
       + (h.resultado
           ? '<span class="resultado ' + h.resultado + '">' + NOMBRE[h.resultado]
@@ -402,11 +402,13 @@ function pintar(){
   });
 
   const jugando = E.estado === 'jugando';
-  $('rotulo-jugador').textContent = jugando ? 'TU MANO'
-    : ((E.manos || []).length ? 'TU MANO · LA PRÓXIMA APUESTA' : 'TU APUESTA');
+  $('rotulo-jugador').textContent = jugando ? 'TU MANO' : 'TU APUESTA';
 
-  // Entre mano y mano, el círculo del paño con las fichas que ya pusiste.
-  if (!jugando) cont.appendChild(circuloDeApuesta());
+  // El sitio de la apuesta, SIEMPRE. Mientras se juega muestra las fichas que
+  // están en juego (y no se pueden tocar); entre mano y mano, las que estás
+  // poniendo.
+  const enJuego = (E.manos || []).reduce(function(s, h){ return s + h.apuesta; }, 0);
+  cont.appendChild(zonaDeApuesta(jugando ? enJuego : montoApuesta(), !jugando));
 
   // Los botones: los que dice el servidor, ni uno más.
   const bs = $('botones'); bs.innerHTML = '';
@@ -441,34 +443,64 @@ function pintar(){
   if (!jugando) pintarFichas();
 }
 
-// El círculo pintado en el paño, con la pila de fichas adentro.
-function circuloDeApuesta(){
+// Con qué fichas se dibuja un monto. Se usan LAS QUE EL JUGADOR PUSO siempre
+// que se pueda, para que la pila del paño sea la suya y no una inventada:
+//  · mientras arma la apuesta, son exactamente esas;
+//  · si dobló, el servidor cobra el doble → se pone al lado la misma pila otra
+//    vez, que es lo que se hace en la mesa;
+//  · y si por lo que sea no coincide, se arma con las fichas más grandes que
+//    entren, como cuando el crupier te cambia el montón por fichas grandes.
+function pilaPara(monto){
+  const suma = montoApuesta();
+  if (monto === suma && PILA.length) return PILA.slice();
+  if (suma && monto === suma * 2) return PILA.concat(PILA);
+  const fichas = [];
+  let resto = monto;
+  FICHAS.slice().sort(function(a, b){ return b.v - a.v; }).forEach(function(f){
+    while (resto >= f.v) { fichas.push(f.v); resto -= f.v; }
+  });
+  return fichas;
+}
+
+// El sitio de la apuesta: el círculo pintado en el paño con las fichas
+// adentro, y el monto al lado.
+function zonaDeApuesta(monto, editable){
+  const zona = document.createElement('div');
+  zona.className = 'zona-apuesta';
+
   const c = document.createElement('div');
-  c.className = 'circulo';
-  if (!PILA.length) {
+  c.className = 'circulo' + (editable && monto ? ' tocable' : '');
+
+  if (!monto) {
     c.innerHTML = '<div class="rotulo">PONÉ<br>TUS FICHAS</div>';
-    return c;
+    zona.appendChild(c);
+    return zona;
   }
+
   // Tocar la pila saca la última ficha puesta: es el gesto que sale solo
-  // cuando uno se pasa, y evita tener que levantar toda la apuesta y volver
-  // a armarla por una ficha de más.
-  c.style.cursor = 'pointer';
-  c.title = 'Tocá para sacar la última ficha';
-  c.onclick = function(){ if (!ocupado && PILA.length) { PILA.pop(); pintar(); } };
+  // cuando uno se pasa, y evita levantar toda la apuesta por una ficha de
+  // más. Con la mano en juego no se toca: esas fichas ya están apostadas.
+  if (editable) {
+    c.title = 'Tocá para sacar la última ficha';
+    c.onclick = function(){ if (!ocupado && PILA.length) { PILA.pop(); pintar(); } };
+  }
 
   const pila = document.createElement('div');
   pila.className = 'pila';
-  // De mayor a menor y al revés al dibujar: las grandes abajo, como se apilan
-  // de verdad. La de arriba muestra su valor; las de abajo, sólo el canto.
-  PILA.slice().sort(function(a, b){ return b - a; }).forEach(function(v, i, todas){
+  // Las grandes abajo, como se apilan de verdad. La de arriba muestra su
+  // valor; de las de abajo se ve sólo el canto.
+  pilaPara(monto).sort(function(a, b){ return b - a; }).forEach(function(v, i, todas){
     pila.appendChild(pintarUnaFicha(fichaDe(v), i === todas.length - 1 ? String(v) : ''));
   });
   c.appendChild(pila);
-  const t = document.createElement('div');
-  t.className = 'total-apuesta';
-  t.textContent = montoApuesta();
-  c.appendChild(t);
-  return c;
+  zona.appendChild(c);
+
+  const m = document.createElement('div');
+  m.className = 'monto';
+  m.innerHTML = '<b>' + monto.toLocaleString('es-VE') + '</b><small>'
+    + (editable ? 'APUESTA' : 'EN JUEGO') + '</small>';
+  zona.appendChild(m);
+  return zona;
 }
 
 // El fichero: se toca una ficha y se SUMA a la apuesta. Así se sube de 10 en
