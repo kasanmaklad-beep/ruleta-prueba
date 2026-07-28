@@ -239,26 +239,33 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     // primera columna, como en cualquier mesa europea de verdad. Todas van
     // sobre el borde que separa la columna del 0 del 1-2-3:
     //
-    //        ┌─────┬─────      y=0            ← primeros cuatro (0,1,2,3)
+    //        ┌─────┬─────      y=0
     //        │     │  3        y=½ celda      ← split 0-3
     //        │     ├─────      y=1 celda      ← trío 0-2-3
     //        │  0  │  2        y=1½ celdas    ← split 0-2
     //        │     ├─────      y=2 celdas     ← trío 0-1-2
     //        │     │  1        y=2½ celdas    ← split 0-1
-    //        └─────┴─────
+    //        └─────┴─────      y=3 celdas     ← primeros cuatro (0,1,2,3)
+    //          1st 12  ...
+    //
+    // Los primeros cuatro van en el vértice de ABAJO, del lado de la primera
+    // docena, que es donde el dueño quiere que se busquen. Es el mismo
+    // vértice del 0 con el 1, así que la apuesta es la misma; solo cambia por
+    // qué punta de la raya se entra.
     //
     // Los pagos son los de siempre por cantidad de números (split 17, calle
     // 11, cuatro 8) y en una rueda de 37 le dejan a la casa el mismo 2,7%
     // que el resto de la mesa: no son apuestas "trampa" como el top line de
     // cinco números de la americana, que paga 6 y se queda con el 7,9%.
     const cx = ZERO_W;
+    const abajoDelTodo = NUM_H * 3;
     const combos = [
-      { type: 'corner', numbers: [0, 1, 2, 3], y: 0 },              // primeros cuatro
       { type: 'split',  numbers: [0, 3],       y: NUM_H * 0.5 },
       { type: 'street', numbers: [0, 2, 3],    y: NUM_H },          // trío
       { type: 'split',  numbers: [0, 2],       y: NUM_H * 1.5 },
       { type: 'street', numbers: [0, 1, 2],    y: NUM_H * 2 },      // trío
       { type: 'split',  numbers: [0, 1],       y: NUM_H * 2.5 },
+      { type: 'corner', numbers: [0, 1, 2, 3], y: abajoDelTodo },   // primeros cuatro
     ];
     for (const c of combos) {
       const esSplit = c.type === 'split';
@@ -267,14 +274,18 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
       // apunta con el dedo.
       const w = esSplit ? 18 : 26;
       const h = esSplit ? 30 : 26;
-      // El cuatro está pegado al borde de arriba: se lo baja para que la
-      // zona (y la ficha) queden dentro del paño.
-      const arriba = c.y === 0;
+      // El cuatro está pegado al borde de abajo: la zona se corre hacia
+      // adentro para no morder la fila de las docenas, que es una apuesta
+      // grande y muy usada, y la ficha se sube para que no quede colgando
+      // fuera del paño.
+      const alBorde = c.y >= abajoDelTodo;
       hotspots.push({
         type: c.type, payload: c.numbers.join('-'),
         numbers: c.numbers,
-        x: cx - w / 2, y: arriba ? 0 : c.y - h / 2, w, h: arriba ? h / 2 + 3 : h,
-        chipX: cx, chipY: arriba ? 10 : c.y,
+        x: cx - w / 2,
+        y: alBorde ? c.y - h / 2 - 3 : c.y - h / 2,
+        w, h: alBorde ? h / 2 + 3 : h,
+        chipX: cx, chipY: alBorde ? c.y - 10 : c.y,
       });
     }
   }
