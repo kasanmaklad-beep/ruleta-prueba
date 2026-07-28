@@ -79,7 +79,11 @@
     // cada ficha (los splits y las esquinas son lo difícil de acertar).
     var be = React.useState([]);
     var bets = be[0], setBets = be[1];
-    var ganador = mesa.orden[13];
+    // Qué número "salió": sirve para mirar dónde cae el marcador en cualquier
+    // casilla, incluidos los ceros, sin depender de la suerte.
+    var ge = React.useState(String(mesa.orden[13]));
+    var ganador = ge[0], setGanador = ge[1];
+    if (mesa.orden.map(String).indexOf(ganador) === -1) ganador = String(mesa.orden[13]);
 
     return e('div', null,
       e('div', { style: { fontSize: 24, fontWeight: 900, letterSpacing: 3, color: '#ffd84a' } },
@@ -101,6 +105,17 @@
             'Limpiar fichas'),
         ])),
 
+      e('div', { style: { fontSize: 12, color: '#bba876', marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center' } },
+        'Salió el número:',
+        e('select', {
+          value: ganador,
+          onChange: function (ev) { setGanador(ev.target.value); },
+          style: { background: '#1a1410', color: '#ffd84a', border: '1px solid #8b6a20',
+                   borderRadius: 4, padding: '4px 8px', fontFamily: 'Georgia, serif' },
+        }, mesa.orden.slice().sort(function (a, b) {
+          return (a === '00' ? 0.5 : Number(a)) - (b === '00' ? 0.5 : Number(b));
+        }).map(function (n) { return e('option', { key: String(n), value: String(n) }, String(n)); }))),
+
       e('div', { style: { fontSize: 12, color: '#bba876', marginBottom: 14, letterSpacing: 1 } },
         [mesa.ruedaLabel, mesa.casillas + ' casillas',
          mesa.animales ? 'con animales' : 'sin animales',
@@ -113,7 +128,7 @@
             key: 'w-' + mesa.id,
             orden: mesa.orden,
             spinning: false,
-            resultIndex: 13,
+            resultIndex: mesa.orden.map(String).indexOf(ganador),
             lightningNumbers: ltg,
             theme: 'classic',
           })),
@@ -138,7 +153,7 @@
             theme: 'classic',
             lightningNumbers: ltg,
             rotateLabels: false,
-            winningNumber: ganador,
+            winningNumber: ganador === '00' ? '00' : Number(ganador),
           }))));
   }
 

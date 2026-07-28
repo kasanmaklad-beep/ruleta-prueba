@@ -92,10 +92,22 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
 
   // La columna de los ceros: dos casillas en la americana, una sola —del alto
   // completo— en la europea.
+  //
+  // EL 0 VA ABAJO, del lado del 1, y el 00 arriba, del lado del 3. No es un
+  // gusto: es cómo está armada la mesa americana, y de ahí salen los tríos
+  // clásicos 0-1-2 y 00-2-3, que solo existen porque cada cero toca esos
+  // números. Estuvo al revés hasta que el dueño lo vio.
+  //
+  //        ┌─────┬─────
+  //        │ 00  │  3      (fila de arriba: 3, 6, 9…)
+  //        ├─────┼─────
+  //        │  0  │  2      (fila del medio)
+  //        │     │  1      (fila de abajo: 1, 4, 7…)
+  //        └─────┴─────
   const zeroRect = () => dobleCero
-    ? { x: 0, y: 0, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 0.75 }
+    ? { x: 0, y: NUM_H * 1.5, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 2.25 }
     : { x: 0, y: 0, w: ZERO_W, h: NUM_H * 3, cx: ZERO_W / 2, cy: NUM_H * 1.5 };
-  const dzeroRect = () => ({ x: 0, y: NUM_H * 1.5, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 2.25 });
+  const dzeroRect = () => ({ x: 0, y: 0, w: ZERO_W, h: NUM_H * 1.5, cx: ZERO_W / 2, cy: NUM_H * 0.75 });
 
   // Rectángulo de cualquier casilla del paño. Devuelve null si esa casilla no
   // existe en esta mesa (el 00 en una europea).
