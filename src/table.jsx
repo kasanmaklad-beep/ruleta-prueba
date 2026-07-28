@@ -229,16 +229,19 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
   // Todas viven sobre la raya que separa la columna de ceros del 1-2-3, que
   // es donde el 00 toca al 3 y al 2, y el 0 al 2 y al 1:
   //
-  //        ┌─────┬─────      y=0            ← línea de 5 (0,00,1,2,3)
+  //        ┌─────┬─────      y=0
   //        │ 00  │  3        y=½ celda      ← split 00-3
   //        │     ├─────      y=1 celda      ← trío 00-2-3
   //        ├─────┤  2        y=1½ celdas    ← trío 0-00-2
   //        │  0  ├─────      y=2 celdas     ← trío 0-1-2
   //        │     │  1        y=2½ celdas    ← split 0-1
-  //        └─────┴─────      y=3 celdas     ← línea de 5, otra vez
+  //        └─────┴─────      y=3 celdas     ← línea de 5 (0,00,1,2,3)
+  //          1st 12  ...
   //
-  // La línea de cinco números entra por las dos puntas: es la apuesta que el
-  // jugador busca en el borde exterior, y ahí no le quita el lugar a nada.
+  // La línea de cinco va en la punta de ABAJO, del lado del 1 y de la primera
+  // docena — en el mismo lugar que los primeros cuatro de la europea, para
+  // que el jugador la busque siempre ahí. Arriba, sobre el 3, no va nada:
+  // el dueño la sacó de ahí porque no hacía falta en las dos puntas.
   // Antes ocupaba la raya ENTERA, lo que era cómodo pero dejaba afuera a los
   // tríos, que son las apuestas de verdad de esa zona.
   //
@@ -252,15 +255,12 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
   // es en todas las mesas del mundo; se ofrece porque el jugador la conoce y
   // la busca, no porque convenga.
   const CEROS_AMERICANA = [
-    { type: 'topline', numbers: [0, '00', 1, 2, 3], y: 0 },
     { type: 'split',   numbers: ['00', 3],          y: 0.5 },
     { type: 'street',  numbers: ['00', 2, 3],       y: 1 },
     { type: 'street',  numbers: [0, '00', 2],       y: 1.5 },
     { type: 'street',  numbers: [0, 1, 2],          y: 2 },
     { type: 'split',   numbers: [0, 1],             y: 2.5 },
-    // La segunda entrada de la línea de cinco es la MISMA apuesta, así que no
-    // dibuja su propia ficha: si no, una sola apuesta se vería como dos.
-    { type: 'topline', numbers: [0, '00', 1, 2, 3], y: 3, sinFicha: true },
+    { type: 'topline', numbers: [0, '00', 1, 2, 3], y: 3 },
   ];
 
   if (dobleCero) {
@@ -269,19 +269,18 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
       const esSplit = c.type === 'split';
       const w = esSplit ? 18 : 26;
       const h = esSplit ? 30 : 26;
-      // Las dos puntas están pegadas al borde: la zona y la ficha se corren
-      // hacia adentro para no colgar fuera del paño ni morder las docenas.
-      const arriba = c.y === 0;
+      // La línea de cinco está pegada al borde de abajo: la zona se corre
+      // hacia adentro para no morder la fila de las docenas, y la ficha se
+      // sube para que no quede colgando fuera del paño.
       const abajo = c.y === 3;
       const y = c.y * NUM_H;
       hotspots.push({
         type: c.type, payload: c.numbers.join('-'),
         numbers: c.numbers,
-        sinFicha: !!c.sinFicha,
         x: cx - w / 2,
-        y: arriba ? 0 : (abajo ? y - h / 2 - 3 : y - h / 2),
-        w, h: (arriba || abajo) ? h / 2 + 3 : h,
-        chipX: cx, chipY: arriba ? 10 : (abajo ? y - 10 : y),
+        y: abajo ? y - h / 2 - 3 : y - h / 2,
+        w, h: abajo ? h / 2 + 3 : h,
+        chipX: cx, chipY: abajo ? y - 10 : y,
       });
     }
   } else {
@@ -802,7 +801,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               onHover={setHover}
               total={betTotalForKey(h.type, h.payload)}
               chipPos={{ x: h.chipX, y: h.chipY }}
-              showChip={!h.sinFicha}
+              showChip
               disabled={disabled}
               rotateChip={rotateLabels}
             />

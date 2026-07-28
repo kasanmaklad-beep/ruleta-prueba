@@ -80,13 +80,15 @@ const eur = zonasDe(ctx, EUROPEA);
 
 console.log('── Americana: el borde de los ceros ──');
 const bordeAme = [
-  ['la punta de arriba: la línea de cinco', 4, 'topline 0-00-1-2-3'],
+  // Arriba, sobre el 3, no va nada: la línea de cinco vive abajo, del lado de
+  // la primera docena, igual que los primeros cuatro de la europea.
+  ['arriba del todo ya no hay línea de cinco: es la casilla del 00', 4, 'straight 00'],
   ['split 00-3', NUM_H * 0.5, 'split 00-3'],
   ['trío 00-2-3', NUM_H, 'street 00-2-3'],
   ['trío 0-00-2', NUM_H * 1.5, 'street 0-00-2'],
   ['trío 0-1-2', NUM_H * 2, 'street 0-1-2'],
   ['split 0-1', NUM_H * 2.5, 'split 0-1'],
-  ['la punta de abajo: la línea de cinco otra vez', NUM_H * 3 - 4, 'topline 0-00-1-2-3'],
+  ['la punta de abajo: la línea de cinco', NUM_H * 3 - 4, 'topline 0-00-1-2-3'],
 ];
 for (const [nombre, y, esperado] of bordeAme) check(nombre, esperado, apuestaEn(ame, ZERO_W, y));
 
