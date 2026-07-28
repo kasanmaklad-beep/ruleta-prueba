@@ -240,6 +240,17 @@ dibuja la tarjeta y manda a la pantalla correcta.
 `src/blackjack.jsx`: cartas, reparto animado, crupier, saldo en la cabecera y
 botón SALÓN, como el resto del salón. **La pantalla no baraja, no calcula y no
 decide nada** — solo dibuja lo que el servidor le manda.
+
+Decisiones de aspecto que ya salieron de mirar la maqueta y que la pantalla
+tiene que heredar:
+- **Las dos cuentas van grandes.** El total del crupier y el de la mano son lo
+  único que el jugador mira antes de cada decisión, muchas veces con el
+  teléfono a distancia de brazo. Van en 22px con su propio aro, y son lo que
+  más pesa después de las cartas. Las aclaraciones ("blando", el "+ ?" del
+  crupier con la carta tapada) van chicas y al lado, para que no compitan.
+- **Los avisos de error viven fuera de la mesa.** Si están adentro, un error
+  al entrar se escribe en una parte de la página que todavía no se muestra y
+  el jugador se queda mirando una pantalla muda.
 - **Prueba de cierre:** jugar una mano completa desde el celular, recargar la
   página en medio de la mano y que siga donde estaba.
 

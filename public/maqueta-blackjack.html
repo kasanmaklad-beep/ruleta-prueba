@@ -61,10 +61,20 @@
     border:1px solid var(--borde); display:grid; place-items:center; font-size:19px;
   }
   .quien{font-size:10px; letter-spacing:2.5px; color:var(--tenue)}
+  /* La cuenta de la mano. Es EL número de esta pantalla: el jugador lo mira
+     antes de cada decisión, muchas veces con el teléfono en la mano y a
+     distancia de brazo. Va grande, con su propio aro, y es lo que más pesa
+     visualmente después de las cartas. */
   .cuenta{
-    font-size:12px; color:var(--oro); font-weight:700;
-    background:rgba(0,0,0,.35); border-radius:20px; padding:2px 10px; display:inline-block; margin-top:2px;
+    font-size:22px; line-height:1; color:var(--oro); font-weight:700;
+    background:rgba(0,0,0,.45); border:1px solid rgba(255,216,74,.35);
+    border-radius:22px; padding:7px 16px; display:inline-block; margin-top:4px;
+    min-width:54px; text-align:center; letter-spacing:.5px;
+    text-shadow:0 0 12px rgba(255,216,74,.25);
   }
+  /* El "blando" y el "+ ?" son aclaraciones, no el número: van más chicos y
+     pegados, para que no le compitan de tamaño. */
+  .cuenta .nota{font-size:12px; font-weight:400; color:var(--tenue); letter-spacing:1px}
 
   .cartas{display:flex; gap:6px; min-height:96px; align-items:flex-start; flex-wrap:wrap; margin:8px 0 14px}
   .carta{
@@ -148,6 +158,11 @@
   <button type="submit">ENTRAR</button>
 </form>
 
+<!-- Los avisos van ACÁ, fuera de la mesa: si vivieran adentro, un error al
+     entrar (clave mal, mesa cerrada) se escribiría en una parte de la página
+     que todavía está oculta y el usuario no vería nada. -->
+<div class="msg" id="msg"></div>
+
 <!-- ── La mesa ────────────────────────────────────────────────────────── -->
 <div id="juego" class="oculto" style="width:100%; display:flex; flex-direction:column; align-items:center">
 
@@ -173,7 +188,6 @@
   </div>
 
   <div class="fichas" id="fichas"></div>
-  <div class="msg" id="msg"></div>
 </div>
 
 <script>
@@ -238,8 +252,8 @@ function pintar(){
   const cc = $('cartas-crupier'); cc.innerHTML = '';
   const cartasC = (E.crupier && E.crupier.cartas) || [];
   cartasC.forEach(function(c, i){ cc.appendChild(dibujarCarta(c, 'c'+i)); });
-  $('cuenta-crupier').textContent = E.crupier
-    ? (E.crupier.total + (E.crupier.parcial ? ' + ?' : ''))
+  $('cuenta-crupier').innerHTML = E.crupier
+    ? (E.crupier.total + (E.crupier.parcial ? ' <span class="nota">+ ?</span>' : ''))
     : '—';
 
   // Las manos.
@@ -255,9 +269,10 @@ function pintar(){
     caja.appendChild(fila);
 
     const pie = document.createElement('div');
-    pie.style.cssText = 'display:flex; gap:10px; align-items:baseline; margin-top:-8px; margin-bottom:8px';
-    pie.innerHTML = '<span class="cuenta">' + h.total + (h.blando ? ' blando' : '') + '</span>'
-      + '<span style="font-size:10.5px; color:var(--tenue)">apuesta ' + h.apuesta + '</span>'
+    pie.style.cssText = 'display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:-4px; margin-bottom:10px';
+    pie.innerHTML = '<span class="cuenta">' + h.total
+        + (h.blando ? ' <span class="nota">blando</span>' : '') + '</span>'
+      + '<span style="font-size:11px; color:var(--tenue)">apuesta ' + h.apuesta + '</span>'
       + (h.resultado
           ? '<span class="resultado ' + h.resultado + '">' + NOMBRE[h.resultado]
             + (h.pago ? ' · +' + h.pago : '') + '</span>'
