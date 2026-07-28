@@ -143,9 +143,24 @@
   }
   .carta:first-child{margin-left:0}
   .carta.roja{color:var(--rojo)}
-  .carta .r{position:absolute; font-size:16px; font-weight:700; line-height:1; left:7px; top:6px}
-  .carta .r2{left:auto; right:7px; top:auto; bottom:6px; transform:rotate(180deg)}
+  /* El índice de la esquina: el valor y abajo su palo, como en una baraja de
+     verdad. Va arriba a la izquierda y repetido al revés abajo a la derecha,
+     para que la carta se lea de las dos maneras y también cuando la de al
+     lado la tapa. */
+  .carta .idx{position:absolute; left:6px; top:5px; line-height:1; text-align:center}
+  .carta .idx.abajo{left:auto; right:6px; top:auto; bottom:5px; transform:rotate(180deg)}
+  .carta .idx .v{font-size:15px; font-weight:700; display:block}
+  .carta .idx .p{font-size:11px; display:block; margin-top:1px}
   .carta .palo{position:absolute; inset:0; display:grid; place-items:center; font-size:38px}
+  .carta .palo.as{font-size:52px}
+  /* Las figuras. Como en la baraja: la misma media figura arriba y repetida
+     boca abajo, de modo que la carta no tiene derecho ni revés. */
+  .carta .fig{position:absolute; left:15px; right:15px; top:5px; bottom:5px; display:flex; flex-direction:column}
+  .carta .fig svg{width:100%; height:50%; fill:currentColor; display:block}
+  .carta .fig svg:last-child{transform:rotate(180deg)}
+  /* La cara va del color del papel, recortada sobre la silueta: es lo que la
+     hace una cara y no una mancha. */
+  .carta .fig .cara{fill:#f6f2e6}
   .carta.tapada{
     background:
       repeating-linear-gradient(45deg,#7a1f1f 0 6px,#5e1616 6px 12px);
@@ -352,6 +367,50 @@ const $ = function(id){ return document.getElementById(id); };
 const PALOS = { S:'♠', H:'♥', D:'♦', C:'♣' };
 const ROJOS = { H:1, D:1 };
 
+// ── Las figuras ──────────────────────────────────────────────────────────
+// Rey, reina y jota dibujados a mano en SVG: nada que descargar, y como
+// heredan el color de la carta salen negros o rojos solos, según el palo.
+// La cara va del color del papel recortada sobre la silueta — eso es lo que
+// la hace una cara y no una mancha.
+// El cuerpo lleva el escote en rombo del color del papel: sin él la cabeza y
+// los hombros se funden en una sola mancha y no se entiende qué se está
+// mirando. Es el mismo truco de las barajas de toda la vida.
+const CUERPO = '<path d="M2.5 44v-8.5q4.5-3.6 14.5-4.6 10 1 14.5 4.6V44z"/>'
+             + '<path class="cara" d="M17 30.9 21.6 36.4 17 41.2 12.4 36.4z"/>';
+const OJOS = '<circle cx="14.8" cy="20.8" r=".9"/><circle cx="19.2" cy="20.8" r=".9"/>';
+const BOCA = '<path d="M15.2 24.6q1.8 1.5 3.6 0-.8 1.95-1.8 1.95t-1.8-1.95z"/>';
+
+const FIGURAS_CARTA = {
+  // El rey: corona de puntas y barba partida. La barba llega hasta antes del
+  // cuerpo, así queda papel en el medio y no se pegan.
+  K: '<svg viewBox="0 0 34 44">'
+   + '<path d="M4 16V4.5l6.6 5.2L17 2l6.4 7.7L30 4.5V16z"/>'
+   + '<circle cx="17" cy="22" r="6.9"/>'
+   + '<ellipse class="cara" cx="17" cy="21.2" rx="4.7" ry="5.3"/>'
+   + OJOS
+   + '<path d="M12.5 24.3q4.5 3.1 9 0-1.7 5.4-4.5 5.4t-4.5-5.4z"/>'
+   + CUERPO + '</svg>',
+  // La reina: diadema de tres joyas sobre una banda, y dos mechones largos.
+  // Se probó con el pelo como una sola masa y le comía el cuerpo entero.
+  Q: '<svg viewBox="0 0 34 44">'
+   + '<circle cx="17" cy="8.2" r="1.8"/><circle cx="11.6" cy="10.2" r="1.35"/><circle cx="22.4" cy="10.2" r="1.35"/>'
+   + '<path d="M9.4 16q0-4.8 7.6-4.8t7.6 4.8z"/>'
+   + '<circle cx="17" cy="22" r="7"/>'
+   + '<path d="M10.4 25.2q-1.5 5.2-1.5 9.3h3.1q0-4.2 1.1-8.3z"/>'
+   + '<path d="M23.6 25.2q1.5 5.2 1.5 9.3H22q0-4.2-1.1-8.3z"/>'
+   + '<ellipse class="cara" cx="17" cy="21.4" rx="4.7" ry="5.3"/>'
+   + OJOS + BOCA
+   + CUERPO + '</svg>',
+  // La jota: gorro blando con pluma y sin barba — es el joven de la baraja.
+  J: '<svg viewBox="0 0 34 44">'
+   + '<path d="M23.4 9 30.2 1.2l1.1 4.4z"/>'
+   + '<circle cx="17" cy="22" r="6.7"/>'
+   + '<path d="M6.9 16q0-8.2 10.1-8.2T27.1 16z"/>'
+   + '<ellipse class="cara" cx="17" cy="21.4" rx="4.8" ry="5.4"/>'
+   + OJOS + BOCA
+   + CUERPO + '</svg>',
+};
+
 // ── El sonido de la mesa ─────────────────────────────────────────────────
 // Todo se fabrica acá con Web Audio: ni un archivo, ni una descarga. Son tres
 // ruidos y ninguno dura más de un cuarto de segundo — en una mesa lo que se
@@ -474,11 +533,20 @@ function dibujarCarta(carta, clave){
     return d;
   }
   const rango = String(carta)[0], palo = String(carta)[1];
-  const cara = rango === 'T' ? '10' : rango;
+  const valor = rango === 'T' ? '10' : rango;
+  const simbolo = PALOS[palo];
   d.className = 'carta' + (ROJOS[palo] ? ' roja' : '') + (nueva ? ' nueva' : '');
-  d.innerHTML = '<div class="r">' + cara + '</div>'
-              + '<div class="palo">' + PALOS[palo] + '</div>'
-              + '<div class="r r2">' + cara + '</div>';
+
+  const indice = '<span class="v">' + valor + '</span><span class="p">' + simbolo + '</span>';
+  // La figura va dos veces: derecha arriba y boca abajo abajo, como en la
+  // baraja. Las demás llevan su palo en el medio, y el as más grande.
+  const centro = FIGURAS_CARTA[rango]
+    ? '<div class="fig">' + FIGURAS_CARTA[rango] + FIGURAS_CARTA[rango] + '</div>'
+    : '<div class="palo' + (rango === 'A' ? ' as' : '') + '">' + simbolo + '</div>';
+
+  d.innerHTML = '<div class="idx">' + indice + '</div>'
+              + centro
+              + '<div class="idx abajo">' + indice + '</div>';
   return d;
 }
 
