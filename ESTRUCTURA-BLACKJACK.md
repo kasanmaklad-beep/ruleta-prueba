@@ -159,6 +159,13 @@ la apuesta inicial. En el MVP (sin dividir) el techo es 2x la apuesta.
 - Acciones: **pedir**, **plantarse**, **doblar** (solo con 2 cartas).
 - **Dividir** llega en la Etapa B4. Un solo par en las dos cartas iniciales, sin
   volver a dividir. Ases divididos: una carta por mano y se planta solo.
+- **Se divide POR VALOR, no por rango** (decidido el 28/07/2026). O sea: 10 con
+  K se puede dividir, igual que J con Q o K con K — alcanza con que las dos
+  cartas valgan lo mismo. Es lo que hace la mayoría de los casinos, y es lo que
+  le conviene a la casa: dividir un 20 es la peor jugada del blackjack (el 20
+  gana solo siete de cada diez veces, y partirlo deja dos manos que arrancan en
+  10). Prohibirlo sería cuidarle la plata al jugador y encima tener que
+  explicar por qué esta mesa no deja hacer algo que en cualquier otra sí.
 - Empate: se devuelve la apuesta.
 - **Sin seguro y sin rendirse.** El seguro es una apuesta que le saca al jugador
   el 7% cada vez que la toma; suma código y mala fama, y no la vale.
@@ -237,8 +244,20 @@ decide nada** — solo dibuja lo que el servidor le manda.
   página en medio de la mano y que siga donde estaba.
 
 ### Etapa B4 — Dividir
-Segunda mano, ases con una sola carta, sin volver a dividir.
-- **Prueba de cierre:** la batería, ampliada con las manos divididas.
+Segunda mano, ases con una sola carta, sin volver a dividir. **Por valor:** dos
+cartas que valgan lo mismo, aunque no sean la misma carta (ver sección 5).
+
+Ojo con dos cosas al programarla:
+- Una mano dividida **nunca es un natural**: 21 con dos cartas después de
+  dividir paga 1 a 1, no 3 a 2. El motor ya lo contempla (`esNatural` recibe si
+  la ronda está dividida), pero es el error clásico de esta etapa.
+- Doblar sobre una mano dividida lleva la exposición de la ronda a cuatro veces
+  la apuesta. El máximo de la mesa hay que leerlo sobre eso, no sobre la
+  apuesta inicial.
+- **Prueba de cierre:** la batería, ampliada con las manos divididas — que el
+  pago de cada una de las dos manos se verifique por separado, que el 21 de una
+  mano dividida NO pague 3 a 2, y que los ases divididos reciban exactamente
+  una carta.
 
 ### Etapa B5 — Abrir la mesa
 La batería completa, después unos días con la cuenta `prueba` en producción, y
