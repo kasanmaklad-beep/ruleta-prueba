@@ -21,6 +21,10 @@ import {
 } from './games.js';
 
 import {
+  bjRonda, bjApostar, bjPedir, bjPlantarse, bjDoblar,
+} from './blackjack.js';
+
+import {
   register, login, me, updateProfile, changePassword,
   adminUsers, adminSetRole, adminSetStatus, adminResetPassword,
   adminDeposit, adminAdjust, adminGetSettings, adminPutSettings,
@@ -89,6 +93,14 @@ async function handleApi(request, env, url) {
   // cómo armarse. No expone nada sensible, pero pide sesión igual.
   if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
   if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
+
+  // ── Blackjack (Etapa B1) ──
+  // Mesa aparte, motor aparte: no comparte una línea con el giro de la ruleta.
+  if (method === 'GET'  && path === '/api/bj/ronda')      return bjRonda(request, env, url);
+  if (method === 'POST' && path === '/api/bj/apostar')    return bjApostar(request, env);
+  if (method === 'POST' && path === '/api/bj/pedir')      return bjPedir(request, env);
+  if (method === 'POST' && path === '/api/bj/plantarse')  return bjPlantarse(request, env);
+  if (method === 'POST' && path === '/api/bj/doblar')     return bjDoblar(request, env);
 
   // ── Billetera del jugador ──
   if (method === 'GET'  && path === '/api/wallet/info')     return walletInfo(request, env);
