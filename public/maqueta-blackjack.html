@@ -179,13 +179,48 @@
     margin-top:12px; font-size:11px; color:var(--tenue); letter-spacing:1px;
   }
   .saldo{color:var(--oro); font-size:15px; font-weight:700; letter-spacing:0}
-  .fichas{display:flex; gap:6px; justify-content:center; margin-top:12px; flex-wrap:wrap}
+  /* ── Las fichas ────────────────────────────────────────────────────────
+     Cada valor tiene SU color, como en cualquier casino: el jugador aprende
+     a leer la apuesta de un vistazo, sin contar números. Se respeta la
+     convención internacional donde existe (negra 100, violeta 500), porque
+     el que ya jugó en otro lado la reconoce sin que nadie se la explique.
+     El dibujo es el clásico: cuerpo de color con las muescas blancas del
+     canto y la cara más clara en el medio. */
+  .fichas{display:flex; gap:9px; justify-content:center; margin-top:14px; flex-wrap:wrap}
   .ficha{
-    width:44px; height:44px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
-    font-size:12px; font-weight:700; color:#1a1206; font-family:Georgia,serif;
-    background:linear-gradient(160deg,#ffe98a,#c9950f); border:2px dashed rgba(0,0,0,.35);
+    width:50px; height:50px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
+    font-size:13px; font-weight:700; font-family:Georgia,serif; flex:none;
+    color:var(--texto-ficha); user-select:none;
+    background:
+      radial-gradient(circle at 50% 50%, var(--cara) 0 55%, transparent 55%),
+      repeating-conic-gradient(from 9deg, var(--muesca) 0 13deg, var(--cuerpo) 13deg 32deg);
+    border:1px solid rgba(0,0,0,.5);
+    box-shadow:0 3px 7px rgba(0,0,0,.55), inset 0 0 0 1px rgba(255,255,255,.18);
+    text-shadow:0 1px 1px rgba(0,0,0,.35);
+    transition:transform .08s;
   }
-  .ficha.elegida{outline:2px solid var(--oro); outline-offset:2px}
+  .ficha:active{transform:translateY(3px) scale(.96)}
+  .ficha[disabled]{opacity:.3; pointer-events:none}
+
+  /* El círculo donde van las fichas, pintado en el paño. */
+  .circulo{
+    width:104px; height:104px; border-radius:50%; margin:6px auto 12px; position:relative;
+    border:2px dashed rgba(255,236,190,.28);
+    box-shadow:inset 0 0 22px rgba(0,0,0,.35);
+    display:grid; place-items:center;
+  }
+  .circulo .rotulo{
+    font-size:8.5px; letter-spacing:2.5px; color:rgba(255,236,190,.35); text-align:center;
+  }
+  /* La pila: las fichas se ven de canto, una encima de la otra. */
+  .pila{position:absolute; bottom:14px; left:50%; transform:translateX(-50%); width:50px}
+  .pila .ficha{margin-top:-42px; cursor:default; pointer-events:none}
+  .pila .ficha:first-child{margin-top:0}
+  .total-apuesta{
+    position:absolute; bottom:-4px; left:50%; transform:translateX(-50%);
+    font-size:15px; font-weight:700; color:var(--oro); white-space:nowrap;
+    text-shadow:0 2px 4px rgba(0,0,0,.8);
+  }
 
   .msg{max-width:520px; width:100%; margin-top:10px; font-size:11.5px; text-align:center; min-height:16px; line-height:1.5}
   .msg.mal{color:#e57373}
@@ -240,7 +275,7 @@
     <div class="arco"></div>
     <div class="letrero" id="letrero"></div>
 
-    <div class="quien" style="margin-bottom:2px">TU MANO</div>
+    <div class="quien" style="margin-bottom:2px" id="rotulo-jugador">TU MANO</div>
     <div id="manos"></div>
 
     <div class="botones" id="botones"></div>
@@ -268,8 +303,33 @@ async function api(ruta, metodo, cuerpo){
 // E es lo ÚLTIMO que dijo el servidor. Es la única fuente de verdad: acá no
 // se calcula ni se recuerda nada del juego.
 let E = null;
-let APUESTA = 10;
+// La apuesta no es un número que se elige: es una PILA de fichas que se van
+// poniendo, como en la mesa. Sumando 10 y 20 se llega a cualquier monto, y el
+// jugador ve de qué está hecha su apuesta.
+let PILA = [];
+const montoApuesta = function(){ return PILA.reduce(function(s, v){ return s + v; }, 0); };
 let ocupado = false;
+
+// Cada valor, su color. Donde existe convención internacional se respeta
+// (negra 100, violeta 500): el que ya jugó en otro lado la reconoce solo.
+const FICHAS = [
+  { v:10,  cuerpo:'#cfc9b6', muesca:'#ffffff', cara:'#efebdd', texto:'#2b2b2b' }, // hueso
+  { v:20,  cuerpo:'#a82126', muesca:'#ffffff', cara:'#cc3b39', texto:'#fff'    }, // roja
+  { v:50,  cuerpo:'#15693f', muesca:'#ffffff', cara:'#238f58', texto:'#fff'    }, // verde
+  { v:100, cuerpo:'#141414', muesca:'#ffffff', cara:'#2f2f2f', texto:'#fff'    }, // negra
+  { v:500, cuerpo:'#4c2578', muesca:'#ffffff', cara:'#6c3aa3', texto:'#fff'    }, // violeta
+];
+const fichaDe = function(v){
+  return FICHAS.find(function(f){ return f.v === v; }) || FICHAS[0];
+};
+function pintarUnaFicha(f, texto){
+  const d = document.createElement('div');
+  d.className = 'ficha';
+  d.style.cssText = '--cuerpo:' + f.cuerpo + '; --muesca:' + f.muesca
+    + '; --cara:' + f.cara + '; --texto-ficha:' + f.texto;
+  d.textContent = texto != null ? texto : f.v;
+  return d;
+}
 // Qué cartas ya se dibujaron, para animar sólo las que llegan nuevas.
 let mostradas = new Set();
 
@@ -341,9 +401,16 @@ function pintar(){
     cont.appendChild(caja);
   });
 
+  const jugando = E.estado === 'jugando';
+  $('rotulo-jugador').textContent = jugando ? 'TU MANO'
+    : ((E.manos || []).length ? 'TU MANO · LA PRÓXIMA APUESTA' : 'TU APUESTA');
+
+  // Entre mano y mano, el círculo del paño con las fichas que ya pusiste.
+  if (!jugando) cont.appendChild(circuloDeApuesta());
+
   // Los botones: los que dice el servidor, ni uno más.
   const bs = $('botones'); bs.innerHTML = '';
-  if (E.estado === 'jugando') {
+  if (jugando) {
     (E.acciones || []).forEach(function(a){
       const b = document.createElement('button');
       b.textContent = { pedir:'PEDIR', plantarse:'PLANTARME', doblar:'DOBLAR', dividir:'DIVIDIR' }[a] || a.toUpperCase();
@@ -353,29 +420,75 @@ function pintar(){
       bs.appendChild(b);
     });
   } else {
+    const min = (E.mesa && E.mesa.apuesta_min) || 10;
+    const monto = montoApuesta();
     const b = document.createElement('button');
-    b.textContent = 'APOSTAR ' + APUESTA;
-    b.disabled = ocupado;
+    b.textContent = monto ? ('APOSTAR ' + monto) : ('PONÉ AL MENOS ' + min);
+    b.disabled = ocupado || monto < min;
     b.onclick = apostar;
     bs.appendChild(b);
+    if (PILA.length) {
+      const l = document.createElement('button');
+      l.className = 'gris'; l.textContent = 'LEVANTAR';
+      l.disabled = ocupado;
+      l.onclick = function(){ PILA = []; pintarFichas(); pintar(); };
+      bs.appendChild(l);
+    }
   }
 
-  // Las fichas sólo entre mano y mano.
-  $('fichas').style.display = E.estado === 'jugando' ? 'none' : 'flex';
+  // El fichero sólo entre mano y mano.
+  $('fichas').style.display = jugando ? 'none' : 'flex';
+  if (!jugando) pintarFichas();
 }
 
+// El círculo pintado en el paño, con la pila de fichas adentro.
+function circuloDeApuesta(){
+  const c = document.createElement('div');
+  c.className = 'circulo';
+  if (!PILA.length) {
+    c.innerHTML = '<div class="rotulo">PONÉ<br>TUS FICHAS</div>';
+    return c;
+  }
+  // Tocar la pila saca la última ficha puesta: es el gesto que sale solo
+  // cuando uno se pasa, y evita tener que levantar toda la apuesta y volver
+  // a armarla por una ficha de más.
+  c.style.cursor = 'pointer';
+  c.title = 'Tocá para sacar la última ficha';
+  c.onclick = function(){ if (!ocupado && PILA.length) { PILA.pop(); pintar(); } };
+
+  const pila = document.createElement('div');
+  pila.className = 'pila';
+  // De mayor a menor y al revés al dibujar: las grandes abajo, como se apilan
+  // de verdad. La de arriba muestra su valor; las de abajo, sólo el canto.
+  PILA.slice().sort(function(a, b){ return b - a; }).forEach(function(v, i, todas){
+    pila.appendChild(pintarUnaFicha(fichaDe(v), i === todas.length - 1 ? String(v) : ''));
+  });
+  c.appendChild(pila);
+  const t = document.createElement('div');
+  t.className = 'total-apuesta';
+  t.textContent = montoApuesta();
+  c.appendChild(t);
+  return c;
+}
+
+// El fichero: se toca una ficha y se SUMA a la apuesta. Así se sube de 10 en
+// 10, de 20 en 20, o como se quiera.
 function pintarFichas(){
   const f = $('fichas'); f.innerHTML = '';
-  const min = (E && E.mesa && E.mesa.apuesta_min) || 10;
   const max = (E && E.mesa && E.mesa.apuesta_max) || 500;
-  [min, min*2, min*5, min*10, max].filter(function(v, i, a){ return v <= max && a.indexOf(v) === i; })
-    .forEach(function(v){
-      const d = document.createElement('div');
-      d.className = 'ficha' + (v === APUESTA ? ' elegida' : '');
-      d.textContent = v;
-      d.onclick = function(){ APUESTA = v; pintarFichas(); pintar(); };
-      f.appendChild(d);
-    });
+  FICHAS.filter(function(x){ return x.v <= max; }).forEach(function(x){
+    const d = pintarUnaFicha(x);
+    // Si esta ficha ya no entra en el máximo de la mesa, se apaga en vez de
+    // dejar que la toque y le salte un error.
+    if (montoApuesta() + x.v > max) d.setAttribute('disabled', '');
+    d.onclick = function(){
+      if (montoApuesta() + x.v > max) return;
+      PILA.push(x.v);
+      decir('');
+      pintar();
+    };
+    f.appendChild(d);
+  });
 }
 
 // ── Jugadas ──────────────────────────────────────────────────────────────
@@ -394,7 +507,7 @@ async function jugar(accion){
 async function apostar(){
   if (ocupado) return;
   ocupado = true; decir('');
-  const r = await api('/api/bj/apostar', 'POST', { mesa: 'blackjack', apuesta: APUESTA });
+  const r = await api('/api/bj/apostar', 'POST', { mesa: 'blackjack', apuesta: montoApuesta() });
   ocupado = false;
   if (!r.ronda) { decir(r.error || 'No se pudo abrir la mano', true); pintar(); return; }
   mostradas = new Set();   // mano nueva: todas las cartas se animan
@@ -434,9 +547,12 @@ $('entrar').onsubmit = async function(ev){
     + '<br>APUESTAS DE ' + est.mesa.apuesta_min + ' A ' + est.mesa.apuesta_max;
 
   E = est;
-  APUESTA = est.mesa.apuesta_min || 10;
+  // El círculo arranca vacío, como en la mesa: las fichas las pone el jugador.
+  // Después de cada mano la pila queda como estaba, así repetir la apuesta es
+  // apretar un botón.
+  PILA = [];
   mostradas = new Set();
-  pintarFichas(); pintar();
+  pintar();
 };
 </script>
 </body>
