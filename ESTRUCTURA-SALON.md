@@ -135,6 +135,22 @@ rayos si lleva, y el reporte separando bien la plata de cada mesa.
 - **Prueba de cierre:** por cada mesa, la batería de giros de verificación y
   unos días de prueba con la cuenta `prueba`.
 
+**La batería ya existe y sirve para cualquier mesa**, incluidas las que el
+dueño arme desde el panel:
+
+```bash
+node pruebas/verificar-mesa.mjs <id-de-la-mesa> --api=http://localhost:8795
+```
+
+Abre la mesa, comprueba la rueda, los pagos giro por giro (con los rayos
+apagados, comparando cada premio con el que corresponde), los topes, lo que
+no va en esa mesa (el 00 en una europea), los rayos y el reporte por mesa; y
+la deja como estaba, aunque algo falle. Termina con un veredicto: APTA o no.
+
+Al 28/07/2026 las cuatro mesas pasaron la batería en local. Falta la parte que
+no se automatiza: los días de juego real con la cuenta `prueba` en producción,
+mesa por mesa, antes de dejarla abierta para todos.
+
 ### Publicación
 Igual que la vez pasada: respaldo primero, ensayo de las migraciones sobre la
 copia, y recién después producción. El salón puede salir a producción desde la
