@@ -87,14 +87,13 @@
     text-shadow:0 1px 0 rgba(255,255,255,.07), 0 -1px 1px rgba(0,0,0,.35);
   }
 
-  /* El arco del crupier: la línea que en la mesa separa su zona de la del
-     jugador. Curva hacia ABAJO porque el crupier está abajo — el arco
-     siempre abraza el lado del crupier. */
+  /* El arco que separa la zona del crupier de la del jugador. Curva hacia
+     ARRIBA, abrazando el lado del jugador (que en esta mesa está arriba). */
   .arco{
-    height:19px; margin:0 -13px 3px; pointer-events:none;
-    border-bottom:2px solid rgba(255,238,200,.32);
-    border-radius:0 0 50% 50% / 0 0 100% 100%;
-    box-shadow:0 5px 0 -3px rgba(255,216,74,.14);
+    height:19px; margin:3px -13px 0; pointer-events:none;
+    border-top:2px solid rgba(255,238,200,.32);
+    border-radius:50% 50% 0 0 / 100% 100% 0 0;
+    box-shadow:0 -5px 0 -3px rgba(255,216,74,.14);
   }
   /* La leyenda impresa en el paño: las reglas de la casa. No es adorno —
      son las dos que el jugador tiene que saber antes de sentarse, y salen
