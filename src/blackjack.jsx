@@ -730,11 +730,20 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
                       onClick={onOpenWallet}>CAJA</button>
             )}
           </span>
-          <span>
-            <span className={'bj-sonido' + (mudo ? ' bj-mudo' : '')}
-                  onClick={() => { setMudo(Sonido.alternar()); }}
-                  title="Sonido">{mudo ? '🔇' : '🔊'}</span>
-            {' '}saldo <span className="bj-saldo">{Number(saldo).toLocaleString('es-VE')}</span>
+          {/* El usuario a la vista: en esta mesa se apuesta plata, y el jugador
+              tiene que poder ver con qué cuenta está sin salir a buscarlo. */}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {user && user.username && (
+              <span style={{ fontSize: 10, color: '#bba876', letterSpacing: 1 }}>
+                {user.username}
+              </span>
+            )}
+            <span>
+              <span className={'bj-sonido' + (mudo ? ' bj-mudo' : '')}
+                    onClick={() => { setMudo(Sonido.alternar()); }}
+                    title="Sonido">{mudo ? '🔇' : '🔊'}</span>
+              {' '}saldo <span className="bj-saldo">{Number(saldo).toLocaleString('es-VE')}</span>
+            </span>
           </span>
         </div>
 

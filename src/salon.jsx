@@ -46,6 +46,14 @@
 
   const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US');
 
+  // Cómo se llama el jugador: nombre y apellido si los cargó, y si no, su
+  // usuario. Nunca queda vacío el saludo.
+  function nombreDe(user) {
+    if (!user) return '';
+    const partes = [user.first_name, user.last_name].filter(Boolean).join(' ').trim();
+    return partes || user.username || '';
+  }
+
   // La tarjeta sabe dibujarse apagada, aunque hoy el salón no le mande mesas
   // cerradas: si algún día el dueño quiere anunciar una que viene, alcanza con
   // dejarla pasar en el filtro de arriba.
@@ -172,10 +180,20 @@
 
         {/* Las mesas */}
         <div style={{ flex: 1, width: '100%', maxWidth: 520, margin: '0 auto', padding: '18px 16px' }}>
+          {/* El saludo lleva el NOMBRE Y APELLIDO, y abajo el usuario con el
+              que se entró. Dos razones: en una casa hay varios que se llaman
+              igual, y sobre todo el jugador tiene que poder ver de un vistazo
+              con qué cuenta está — el saldo que ve es de esa cuenta y no de
+              otra. Antes el salón no lo decía en ninguna parte. */}
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: '#999', letterSpacing: 2 }}>
-              BIENVENIDO{user && user.first_name ? `, ${user.first_name.toUpperCase()}` : (user ? `, ${user.username.toUpperCase()}` : '')}
+              BIENVENIDO{nombreDe(user) ? `, ${nombreDe(user).toUpperCase()}` : ''}
             </div>
+            {user && user.username && (
+              <div style={{ fontSize: 10, color: '#b88a28', letterSpacing: 1.5, marginTop: 3 }}>
+                entraste como <b style={{ color: '#e8d9a0' }}>{user.username}</b>
+              </div>
+            )}
             <div style={{ fontSize: 15, color: '#e8d9a0', letterSpacing: 3, marginTop: 4 }}>
               — ELEGÍ TU MESA —
             </div>
