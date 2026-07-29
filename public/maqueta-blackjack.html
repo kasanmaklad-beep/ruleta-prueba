@@ -241,11 +241,16 @@
      la mano. Por eso acá también está siempre, debajo de las cartas, que es
      donde está en la mesa (el jugador tiene el círculo del lado de adentro y
      las cartas del lado del crupier). */
+  /* Los tres puestos de la mesa. Hoy sólo se juega el del medio: los de los
+     costados están dibujados en el paño y esperan. */
   .zona-apuesta{
-    display:flex; align-items:center; justify-content:center; gap:16px; margin:0 0 6px;
+    display:flex; align-items:flex-start; justify-content:center; gap:11px; margin:0 0 4px;
   }
+  .puesto{display:flex; flex-direction:column; align-items:center; gap:2px}
+  .puesto.libre{opacity:.4}
+  .puesto.libre .circulo{width:66px; height:66px; margin-top:5px; border-style:dashed}
   .circulo{
-    width:84px; height:84px; border-radius:50%; position:relative; flex:none;
+    width:80px; height:80px; border-radius:50%; position:relative; flex:none;
     border:2px solid rgba(255,236,190,.22);
     box-shadow:
       inset 0 0 0 5px rgba(0,0,0,.14),
@@ -262,9 +267,9 @@
   .pila .ficha{margin-top:-42px; cursor:inherit; pointer-events:none; width:50px; height:50px}
   .pila .ficha:first-child{margin-top:0}
 
-  .monto{text-align:left; line-height:1.15}
-  .monto b{display:block; font-size:21px; color:var(--oro); font-weight:700; text-shadow:0 2px 6px rgba(0,0,0,.7)}
-  .monto small{font-size:8px; letter-spacing:2.5px; color:rgba(255,236,190,.4)}
+  .monto{text-align:center; line-height:1.1}
+  .monto b{display:block; font-size:19px; color:var(--oro); font-weight:700; text-shadow:0 2px 6px rgba(0,0,0,.7)}
+  .monto small{font-size:7.5px; letter-spacing:2px; color:rgba(255,236,190,.4)}
 
   .msg{max-width:520px; width:100%; margin-top:10px; font-size:11.5px; text-align:center; min-height:16px; line-height:1.5}
   .msg.mal{color:#e57373}
@@ -638,19 +643,38 @@ function pilaPara(monto){
   return fichas;
 }
 
-// El sitio de la apuesta: el círculo pintado en el paño con las fichas
-// adentro, y el monto al lado.
+// Los tres puestos de la mesa, pintados en el paño. Hoy se juega SÓLO el del
+// medio: el servidor lleva una mano por ronda (la segunda llega con dividir,
+// en la Etapa B4). Los de los costados están dibujados y esperan — si algún
+// día el dueño quiere que se puedan jugar las tres, eso se decide y se
+// construye del lado del servidor, no acá.
 function zonaDeApuesta(monto, editable){
   const zona = document.createElement('div');
   zona.className = 'zona-apuesta';
+  zona.appendChild(puestoLibre());
+  zona.appendChild(puestoPropio(monto, editable));
+  zona.appendChild(puestoLibre());
+  return zona;
+}
+
+function puestoLibre(){
+  const p = document.createElement('div');
+  p.className = 'puesto libre';
+  p.innerHTML = '<div class="circulo"><div class="rotulo">LIBRE</div></div>';
+  return p;
+}
+
+function puestoPropio(monto, editable){
+  const p = document.createElement('div');
+  p.className = 'puesto';
 
   const c = document.createElement('div');
   c.className = 'circulo' + (editable && monto ? ' tocable' : '');
+  p.appendChild(c);
 
   if (!monto) {
     c.innerHTML = '<div class="rotulo">PONÉ<br>TUS FICHAS</div>';
-    zona.appendChild(c);
-    return zona;
+    return p;
   }
 
   // Tocar la pila saca la última ficha puesta: es el gesto que sale solo
@@ -672,14 +696,13 @@ function zonaDeApuesta(monto, editable){
     pila.appendChild(pintarUnaFicha(fichaDe(v), i === todas.length - 1 ? String(v) : ''));
   });
   c.appendChild(pila);
-  zona.appendChild(c);
 
   const m = document.createElement('div');
   m.className = 'monto';
   m.innerHTML = '<b>' + monto.toLocaleString('es-VE') + '</b><small>'
     + (editable ? 'APUESTA' : 'EN JUEGO') + '</small>';
-  zona.appendChild(m);
-  return zona;
+  p.appendChild(m);
+  return p;
 }
 
 // La bandeja de la casa. Se dibuja una sola vez: no cambia nunca, porque el
