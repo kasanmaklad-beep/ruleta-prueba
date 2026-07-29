@@ -202,7 +202,25 @@
      el que ya jugó en otro lado la reconoce sin que nadie se la explique.
      El dibujo es el clásico: cuerpo de color con las muescas blancas del
      canto y la cara más clara en el medio. */
-  .fichas{display:flex; gap:9px; justify-content:center; margin-top:14px; flex-wrap:wrap}
+  .fichas{display:flex; gap:8px; justify-content:center; margin:0 0 8px; flex-wrap:wrap}
+
+  /* ── El fichero del crupier ────────────────────────────────────────────
+     La bandeja de la casa, vista desde arriba: cada tubo es una columna de
+     fichas de canto. Puro adorno — la plata de verdad la lleva el servidor —
+     pero sin ella el lado del crupier es un vacío y la mesa no se cree. */
+  .fichero{
+    display:flex; gap:5px; justify-content:center; align-items:flex-end;
+    margin:2px auto 0; padding:5px 8px 6px; width:max-content; max-width:100%;
+    background:linear-gradient(180deg,#33230f,#150e06);
+    border:1px solid #0c0805; border-radius:8px;
+    box-shadow:inset 0 2px 7px rgba(0,0,0,.75), 0 3px 8px rgba(0,0,0,.5);
+  }
+  .tubo{
+    width:29px; height:25px; border-radius:3px;
+    background:repeating-linear-gradient(180deg,
+      var(--cuerpo) 0 3px, rgba(0,0,0,.5) 3px 3.9px);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.28);
+  }
   .ficha{
     width:50px; height:50px; border-radius:50%; display:grid; place-items:center; cursor:pointer;
     font-size:13px; font-weight:700; font-family:Georgia,serif; flex:none;
@@ -263,7 +281,6 @@
 <body>
 
 <div class="marca">VOLTIO <small>MAQUETA · BLACKJACK</small></div>
-<div class="aviso">Maqueta B1 · la pantalla de verdad llega en la B3 · todo lo decide el servidor</div>
 
 <!-- ── Entrar ─────────────────────────────────────────────────────────── -->
 <form id="entrar">
@@ -292,6 +309,11 @@
        El arco y el canto redondeado de la mesa acompañan el cambio. -->
   <div class="mesa">
    <div class="paño">
+    <!-- Las fichas del jugador, del lado de él: está arriba, así que su
+         fichero va pegado al borde de arriba, entre él y su círculo. Es
+         donde las tiene en la mesa — a mano, sin cruzar el paño. -->
+    <div class="fichas" id="fichas"></div>
+
     <div class="quien" style="margin-bottom:2px" id="rotulo-jugador">TU MANO</div>
     <div id="manos"></div>
 
@@ -308,12 +330,20 @@
     </div>
     <div class="cartas" id="cartas-crupier"></div>
 
+    <!-- El fichero de la casa, debajo del crupier: la bandeja de donde saca
+         para pagar y donde guarda lo que cobra. Es adorno, no se toca — pero
+         sin ella el lado del crupier queda vacío y no parece una mesa. -->
+    <div class="fichero" id="fichero"></div>
+
     <div class="botones" id="botones"></div>
    </div>
   </div>
-
-  <div class="fichas" id="fichas"></div>
 </div>
+
+
+<!-- El cartel de "esto es una maqueta" va al PIE y no arriba: arriba se
+     comía el alto que la mesa necesita para entrar entera en un teléfono. -->
+<div class="aviso">Maqueta B1 · la pantalla de verdad llega en la B3 · todo lo decide el servidor</div>
 
 <script>
 // ── Hablar con el servidor ───────────────────────────────────────────────
@@ -653,8 +683,22 @@ function zonaDeApuesta(monto, editable){
   return zona;
 }
 
-// El fichero: se toca una ficha y se SUMA a la apuesta. Así se sube de 10 en
-// 10, de 20 en 20, o como se quiera.
+// La bandeja de la casa. Se dibuja una sola vez: no cambia nunca, porque el
+// dinero de verdad lo lleva el servidor. Esto es la mesa, no la caja.
+function pintarFichero(){
+  const f = $('fichero'); f.innerHTML = '';
+  // De la más chica a la más grande, como la ordena cualquier crupier.
+  FICHAS.forEach(function(x){
+    const t = document.createElement('div');
+    t.className = 'tubo';
+    t.style.cssText = '--cuerpo:' + x.cuerpo;
+    t.title = 'fichas de ' + x.v;
+    f.appendChild(t);
+  });
+}
+
+// El fichero del jugador: se toca una ficha y se SUMA a la apuesta. Así se
+// sube de 10 en 10, de 20 en 20, o como se quiera.
 function pintarFichas(){
   const f = $('fichas'); f.innerHTML = '';
   const max = (E && E.mesa && E.mesa.apuesta_max) || 500;
@@ -743,6 +787,7 @@ $('entrar').onsubmit = async function(ev){
   // apretar un botón.
   PILA = [];
   mostradas = new Set();
+  pintarFichero();
   primerDibujado = true;   // lo que ya estaba en la mesa no suena
   pintar();
   primerDibujado = false;
