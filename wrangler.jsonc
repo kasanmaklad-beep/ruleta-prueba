@@ -14,6 +14,15 @@
     { "pattern": "mycrosis.com", "custom_domain": true },
     { "pattern": "www.mycrosis.com", "custom_domain": true }
   ],
+  // Tareas programadas. Barren las manos de blackjack que quedaron abiertas:
+  // sin esto, una mano abandonada solo se cierra si el jugador vuelve, y si no
+  // vuelve no cobra lo que le tocaba ni el reporte del día cuadra.
+  //   "0 * * * *"  → cada hora en punto: cierra las que pasaron 12 horas.
+  //   "5 4 * * *"  → 04:05 UTC = 00:05 en Venezuela: cierra TODAS, para que la
+  //                  jornada termine sin manos colgando.
+  "triggers": {
+    "crons": ["0 * * * *", "5 4 * * *"]
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

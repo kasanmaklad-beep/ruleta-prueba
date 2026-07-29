@@ -201,12 +201,32 @@ puede descontar dos veces. Se resuelve con el mismo truco que ya usa el saldo en
 y se mira `changes` — si volvió 0, la jugada ya estaba hecha y se responde con
 el estado actual en vez de repetirla.
 
-**c. La ronda abandonada.** El jugador ve una mano fea y cierra el navegador. La
-plata no corre riesgo (la apuesta ya se descontó), pero la ronda queda abierta
-para siempre y le traba la mesa. Reglas: `GET /api/bj/ronda` devuelve la ronda
-abierta para poder retomarla al recargar la página, y una ronda de más de 12
-horas se cierra sola plantando la mano — el crupier juega y se paga lo que
-corresponda.
+**c. La ronda abandonada.** El jugador ve una mano fea y cierra el navegador —o
+le entra una llamada y el teléfono descarta la página. `GET /api/bj/ronda`
+devuelve la ronda abierta, así que al volver retoma la mano donde estaba, con
+la carta del crupier todavía tapada. Y una ronda de más de 12 horas se cierra
+sola plantando la mano: el crupier juega y se paga lo que corresponda.
+
+**El barrido, que es lo que hace que eso sirva de verdad.** Cerrar la ronda
+"cuando el jugador vuelve" alcanza para el que vuelve. El que no vuelve nunca
+deja dos agujeros: si su mano ganaba, **no cobra**, y en el cierre del día la
+apuesta figura sin su pago, así que los números no cuadran hasta que aparezca
+(y si aparece al otro día, el pago cae en otra jornada). Por eso el barrido no
+depende de él:
+
+| Cuándo | Qué cierra | Para qué |
+|---|---|---|
+| Cada hora | Las de más de 12 horas | Le da tiempo al jugador de volver de una llamada o de dormir |
+| 00:05 de Venezuela | **Todas** | La jornada termina sin manos colgando: lo apostado y lo pagado caen el mismo día |
+
+Son dos Cron Triggers de Cloudflare (`wrangler.jsonc` → `triggers.crons`) que
+llaman a `barrerRondasAbandonadas()`. **Se registran al desplegar**: en local
+no corren solos, y para probarlos está `POST /api/admin/bj/barrer`
+(con `{"todas": true}` hace el del cierre del día).
+
+El movimiento de una mano cerrada así lo dice: *"quedó abierta y se cerró
+sola"*. Al mirar el reporte hay que poder distinguir una mano que el jugador
+jugó de una que se resolvió sin él.
 
 Y una regla de dinero: **la carta tapada del crupier nunca sale del servidor.**
 Mientras la ronda esté viva, esa carta viaja como `{ tapada: true }`. Es la

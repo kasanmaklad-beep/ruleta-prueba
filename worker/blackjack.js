@@ -416,7 +416,11 @@ function notaDelCierre(ronda) {
   const detalle = ronda.manos
     .map((h) => `${valorMano(h.cartas).total} ${h.resultado}`)
     .join(' · ');
-  return `Blackjack (crupier ${crupier}) — ${detalle}`;
+  // Que se note en el movimiento cuando la mano no la terminó el jugador: al
+  // mirar el reporte hay que poder distinguir una mano jugada de una que se
+  // cerró sola.
+  const cola = ronda.porAbandono ? ' — quedó abierta y se cerró sola' : '';
+  return `Blackjack (crupier ${crupier}) — ${detalle}${cola}`;
 }
 
 // Pasa el turno: si queda otra mano jugando va a esa, y si no juega el
@@ -472,8 +476,16 @@ async function vencerSiCorresponde(env, ronda, mesa) {
   const nacida = Date.parse(String(ronda.created_at).replace(' ', 'T') + 'Z');
   if (!Number.isFinite(nacida)) return false;
   if (Date.now() - nacida < HORAS_PARA_VENCER * 3600 * 1000) return false;
+  return cerrarPorAbandono(env, ronda, mesa);
+}
 
+// Cierra una mano abandonada: se planta lo que quedó jugando, juega el crupier
+// y se paga. Es la decisión conservadora y la misma que toma un crupier de
+// verdad cuando alguien deja la mesa: no se le regala nada al jugador, pero
+// tampoco se le queda la apuesta.
+async function cerrarPorAbandono(env, ronda, mesa) {
   if (!(await tomar(env, ronda.id, ronda.version))) return false;
+  ronda.porAbandono = true;
   for (const h of ronda.manos) {
     if (h.estado === 'jugando') {
       h.estado = 'plantada';
@@ -482,6 +494,54 @@ async function vencerSiCorresponde(env, ronda, mesa) {
   }
   await cerrarRonda(env, ronda, mesa);
   return true;
+}
+
+// ── El barrido de manos abandonadas ──────────────────────────────────────
+// Lo de arriba solo se dispara cuando ESE jugador vuelve. Si no vuelve nunca,
+// su mano se queda abierta para siempre: si le tocaba cobrar, no cobra, y en
+// el cierre del día la apuesta figura sin su pago, así que los números no
+// cuadran hasta que aparezca. Por eso hay que barrer sin depender de él.
+//
+// Dos criterios, y se usan los dos:
+//   'vencidas'  — las que pasaron HORAS_PARA_VENCER (12 h). Le da tiempo al
+//                 jugador de volver de una llamada, de dormir, de lo que sea.
+//   'todas'     — al cerrar la jornada no queda ninguna abierta, así lo
+//                 apostado y lo pagado caen el mismo día y el reporte cuadra.
+//
+// Devuelve el detalle para poder anotarlo y mirarlo después.
+export async function barrerRondasAbandonadas(env, { todas = false, tope = 200 } = {}) {
+  let filas = [];
+  try {
+    const r = await env.DB.prepare(
+      "SELECT id, game_id, created_at FROM bj_rondas WHERE estado = 'jugando' ORDER BY created_at LIMIT ?"
+    ).bind(tope).all();
+    filas = r.results || [];
+  } catch (e) {
+    return { cerradas: 0, pagado: 0, error: 'No pude leer las manos abiertas' };
+  }
+
+  const limite = Date.now() - HORAS_PARA_VENCER * 3600 * 1000;
+  const fichas = new Map();
+  let cerradas = 0, pagado = 0;
+
+  for (const f of filas) {
+    if (!todas) {
+      const nacida = Date.parse(String(f.created_at).replace(' ', 'T') + 'Z');
+      if (!Number.isFinite(nacida) || nacida > limite) continue;
+    }
+    if (!fichas.has(f.game_id)) fichas.set(f.game_id, await fichaMesa(env, f.game_id));
+    const mesa = fichas.get(f.game_id);
+    if (!mesa) continue;   // la mesa ya no existe: no hay con qué resolverla
+
+    // Sin userId: acá no hay dueño de sesión, es el barrido de la casa.
+    const ronda = await leerRonda(env, f.id, null);
+    if (!ronda || ronda.estado !== 'jugando') continue;
+    if (await cerrarPorAbandono(env, ronda, mesa)) {
+      cerradas++;
+      pagado += ronda.manos.reduce((s, h) => s + (h.pago || 0), 0);
+    }
+  }
+  return { cerradas, pagado, miradas: filas.length };
 }
 
 // ── Qué se apostó y en qué círculos ──────────────────────────────────────

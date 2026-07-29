@@ -21,7 +21,7 @@ import {
 } from './games.js';
 
 import {
-  bjRonda, bjApostar, bjPedir, bjPlantarse, bjDoblar,
+  bjRonda, bjApostar, bjPedir, bjPlantarse, bjDoblar, barrerRondasAbandonadas,
 } from './blackjack.js';
 
 import {
@@ -53,6 +53,27 @@ import {
 const SPA_ROUTES = ['/admin', '/taquilla', '/billetera', '/juego', '/mesa21', '/salon'];
 
 export default {
+  // ── La tarea programada (Cron Triggers de Cloudflare) ──────────────────
+  // Barre las manos de blackjack que quedaron abiertas. Sin esto, una mano
+  // abandonada solo se cierra si el jugador vuelve: si no vuelve, no cobra lo
+  // que le tocaba y en el cierre del día queda la apuesta sin su pago.
+  //
+  // Dos criterios, y por eso hay dos horarios:
+  //   cada hora  → cierra las que pasaron 12 horas (le da tiempo al jugador
+  //                de volver de una llamada o de dormir).
+  //   00:05 VE   → cierra TODAS, para que la jornada termine sin manos
+  //                colgando y lo apostado y lo pagado caigan el mismo día.
+  async scheduled(event, env, ctx) {
+    const cierreDelDia = String(event.cron || '').startsWith('5 4');
+    ctx.waitUntil(
+      barrerRondasAbandonadas(env, { todas: cierreDelDia })
+        .then((r) => console.log(
+          `[barrido ${cierreDelDia ? 'cierre del día' : 'vencidas'}] `
+          + `miradas ${r.miradas || 0} · cerradas ${r.cerradas} · pagado ${r.pagado}`))
+        .catch((e) => console.log('[barrido] falló:', e && e.message))
+    );
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
 
@@ -138,6 +159,9 @@ async function handleApi(request, env, url) {
     return adminUpdateGame(request, env, m[1]);
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/games\/([a-z0-9_]+)\/activo$/)))
     return adminToggleGame(request, env, m[1]);
+  // El mismo barrido, a mano: sirve para probarlo y para saldar las manos
+  // abiertas antes de mirar un reporte, sin esperar al horario.
+  if (method === 'POST' && path === '/api/admin/bj/barrer')     return adminBarrerBlackjack(request, env);
   if (method === 'PUT'  && path === '/api/admin/settings')     return adminPutSettings(request, env);
 
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/role$/)))
@@ -181,6 +205,21 @@ async function handleApi(request, env, url) {
 }
 
 // ─────────────────────────────── Movimientos ──────────────────────────────
+
+// Barrido de manos de blackjack a pedido del dueño. `todas: true` cierra
+// también las que todavía no vencieron — es lo que hace el cierre del día.
+async function adminBarrerBlackjack(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+  const body = await readJson(request);
+  const r = await barrerRondasAbandonadas(env, { todas: !!body.todas });
+  return json({
+    ...r,
+    mensaje: r.cerradas === 0
+      ? 'No había manos abiertas para cerrar.'
+      : `Se cerraron ${r.cerradas} mano(s) que habían quedado abiertas; se pagaron ${r.pagado}.`,
+  });
+}
 
 async function adminTransactions(request, env, url) {
   const auth = await requireAdmin(request, env);
