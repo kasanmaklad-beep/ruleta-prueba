@@ -215,9 +215,10 @@ async function adminBarrerBlackjack(request, env) {
   const r = await barrerRondasAbandonadas(env, { todas: !!body.todas });
   return json({
     ...r,
-    mensaje: r.cerradas === 0
+    mensaje: (r.cerradas === 0
       ? 'No había manos abiertas para cerrar.'
-      : `Se cerraron ${r.cerradas} mano(s) que habían quedado abiertas; se pagaron ${r.pagado}.`,
+      : `Se cerraron ${r.cerradas} mano(s) que habían quedado abiertas; se pagaron ${r.pagado}.`)
+      + (r.respetadas ? ` Quedaron ${r.respetadas} sin tocar porque recién empezaron.` : ''),
   });
 }
 

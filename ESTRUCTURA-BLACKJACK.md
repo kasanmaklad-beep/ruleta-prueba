@@ -217,7 +217,20 @@ depende de él:
 | Cuándo | Qué cierra | Para qué |
 |---|---|---|
 | Cada hora | Las de más de 12 horas | Le da tiempo al jugador de volver de una llamada o de dormir |
-| 00:05 de Venezuela | **Todas** | La jornada termina sin manos colgando: lo apostado y lo pagado caen el mismo día |
+| 00:05 de Venezuela | **Todas, menos las de los últimos 20 minutos** | La jornada termina sin manos colgando, sin plantarle la mano a alguien que está jugando |
+
+**Por qué el cierre va en hora de Venezuela y no en UTC** (lo preguntó el dueño
+el 29/07): porque la caja se cuadra con el calendario venezolano — `VE_OFFSET`
+en `lib.js` y todos los reportes. Con el barrido en UTC, la jornada se cerraría
+a las 20:05 hora local y las manos abiertas entre esa hora y la medianoche
+volverían a quedar colgando, que es justo lo que este barrido viene a evitar.
+
+Y la preocupación de fondo —un jugador en otro huso al que le cierran la mano
+en la cara— no se arregla cambiando de horario: **cualquier** hora fija es
+mediodía en algún lado. Se arregla con los 20 minutos de gracia
+(`MINUTOS_DE_GRACIA`): una mano de verdad se juega en un par de minutos, así
+que si lleva más de veinte abierta, la dejaron. Al que está jugando no se lo
+toca, esté donde esté.
 
 Son dos Cron Triggers de Cloudflare (`wrangler.jsonc` → `triggers.crons`) que
 llaman a `barrerRondasAbandonadas()`. **Se registran al desplegar**: en local

@@ -32,6 +32,14 @@ const FIGURAS = new Set(['T', 'J', 'Q', 'K']);
 // Cuánto tarda una ronda abandonada en cerrarse sola.
 const HORAS_PARA_VENCER = 12;
 
+// El barrido del cierre del día no toca una mano recién abierta, tenga la
+// jornada la hora que tenga. El cierre está atado al calendario de Venezuela,
+// que es donde se cuadra la caja, pero un jugador puede estar en otro huso y
+// estar en mitad de su mano justo a esa hora: sin esta gracia se le plantaría
+// la mano en la cara. Una mano de verdad se juega en un par de minutos; si
+// lleva más de esto abierta, es que la dejaron.
+const MINUTOS_DE_GRACIA = 20;
+
 // Freno de repetición: rondas que un jugador puede abrir por minuto. No es un
 // limitador de peticiones completo (eso pide KV o Durable Objects, y va en
 // otra etapa); es el techo barato que evita que un script abra mil rondas.
@@ -520,15 +528,17 @@ export async function barrerRondasAbandonadas(env, { todas = false, tope = 200 }
     return { cerradas: 0, pagado: 0, error: 'No pude leer las manos abiertas' };
   }
 
-  const limite = Date.now() - HORAS_PARA_VENCER * 3600 * 1000;
+  // Por tiempo: 12 horas. En el cierre del día: todas, menos las que acaban de
+  // empezar — ver MINUTOS_DE_GRACIA.
+  const limite = todas
+    ? Date.now() - MINUTOS_DE_GRACIA * 60 * 1000
+    : Date.now() - HORAS_PARA_VENCER * 3600 * 1000;
   const fichas = new Map();
-  let cerradas = 0, pagado = 0;
+  let cerradas = 0, pagado = 0, respetadas = 0;
 
   for (const f of filas) {
-    if (!todas) {
-      const nacida = Date.parse(String(f.created_at).replace(' ', 'T') + 'Z');
-      if (!Number.isFinite(nacida) || nacida > limite) continue;
-    }
+    const nacida = Date.parse(String(f.created_at).replace(' ', 'T') + 'Z');
+    if (!Number.isFinite(nacida) || nacida > limite) { respetadas++; continue; }
     if (!fichas.has(f.game_id)) fichas.set(f.game_id, await fichaMesa(env, f.game_id));
     const mesa = fichas.get(f.game_id);
     if (!mesa) continue;   // la mesa ya no existe: no hay con qué resolverla
@@ -541,7 +551,7 @@ export async function barrerRondasAbandonadas(env, { todas = false, tope = 200 }
       pagado += ronda.manos.reduce((s, h) => s + (h.pago || 0), 0);
     }
   }
-  return { cerradas, pagado, miradas: filas.length };
+  return { cerradas, pagado, miradas: filas.length, respetadas };
 }
 
 // ── Qué se apostó y en qué círculos ──────────────────────────────────────
