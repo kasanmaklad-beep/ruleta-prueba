@@ -46,6 +46,7 @@ function RouletteWheel({
   lightningNumbers = new Map(),
   lightningIntensity = 1,
   zoomed = false,
+  bolaPx = 14,        // tamaño de la bola; se agranda si la rueda va achicada
   freeSpin = false,   // gira sin resultado (apuestas abiertas, como en el casino)
 }) {
   // Sin ficha de mesa se dibuja la americana: es lo que había antes de que la
@@ -629,14 +630,17 @@ function RouletteWheel({
               position: 'absolute',
               left: '50%',
               top: '50%',
-              width: 14,
-              height: 14,
-              marginLeft: -7,
-              marginTop: -7,
+              width: bolaPx,
+              height: bolaPx,
+              marginLeft: -bolaPx / 2,
+              marginTop: -bolaPx / 2,
               transform: `translate(${bx}px, ${by}px)`,
               borderRadius: '50%',
               background: 'radial-gradient(circle at 30% 30%, #ffffff 0%, #e0e0e0 50%, #888 100%)',
-              boxShadow: '0 3px 6px rgba(0,0,0,0.7), inset -1px -2px 3px rgba(0,0,0,0.3)',
+              // Un borde oscuro y una sombra marcada: la bola es blanca y corre
+              // sobre casillas rojas, negras y verdes; sin esto se pierde de
+              // vista justo donde hay que seguirla.
+              boxShadow: '0 0 0 1px rgba(0,0,0,0.55), 0 3px 6px rgba(0,0,0,0.7), inset -1px -2px 3px rgba(0,0,0,0.3)',
               zIndex: 10,
               pointerEvents: 'none',
             }}

@@ -1073,7 +1073,18 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                   theme={t.theme}
                   lightningNumbers={lightningNumbers}
                   lightningIntensity={t.lightningIntensity / 100}
-                  zoomed={cameraZoom}
+                  // En el celular el cilindro vive dentro de un marco que lo
+                  // recorta, y ese marco mide justo el diámetro de la rueda.
+                  // Con el zoom de cámara la pista de la bola —que corre por
+                  // el borde— quedaba FUERA del recorte: la bolita se perdía
+                  // durante todo el giro y reaparecía recién al caer hacia el
+                  // número. Acá el zoom no hace falta: la rueda ya crece sola
+                  // de media luna a rueda entera.
+                  zoomed={cameraZoom && !ruedaFija}
+                  // La rueda se dibuja a 520 y en el celular se achica: si la
+                  // bola no se agranda en la misma proporción, en pantalla
+                  // queda de 10 píxeles y no se sigue con la vista.
+                  bolaPx={ruedaFija ? Math.round(14 / cresScale) : 14}
                 />
               </div>
             </div>
