@@ -41,6 +41,9 @@
 
   const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US');
 
+  // La tarjeta sabe dibujarse apagada, aunque hoy el salón no le mande mesas
+  // cerradas: si algún día el dueño quiere anunciar una que viene, alcanza con
+  // dejarla pasar en el filtro de arriba.
   function TarjetaMesa({ mesa, isMobile, onEntrar }) {
     const apagada = !mesa.activa;
     return (
@@ -96,6 +99,12 @@
   }
 
   function SalonScreen({ user, mesas, onEntrarMesa, onOpenWallet, onOpenCashier, onOpenAdmin, onLogout }) {
+    // El salón muestra SOLO las mesas abiertas. Las que están cerradas existen
+    // en el catálogo y el dueño las ve en su panel, pero al jugador no se le
+    // anuncia lo que todavía no puede jugar: una tarjeta apagada ocupa lugar,
+    // invita a tocarla y no lleva a ninguna parte.
+    const abiertas = (mesas || []).filter((m) => m.activo);
+
     const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
     useEffect(() => {
       const f = () => setIsMobile(window.innerWidth < 700);
@@ -173,12 +182,12 @@
                 Abriendo el salón…
               </div>
             )}
-            {mesas != null && mesas.length === 0 && (
+            {mesas != null && abiertas.length === 0 && (
               <div style={{ textAlign: 'center', color: '#8a7a52', fontSize: 12, padding: '24px 0' }}>
-                No hay mesas para mostrar. Probá de nuevo en un rato.
+                No hay mesas abiertas en este momento. Probá de nuevo en un rato.
               </div>
             )}
-            {(mesas || []).map(paraLaTarjeta).map((m) => (
+            {abiertas.map(paraLaTarjeta).map((m) => (
               <TarjetaMesa key={m.id} mesa={m} isMobile={isMobile}
                            onEntrar={() => onEntrarMesa(m.id)} />
             ))}
