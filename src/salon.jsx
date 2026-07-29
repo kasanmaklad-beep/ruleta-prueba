@@ -19,7 +19,11 @@
   const DORADO = '#ffd84a';
 
   function paraLaTarjeta(m) {
-    const auto = [
+    const es21 = m.tipo === 'blackjack';
+    const auto = es21 ? [
+      `Blackjack · ${m.mazos} mazos`,
+      `El natural paga ${m.pago_natural >= 1.5 ? '3 a 2' : '6 a 5'}`,
+    ] : [
       `Ruleta ${m.doble_cero ? 'americana 0/00' : 'europea, un solo cero'} · ${m.casillas} casillas`,
       m.rayos ? 'Rayos con premios hasta 500x' : `El pleno paga ${m.pago_pleno} a 1`,
     ];
@@ -27,14 +31,15 @@
     return {
       id: m.id,
       nombre: (m.label || m.id).toUpperCase(),
-      icono: m.icono || '🎡',
+      icono: m.icono || (es21 ? '🃏' : '🎡'),
       color: m.color || DORADO,
       // La cinta la manda el estado real: una mesa cerrada siempre se anuncia
       // como lo que viene, nunca con un título de venta.
       cinta: m.activo ? 'MESA ABIERTA' : 'PRÓXIMAMENTE',
       detalle: detalle.length ? detalle : auto,
-      // La ficha más chica de la mesa. Hoy es la misma en todas.
-      apuestaDesde: m.activo ? 1 : null,
+      // La apuesta más chica que acepta la mesa: en el 21 la pone la ficha de
+      // la mesa, y en la ruleta es siempre la de $1.
+      apuestaDesde: m.activo ? (es21 ? (m.apuesta_min || 1) : 1) : null,
       activa: !!m.activo,
     };
   }

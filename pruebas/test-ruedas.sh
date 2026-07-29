@@ -12,7 +12,7 @@ PLT=$(post /api/auth/login "" '{"username":"humo","password":"humo1234"}' | jq -
 
 echo "── El catálogo de mesas ──"
 R=$(get /api/games "$PLT")
-check "lista las cuatro mesas" '.mesas | length == 4' "$R"
+check "lista las mesas de ruleta" '[.mesas[] | select(.tipo == "ruleta" or .tipo == null)] | length >= 4' "$R"
 check "Catatumbo: americana, 38 casillas, con rayos, pleno 29" \
   '.mesas[] | select(.id=="catatumbo") | .casillas==38 and .rayos==true and .pago_pleno==29 and .activo==true' "$R"
 check "Europea Clásica: 37 casillas, sin rayos, pleno 35" \
@@ -21,7 +21,7 @@ check "la europea no tiene doble cero" '.mesas[] | select(.id=="europea") | .dob
 check "la americana le deja 5,3% a la casa en las de afuera" \
   '.mesas[] | select(.id=="catatumbo") | .ventaja_resto_mesa==5.3' "$R"
 check "la europea le deja 2,7%" '.mesas[] | select(.id=="europea") | .ventaja_resto_mesa==2.7' "$R"
-check "solo Catatumbo está encendida" '[.mesas[] | select(.activo)] | length == 1' "$R"
+check "Catatumbo está encendida" '.mesas[] | select(.id=="catatumbo") | .activo == true' "$R"
 
 echo
 echo "── El catálogo manda el orden de la rueda (Etapa 3b) ──"
@@ -54,8 +54,13 @@ R=$(post /api/admin/games "$ADT" '{"id":"mesa_trampa","label":"Trampa","rueda":"
 check "no deja guardar 29 a 1 en una mesa SIN rayos" '.error | test("tiene que pagar 35")' "$R"
 R=$(post /api/admin/games "$ADT" '{"id":"mesa_rara","label":"Rara","rueda":"marciana","animales":false,"rayos":false,"pago_pleno":35}')
 check "ni una rueda que no existe" '.error | test("rueda no existe")' "$R"
+# Para probar esto hace falta que Catatumbo sea la ÚNICA abierta, así que se
+# cierran las demás un momento y después se dejan como estaban.
+ABIERTAS=$(get /api/admin/games "$ADT" | jq -r '[.mesas[] | select(.activo and .id != "catatumbo") | .id] | join(" ")')
+for m in $ABIERTAS; do post "/api/admin/games/$m/activo" "$ADT" '{"activo":false}' >/dev/null; done
 R=$(post /api/admin/games/catatumbo/activo "$ADT" '{"activo":false}')
 check "no deja apagar la última mesa encendida" '.error | test("única mesa encendida")' "$R"
+for m in $ABIERTAS; do post "/api/admin/games/$m/activo" "$ADT" '{"activo":true}' >/dev/null; done
 R=$(get /api/games "$PLT")
 check "el jugador recibe la presentación de cada mesa" '.mesas[] | select(.id=="catatumbo") | .icono != null and .detalle1 != null' "$R"
 

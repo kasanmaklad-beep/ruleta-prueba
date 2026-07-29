@@ -172,22 +172,49 @@ export const JUEGOS = {
 // dice no existe: mejor no dibujar nada que dibujar una ruleta inventada.
 function armarFicha(id, j) {
   if (!id || !j) return null;
-  const rueda = RUEDAS[j.rueda];
-  if (!rueda) return null;
-  const pleno = Number(j.pagoPleno != null ? j.pagoPleno : j.pago_pleno);
-  return {
+  const tipo = j.tipo === 'blackjack' ? 'blackjack' : 'ruleta';
+
+  // Lo que comparten todas las mesas, sean del juego que sean: cómo se
+  // anuncian en el salón y si están abiertas.
+  const comun = {
     id,
+    tipo,
     label: j.label || id,
-    rueda: j.rueda,
-    animales: !!j.animales,
-    rayos: !!j.rayos,
-    pagoPleno: Number.isFinite(pleno) ? pleno : 35,
     activo: !!j.activo,
     orden: Number.isFinite(Number(j.orden)) ? Number(j.orden) : 100,
     icono: j.icono || null,
     color: j.color || null,
     detalle1: j.detalle1 || null,
     detalle2: j.detalle2 || null,
+  };
+
+  // Una mesa de blackjack no tiene rueda, ni ceros, ni pleno: tiene mazos,
+  // cuánto paga el natural, los límites de la apuesta y cuántos puestos se
+  // pueden jugar a la vez.
+  if (tipo === 'blackjack') {
+    const num = (v, def, min, max) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= min && n <= max ? n : def;
+    };
+    return {
+      ...comun,
+      mazos: num(j.mazos, 6, 1, 8),
+      pagoNatural: num(j.pago_natural != null ? j.pago_natural : j.pagoNatural, 1.5, 1, 2),
+      apuestaMin: num(j.apuesta_min != null ? j.apuesta_min : j.apuestaMin, 10, 1, 1e9),
+      apuestaMax: num(j.apuesta_max != null ? j.apuesta_max : j.apuestaMax, 500, 1, 1e9),
+      puestos: num(j.puestos, 1, 1, 3),
+    };
+  }
+
+  const rueda = RUEDAS[j.rueda];
+  if (!rueda) return null;
+  const pleno = Number(j.pagoPleno != null ? j.pagoPleno : j.pago_pleno);
+  return {
+    ...comun,
+    rueda: j.rueda,
+    animales: !!j.animales,
+    rayos: !!j.rayos,
+    pagoPleno: Number.isFinite(pleno) ? pleno : 35,
     ordenRueda: rueda.orden,
     casillas: rueda.orden.length,
     dobleCero: rueda.dobleCero,
@@ -199,17 +226,24 @@ function armarFicha(id, j) {
 // código nuevo desplegado antes de correr la migración) o si vino vacía: ahí
 // manda la red de seguridad, y el salón sigue abierto igual.
 async function mesasDeLaBase(env) {
-  try {
-    const r = await env.DB.prepare(
-      `SELECT id, label, rueda, animales, rayos, pago_pleno, activo, orden,
-              icono, color, detalle1, detalle2
-         FROM games ORDER BY orden, id`
-    ).all();
-    const filas = r.results || [];
-    return filas.length ? filas : null;
-  } catch (e) {
-    return null;
+  // Se intenta con las columnas del blackjack (migraciones 012 y 013); si esas
+  // migraciones todavía no corrieron, se vuelve a pedir sin ellas. Así el salón
+  // sigue abierto aunque el código nuevo salga antes que la migración.
+  const CON_BJ = `SELECT id, label, rueda, animales, rayos, pago_pleno, activo, orden,
+                         icono, color, detalle1, detalle2,
+                         tipo, mazos, pago_natural, apuesta_min, apuesta_max, puestos
+                    FROM games ORDER BY orden, id`;
+  const SIN_BJ = `SELECT id, label, rueda, animales, rayos, pago_pleno, activo, orden,
+                         icono, color, detalle1, detalle2
+                    FROM games ORDER BY orden, id`;
+  for (const sql of [CON_BJ, SIN_BJ]) {
+    try {
+      const r = await env.DB.prepare(sql).all();
+      const filas = r.results || [];
+      return filas.length ? filas : null;
+    } catch (e) { /* probamos con la consulta más vieja */ }
   }
+  return null;
 }
 
 // Todas las mesas, en fichas listas para usar. Es la única puerta de entrada
@@ -233,10 +267,12 @@ export const JUEGO_POR_DEFECTO = 'catatumbo';
 
 // Devuelve la ficha de una mesa válida y ENCENDIDA, o null.
 // Sin dato (cliente viejo que todavía no lo manda) cae en la mesa por defecto.
+// Ojo: esto es para el GIRO de la ruleta, así que una mesa de blackjack no
+// sirve por más abierta que esté — el giro no sabría qué hacer con ella.
 export async function mesaJugable(env, raw) {
   const id = (raw == null || raw === '') ? JUEGO_POR_DEFECTO : String(raw).trim().toLowerCase();
   const j = await juegoDe(env, id);
-  if (!j || !j.activo) return null;
+  if (!j || !j.activo || j.tipo !== 'ruleta') return null;
   return j;
 }
 
@@ -339,8 +375,25 @@ export function infoRayos(settings) {
 // salió. Una sola fuente de verdad (RUEDAS) evita esa desincronización.
 export async function catalogoMesas(env) {
   const cat = await catalogoInterno(env);
-  return cat.map((j) => ({
+  return cat.map((j) => (j.tipo === 'blackjack' ? {
+    // Una mesa de blackjack: el salón la anuncia y la pantalla del 21 se arma
+    // con esto. Nada de ruedas ni de plenos.
     id: j.id,
+    tipo: j.tipo,
+    label: j.label,
+    activo: j.activo,
+    icono: j.icono,
+    color: j.color,
+    detalle1: j.detalle1,
+    detalle2: j.detalle2,
+    mazos: j.mazos,
+    pago_natural: j.pagoNatural,
+    apuesta_min: j.apuestaMin,
+    apuesta_max: j.apuestaMax,
+    puestos: j.puestos,
+  } : {
+    id: j.id,
+    tipo: j.tipo,
     label: j.label,
     rueda: j.rueda,
     rueda_label: j.ruedaLabel,
@@ -380,6 +433,55 @@ export function validarMesa(body, { creando = false } = {}) {
   if (!label || label.length < 2) return { error: 'Falta el nombre de la mesa' };
   out.label = label;
 
+  // Lo que se anuncia en el salón vale igual para los dos juegos.
+  const presentacion = () => {
+    out.activo = body.activo ? 1 : 0;
+    const orden = Number(body.orden);
+    out.orden = Number.isInteger(orden) && orden >= 0 && orden <= 9999 ? orden : 100;
+    out.icono = str(body.icono, 12);
+    out.color = /^#[0-9a-fA-F]{6}$/.test(String(body.color || '')) ? String(body.color) : null;
+    out.detalle1 = str(body.detalle1, 80);
+    out.detalle2 = str(body.detalle2, 80);
+  };
+
+  // ── Una mesa de blackjack ────────────────────────────────────────────────
+  if (body.tipo === 'blackjack') {
+    out.tipo = 'blackjack';
+
+    const mazos = Number(body.mazos);
+    if (!Number.isInteger(mazos) || mazos < 1 || mazos > 8) {
+      return { error: 'Los mazos van de 1 a 8 (lo habitual son 6)' };
+    }
+    out.mazos = mazos;
+
+    // El natural es el precio de la mesa. A 3:2 la casa se queda con ~0,5%;
+    // a 6:5 con ~1,9% — casi cuatro veces más, y el jugador que sabe lo nota
+    // enseguida y no vuelve. Se permite, pero solo esos dos.
+    const pago = Number(body.pago_natural);
+    if (![1.5, 1.2].includes(pago)) {
+      return { error: 'El natural paga 3 a 2 (1.5) o 6 a 5 (1.2). Cualquier otro número no es una mesa de blackjack conocida.' };
+    }
+    out.pago_natural = pago;
+
+    const min = Number(body.apuesta_min);
+    const max = Number(body.apuesta_max);
+    if (!Number.isInteger(min) || min < 1) return { error: 'La apuesta mínima tiene que ser un número mayor que cero' };
+    if (!Number.isInteger(max) || max < min) return { error: 'La apuesta máxima no puede ser menor que la mínima' };
+    out.apuesta_min = min;
+    out.apuesta_max = max;
+
+    const puestos = Number(body.puestos);
+    if (!Number.isInteger(puestos) || puestos < 1 || puestos > 3) {
+      return { error: 'Los puestos van de 1 a 3' };
+    }
+    out.puestos = puestos;
+
+    presentacion();
+    return { mesa: out };
+  }
+
+  // ── Una mesa de ruleta ───────────────────────────────────────────────────
+  out.tipo = 'ruleta';
   const rueda = String(body.rueda || '').trim().toLowerCase();
   if (!RUEDAS[rueda]) return { error: 'Esa rueda no existe (americana o europea)' };
   out.rueda = rueda;
@@ -399,16 +501,7 @@ export function validarMesa(body, { creando = false } = {}) {
   }
   out.pago_pleno = pleno;
 
-  out.activo = body.activo ? 1 : 0;
-
-  const orden = Number(body.orden);
-  out.orden = Number.isInteger(orden) && orden >= 0 && orden <= 9999 ? orden : 100;
-
-  out.icono = str(body.icono, 12);
-  out.color = /^#[0-9a-fA-F]{6}$/.test(String(body.color || '')) ? String(body.color) : null;
-  out.detalle1 = str(body.detalle1, 80);
-  out.detalle2 = str(body.detalle2, 80);
-
+  presentacion();
   return { mesa: out };
 }
 

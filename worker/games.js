@@ -15,12 +15,44 @@ import {
   ventajaMesa, ventajaPleno, ventajaPlenoClasico, getSettings, RUEDAS,
 } from './lib.js';
 
+// Lo que le deja al casino una mesa de blackjack, en porcentaje de lo
+// apostado. No se configura con una perilla: sale de las reglas. Con el juego
+// completo y el natural a 3:2 son ~0,5%; pagando 6:5 el mismo juego trepa a
+// ~1,9%. Son los números de la sección 4 de ESTRUCTURA-BLACKJACK.md, y hay que
+// mirarlos junto al 5,26% de Catatumbo antes de decidir abrir la mesa.
+function ventajaBlackjack(pagoNatural) {
+  return pagoNatural >= 1.5 ? 0.5 : 1.9;
+}
+
 // Cuánto le deja a la casa cada parte de la mesa, para que el dueño lo vea
 // ANTES de encenderla. El resto de la mesa sale de la rueda; el pleno depende
 // de si hay rayos.
 function conCuentas(m, settings) {
+  // Una mesa de blackjack no tiene rueda ni pleno; lo que el dueño necesita
+  // ver antes de abrirla es cuánto le deja, y ahí el número lo pone el pago
+  // del natural (ver ESTRUCTURA-BLACKJACK.md, sección 4).
+  if (m.tipo === 'blackjack') {
+    return {
+      id: m.id,
+      tipo: m.tipo,
+      label: m.label,
+      activo: m.activo,
+      orden: m.orden,
+      icono: m.icono,
+      color: m.color,
+      detalle1: m.detalle1,
+      detalle2: m.detalle2,
+      mazos: m.mazos,
+      pago_natural: m.pagoNatural,
+      apuesta_min: m.apuestaMin,
+      apuesta_max: m.apuestaMax,
+      puestos: m.puestos,
+      ventaja_casa: ventajaBlackjack(m.pagoNatural),
+    };
+  }
   return {
     id: m.id,
+    tipo: m.tipo,
     label: m.label,
     rueda: m.rueda,
     rueda_label: m.ruedaLabel,
@@ -97,12 +129,20 @@ export async function adminCreateGame(request, env) {
   const existe = await env.DB.prepare('SELECT id FROM games WHERE id = ?').bind(m.id).first();
   if (existe) return json({ error: `Ya hay una mesa con el id "${m.id}"` }, 400);
 
+  // `rueda` y `pago_pleno` son obligatorias en la tabla porque nacieron con las
+  // ruletas (migración 011). Una mesa de blackjack no tiene ni una ni otra, así
+  // que van con el mismo relleno que usó la migración 012: 'blackjack' y 35.
+  // No se leen nunca en una mesa de 21 — el tipo manda.
+  const r = m.tipo === 'blackjack' ? { rueda: 'blackjack', pleno: 35, animales: 0, rayos: 0 }
+                                   : { rueda: m.rueda, pleno: m.pago_pleno, animales: m.animales, rayos: m.rayos };
   await env.DB.prepare(
-    `INSERT INTO games (id, label, rueda, animales, rayos, pago_pleno, activo, orden,
-                        icono, color, detalle1, detalle2)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(m.id, m.label, m.rueda, m.animales, m.rayos, m.pago_pleno, m.activo, m.orden,
-         m.icono, m.color, m.detalle1, m.detalle2).run();
+    `INSERT INTO games (id, label, tipo, rueda, animales, rayos, pago_pleno,
+                        mazos, pago_natural, apuesta_min, apuesta_max, puestos,
+                        activo, orden, icono, color, detalle1, detalle2)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(m.id, m.label, m.tipo, r.rueda, r.animales, r.rayos, r.pleno,
+         m.mazos || null, m.pago_natural || null, m.apuesta_min || null, m.apuesta_max || null, m.puestos || null,
+         m.activo, m.orden, m.icono, m.color, m.detalle1, m.detalle2).run();
 
   return adminGames(request, env);
 }
@@ -112,7 +152,7 @@ export async function adminUpdateGame(request, env, id) {
   if (auth.error) return auth.response;
   if (!(await hayTabla(env))) return json({ error: SIN_TABLA }, 409);
 
-  const actual = await env.DB.prepare('SELECT id, activo FROM games WHERE id = ?').bind(id).first();
+  const actual = await env.DB.prepare('SELECT id, activo, tipo FROM games WHERE id = ?').bind(id).first();
   if (!actual) return json({ error: 'Esa mesa no existe' }, 404);
 
   const body = await readJson(request);
@@ -120,18 +160,34 @@ export async function adminUpdateGame(request, env, id) {
   if (v.error) return json({ error: v.error }, 400);
   const m = v.mesa;
 
+  // El TIPO no se cambia después de creada: la mesa ya tiene movimientos
+  // anotados con su id, y una ruleta que de golpe pasa a ser blackjack deja
+  // un historial que no se puede leer.
+  const tipoActual = actual.tipo || 'ruleta';
+  if (m.tipo !== tipoActual) {
+    return json({
+      error: `Esta mesa es de ${tipoActual} y así se queda. Si querés una mesa de `
+        + `${m.tipo}, creá una nueva: el tipo no se cambia porque el historial quedaría mezclado.`,
+    }, 400);
+  }
+
   // Apagarla desde la edición cuenta igual que apagarla con el botón.
   if (actual.activo && !m.activo) {
     const err = await noDejarElSalonVacio(env, id);
     if (err) return json({ error: err }, 400);
   }
 
+  // Mismo relleno que en el alta para las columnas que la tabla exige.
+  const r = m.tipo === 'blackjack' ? { rueda: 'blackjack', pleno: 35, animales: 0, rayos: 0 }
+                                   : { rueda: m.rueda, pleno: m.pago_pleno, animales: m.animales, rayos: m.rayos };
   await env.DB.prepare(
     `UPDATE games SET label = ?, rueda = ?, animales = ?, rayos = ?, pago_pleno = ?,
+                      mazos = ?, pago_natural = ?, apuesta_min = ?, apuesta_max = ?, puestos = ?,
                       activo = ?, orden = ?, icono = ?, color = ?, detalle1 = ?, detalle2 = ?
       WHERE id = ?`
-  ).bind(m.label, m.rueda, m.animales, m.rayos, m.pago_pleno, m.activo, m.orden,
-         m.icono, m.color, m.detalle1, m.detalle2, id).run();
+  ).bind(m.label, r.rueda, r.animales, r.rayos, r.pleno,
+         m.mazos || null, m.pago_natural || null, m.apuesta_min || null, m.apuesta_max || null, m.puestos || null,
+         m.activo, m.orden, m.icono, m.color, m.detalle1, m.detalle2, id).run();
 
   return adminGames(request, env);
 }

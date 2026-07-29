@@ -50,7 +50,7 @@ import {
 } from './reports.js';
 
 // Rutas de la SPA que no son archivos: hay que servirles el index.html.
-const SPA_ROUTES = ['/admin', '/taquilla', '/billetera', '/juego', '/salon'];
+const SPA_ROUTES = ['/admin', '/taquilla', '/billetera', '/juego', '/mesa21', '/salon'];
 
 export default {
   async fetch(request, env) {

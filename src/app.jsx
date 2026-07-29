@@ -66,6 +66,12 @@ const FICHA_CATATUMBO = {
   pagoPleno: 29,
 };
 
+// De qué juego es una mesa. Las fichas viejas (antes de que existiera el
+// blackjack) no traen `tipo`: esas son ruletas.
+function esRuleta(m) {
+  return !m || !m.tipo || m.tipo === 'ruleta';
+}
+
 // La ficha del servidor viene en snake_case; los componentes la usan en
 // camelCase. Un solo lugar donde se traduce.
 function fichaDeMesa(m) {
@@ -1800,6 +1806,7 @@ function AppRoot() {
     if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
     if (ruta === '/billetera') return 'billetera';
     if (ruta === '/juego') return 'game';
+    if (ruta === '/mesa21') return 'mesa21';
     if (ruta === '/salon') return 'salon';
     if (ruta === '/') {
       if (u.role === 'admin') return 'admin';
@@ -1849,11 +1856,16 @@ function AppRoot() {
   const fichaMesa = (() => {
     const cat = mesas || [];
     if (cat.length === 0) return mesaId === FICHA_CATATUMBO.id ? FICHA_CATATUMBO : null;
-    const elegida = cat.find((m) => m.id === mesaId && m.activo);
+    // Solo ruletas: una mesa de 21 tiene su propia pantalla y no se dibuja con
+    // esta ficha (no tiene rueda ni casillas).
+    const elegida = cat.find((m) => m.id === mesaId && m.activo && esRuleta(m));
     if (elegida) return fichaDeMesa(elegida);
     const deSiempre = cat.find((m) => m.id === MESA_POR_DEFECTO);
     return deSiempre ? fichaDeMesa(deSiempre) : FICHA_CATATUMBO;
   })();
+
+  // La mesa de 21 que se está jugando, si es que se entró a una.
+  const mesa21 = (mesas || []).find((m) => m.id === mesaId && m.activo && !esRuleta(m)) || null;
 
   // Si se pidió una mesa que no se puede jugar y se cayó a la de siempre, la
   // dirección se corrige sola: si no, quedaría diciendo una mesa y mostrando
@@ -1869,9 +1881,13 @@ function AppRoot() {
   // al recargar la página se vuelva a abrir la misma.
   const entrarAMesa = (id) => {
     const mesa = id || MESA_POR_DEFECTO;
+    // Cada juego tiene su pantalla: la ruleta en /juego y el blackjack en
+    // /mesa21. Lo decide la ficha, no el botón que se tocó.
+    const ficha = (mesas || []).find((m) => m.id === mesa);
+    const es21 = ficha && !esRuleta(ficha);
     setMesaId(mesa);
-    window.history.pushState({}, '', `/juego?mesa=${encodeURIComponent(mesa)}`);
-    setStatus('game');
+    window.history.pushState({}, '', `${es21 ? '/mesa21' : '/juego'}?mesa=${encodeURIComponent(mesa)}`);
+    setStatus(es21 ? 'mesa21' : 'game');
     window.Api.me().then((d) => {
       if (d && d.user) setUser(d.user);
       if (d && d.config) setConfig(d.config);
@@ -1943,6 +1959,48 @@ function AppRoot() {
 
   const esAdmin = user && user.role === 'admin';
   const esTaquillero = user && (user.role === 'cashier' || user.role === 'admin');
+
+  // ── La mesa de 21 ────────────────────────────────────────────────────────
+  // La pantalla de verdad llega en la Etapa B3. Hasta entonces, entrar a una
+  // mesa de blackjack avisa en castellano en vez de dejar al jugador mirando
+  // una pantalla en blanco o, peor, tirarlo a la ruleta.
+  if (status === 'mesa21') {
+    if (!mesa21) {
+      // La mesa no existe, está cerrada, o el catálogo todavía no llegó.
+      return (
+        <div style={{
+          minHeight: '100vh', background: '#0a0604', color: '#d4a94a',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: 'Georgia, serif', letterSpacing: 2,
+        }}>Abriendo la mesa…</div>
+      );
+    }
+    return (
+      <div style={{
+        minHeight: '100vh', background: 'radial-gradient(ellipse at 50% 0%, #123a2a 0%, #0a1a14 55%, #060a08 100%)',
+        color: '#fff', fontFamily: 'Georgia, serif',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        gap: 14, padding: 24, textAlign: 'center',
+      }}>
+        <div style={{ fontSize: 44 }}>{mesa21.icono || '🃏'}</div>
+        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 3, color: mesa21.color || '#4fd1a5' }}>
+          {(mesa21.label || 'BLACKJACK').toUpperCase()}
+        </div>
+        <div style={{ fontSize: 13, color: '#9ab8ac', lineHeight: 1.7, maxWidth: 340 }}>
+          La mesa está armada y el crupier ya reparte, pero la pantalla para jugarla
+          todavía se está construyendo.
+          <br /><br />
+          {mesa21.mazos} mazos · el natural paga {mesa21.pago_natural >= 1.5 ? '3 a 2' : '6 a 5'}
+          <br />apuesta de ${mesa21.apuesta_min} a ${mesa21.apuesta_max}
+        </div>
+        <button onClick={irAlSalon} style={{
+          marginTop: 8, padding: '12px 26px', borderRadius: 6, cursor: 'pointer',
+          border: '1px solid #8a6a1a', background: 'linear-gradient(180deg, #ffe98a, #d4a017)',
+          color: '#1a1205', fontFamily: 'Georgia, serif', fontWeight: 900, letterSpacing: 2,
+        }}>VOLVER AL SALÓN</button>
+      </div>
+    );
+  }
 
   if (status === 'salon') {
     return <SalonScreen

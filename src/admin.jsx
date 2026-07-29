@@ -1469,8 +1469,18 @@
   // ═══════════════════════════════════════════════════════════════════════
 
   const MESA_NUEVA = {
-    id: '', label: '', rueda: 'americana', animales: false, rayos: false,
-    pago_pleno: 35, activo: false, orden: 100, icono: '🎡', color: '#ffd84a',
+    id: '', label: '', tipo: 'ruleta',
+    rueda: 'americana', animales: false, rayos: false, pago_pleno: 35,
+    activo: false, orden: 100, icono: '🎡', color: '#ffd84a',
+    detalle1: '', detalle2: '',
+  };
+
+  // Los valores con los que arranca una mesa de 21: seis mazos y el natural a
+  // 3 a 2, que es la mesa estándar de cualquier casino.
+  const MESA_21_NUEVA = {
+    id: '', label: '', tipo: 'blackjack',
+    mazos: 6, pago_natural: 1.5, apuesta_min: 10, apuesta_max: 500, puestos: 1,
+    activo: false, orden: 100, icono: '🃏', color: '#4fd1a5',
     detalle1: '', detalle2: '',
   };
 
@@ -1528,9 +1538,12 @@
             )}
           </div>
           {datos.en_la_base && !editando && (
-            <div style={{ marginTop: 14 }}>
+            <div style={{ marginTop: 14, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               <Boton onClick={() => { setEditando({ ...MESA_NUEVA }); setCreando(true); }}>
-                + MESA NUEVA
+                + RULETA NUEVA
+              </Boton>
+              <Boton tono="gris" onClick={() => { setEditando({ ...MESA_21_NUEVA }); setCreando(true); }}>
+                + MESA DE 21
               </Boton>
             </div>
           )}
@@ -1565,6 +1578,7 @@
   // Una mesa en la lista: cómo está armada, qué le deja a la casa y los dos
   // botones de todos los días.
   function FichaMesa({ m, onPrender, onEditar, puedeEditar, guardando }) {
+    const es21 = m.tipo === 'blackjack';
     return (
       <div style={{
         ...S.card,
@@ -1578,9 +1592,18 @@
               {m.label}
             </div>
             <div style={{ fontSize: 11, color: '#888', marginTop: 2 }}>
-              {m.id} · {m.rueda_label} · {m.casillas} casillas
-              {m.animales ? ' · con animales' : ' · sin animales'}
-              {m.rayos ? ' · con rayos' : ' · sin rayos'}
+              {es21 ? (
+                <>
+                  {m.id} · BLACKJACK · {m.mazos} mazos · natural {m.pago_natural >= 1.5 ? '3 a 2' : '6 a 5'}
+                  {' · '}{m.puestos} {m.puestos === 1 ? 'puesto' : 'puestos'}
+                </>
+              ) : (
+                <>
+                  {m.id} · {m.rueda_label} · {m.casillas} casillas
+                  {m.animales ? ' · con animales' : ' · sin animales'}
+                  {m.rayos ? ' · con rayos' : ' · sin rayos'}
+                </>
+              )}
             </div>
           </div>
           <div style={{
@@ -1594,12 +1617,25 @@
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
           gap: 10, marginTop: 12,
         }}>
-          <Dato chico titulo="Pleno" valor={`${m.pago_pleno} a 1`} />
-          <Dato chico titulo="Le deja el pleno" valor={`${m.ventaja_pleno}%`}
-                color={m.ventaja_pleno >= 0 ? '#7ee08a' : '#ff9a9a'}
-                detalle={m.ventaja_pleno < 0 ? 'la casa PIERDE' : null} />
-          <Dato chico titulo="Le deja el resto" valor={`${m.ventaja_resto_mesa}%`} />
-          <Dato chico titulo="Rondas jugadas" valor={m.rondas.toLocaleString('es-VE')} />
+          {es21 ? (
+            <>
+              <Dato chico titulo="Natural" valor={m.pago_natural >= 1.5 ? '3 a 2' : '6 a 5'} />
+              <Dato chico titulo="Le deja la mesa" valor={`${m.ventaja_casa}%`}
+                    color="#ff9a9a"
+                    detalle="la ruleta deja 5,3%" />
+              <Dato chico titulo="Apuesta" valor={`${m.apuesta_min}–${m.apuesta_max}`} />
+              <Dato chico titulo="Manos jugadas" valor={m.rondas.toLocaleString('es-VE')} />
+            </>
+          ) : (
+            <>
+              <Dato chico titulo="Pleno" valor={`${m.pago_pleno} a 1`} />
+              <Dato chico titulo="Le deja el pleno" valor={`${m.ventaja_pleno}%`}
+                    color={m.ventaja_pleno >= 0 ? '#7ee08a' : '#ff9a9a'}
+                    detalle={m.ventaja_pleno < 0 ? 'la casa PIERDE' : null} />
+              <Dato chico titulo="Le deja el resto" valor={`${m.ventaja_resto_mesa}%`} />
+              <Dato chico titulo="Rondas jugadas" valor={m.rondas.toLocaleString('es-VE')} />
+            </>
+          )}
         </div>
 
         {puedeEditar && (
@@ -1627,10 +1663,13 @@
     const setRayos = (v) => setMesa({ ...mesa, rayos: v, pago_pleno: v ? mesa.pago_pleno : 35 });
 
     const rueda = (ruedas || []).find((r) => r.id === mesa.rueda);
+    const es21 = mesa.tipo === 'blackjack';
 
     return (
       <div style={{ ...S.card, borderColor: '#d4a94a' }}>
-        <div style={S.titulo}>{creando ? 'MESA NUEVA' : `EDITANDO ${mesa.label.toUpperCase()}`}</div>
+        <div style={S.titulo}>
+          {creando ? (es21 ? 'MESA DE 21 NUEVA' : 'RULETA NUEVA') : `EDITANDO ${mesa.label.toUpperCase()}`}
+        </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
           {creando && (
@@ -1650,22 +1689,64 @@
             <input style={S.input} value={mesa.label} onChange={(e) => set('label', e.target.value)} />
           </Campo>
 
-          <Campo label="RUEDA">
-            <select style={S.input} value={mesa.rueda} onChange={(e) => set('rueda', e.target.value)}>
-              {(ruedas || []).map((r) => (
-                <option key={r.id} value={r.id}>{r.label} — {r.casillas} casillas</option>
-              ))}
-            </select>
-          </Campo>
+          {!es21 && (
+            <Campo label="RUEDA">
+              <select style={S.input} value={mesa.rueda} onChange={(e) => set('rueda', e.target.value)}>
+                {(ruedas || []).map((r) => (
+                  <option key={r.id} value={r.id}>{r.label} — {r.casillas} casillas</option>
+                ))}
+              </select>
+            </Campo>
+          )}
 
-          <Campo label="PLENO">
-            <select style={S.input} value={mesa.pago_pleno}
-                    onChange={(e) => set('pago_pleno', Number(e.target.value))}
-                    disabled={!mesa.rayos}>
-              <option value={35}>Paga 35 a 1 (mesa clásica)</option>
-              {mesa.rayos && <option value={29}>Paga 29 a 1 (lo compensan los rayos)</option>}
-            </select>
-          </Campo>
+          {!es21 && (
+            <Campo label="PLENO">
+              <select style={S.input} value={mesa.pago_pleno}
+                      onChange={(e) => set('pago_pleno', Number(e.target.value))}
+                      disabled={!mesa.rayos}>
+                <option value={35}>Paga 35 a 1 (mesa clásica)</option>
+                {mesa.rayos && <option value={29}>Paga 29 a 1 (lo compensan los rayos)</option>}
+              </select>
+            </Campo>
+          )}
+
+          {es21 && (
+            <>
+              <Campo label="MAZOS">
+                <select style={S.input} value={mesa.mazos} onChange={(e) => set('mazos', Number(e.target.value))}>
+                  {[1, 2, 4, 6, 8].map((n) => (
+                    <option key={n} value={n}>{n} {n === 1 ? 'mazo' : 'mazos'}{n === 6 ? ' (lo habitual)' : ''}</option>
+                  ))}
+                </select>
+              </Campo>
+
+              <Campo label="EL BLACKJACK NATURAL PAGA">
+                <select style={S.input} value={mesa.pago_natural}
+                        onChange={(e) => set('pago_natural', Number(e.target.value))}>
+                  <option value={1.5}>3 a 2 — lo normal</option>
+                  <option value={1.2}>6 a 5 — le deja casi 4 veces más a la casa</option>
+                </select>
+              </Campo>
+
+              <Campo label="APUESTA MÍNIMA">
+                <input style={S.input} type="number" value={mesa.apuesta_min}
+                       onChange={(e) => set('apuesta_min', Number(e.target.value))} />
+              </Campo>
+
+              <Campo label="APUESTA MÁXIMA">
+                <input style={S.input} type="number" value={mesa.apuesta_max}
+                       onChange={(e) => set('apuesta_max', Number(e.target.value))} />
+              </Campo>
+
+              <Campo label="PUESTOS (MANOS A LA VEZ)">
+                <select style={S.input} value={mesa.puestos} onChange={(e) => set('puestos', Number(e.target.value))}>
+                  {[1, 2, 3].map((n) => (
+                    <option key={n} value={n}>{n} {n === 1 ? 'puesto' : 'puestos'}</option>
+                  ))}
+                </select>
+              </Campo>
+            </>
+          )}
 
           <Campo label="ORDEN EN EL SALÓN">
             <input style={S.input} type="number" value={mesa.orden}
@@ -1691,14 +1772,18 @@
         </div>
 
         <div style={{ display: 'flex', gap: 18, marginTop: 14, flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!mesa.animales} onChange={(e) => set('animales', e.target.checked)} />
-            Con animalitos
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!mesa.rayos} onChange={(e) => setRayos(e.target.checked)} />
-            Con rayos (Lightning)
-          </label>
+          {!es21 && (
+            <>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!mesa.animales} onChange={(e) => set('animales', e.target.checked)} />
+                Con animalitos
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
+                <input type="checkbox" checked={!!mesa.rayos} onChange={(e) => setRayos(e.target.checked)} />
+                Con rayos (Lightning)
+              </label>
+            </>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
             <input type="checkbox" checked={!!mesa.activo} onChange={(e) => set('activo', e.target.checked)} />
             Abierta al público
@@ -1710,13 +1795,27 @@
           background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
           fontSize: 12, color: '#bba876', lineHeight: 1.7,
         }}>
-          {rueda && (
-            <>Con esta rueda, el color, la docena y la línea le dejan a la casa{' '}
-            <b style={{ color: '#ffd84a' }}>{rueda.ventaja_resto_mesa}%</b>.{' '}</>
+          {es21 ? (
+            <>
+              Una mesa de 21 le deja a la casa{' '}
+              <b style={{ color: '#ff9a9a' }}>{mesa.pago_natural >= 1.5 ? '~0,5%' : '~1,9%'}</b>
+              {' '}de lo apostado, contra el <b style={{ color: '#ffd84a' }}>5,3%</b> de una ruleta americana.
+              No es un número que se ajuste con una perilla: sale de las reglas del juego.
+              {mesa.pago_natural >= 1.5
+                ? ' Pagar el natural 3 a 2 es lo normal y lo que el jugador espera.'
+                : ' Pagando 6 a 5 la casa gana casi cuatro veces más, pero el jugador que sabe lo nota enseguida y no vuelve.'}
+            </>
+          ) : (
+            <>
+              {rueda && (
+                <>Con esta rueda, el color, la docena y la línea le dejan a la casa{' '}
+                <b style={{ color: '#ffd84a' }}>{rueda.ventaja_resto_mesa}%</b>.{' '}</>
+              )}
+              {mesa.rayos
+                ? 'El pleno lo ajustan los rayos, que se configuran en CONFIGURACIÓN y valen para todo el salón.'
+                : 'Sin rayos, el pleno paga 35 a 1 y le deja a la casa lo mismo que el resto de la mesa. Es lo correcto: con 29 a 1 y sin multiplicadores se quedaría con más del 20%.'}
+            </>
           )}
-          {mesa.rayos
-            ? 'El pleno lo ajustan los rayos, que se configuran en CONFIGURACIÓN y valen para todo el salón.'
-            : `Sin rayos, el pleno paga 35 a 1 y le deja a la casa lo mismo que el resto de la mesa. Es lo correcto: con 29 a 1 y sin multiplicadores se quedaría con más del 20%.`}
         </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
