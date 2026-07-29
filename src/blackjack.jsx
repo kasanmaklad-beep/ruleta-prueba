@@ -133,13 +133,25 @@
 .bj-carta .bj-idx .bj-p{font-size:11px; display:block; margin-top:1px}
 .bj-carta .bj-palo{position:absolute; inset:0; display:grid; place-items:center; font-size:38px}
 .bj-carta .bj-palo.bj-as{font-size:52px}
+/* El dibujo del medio: los palos repartidos como en cualquier baraja. Va en
+   SVG para que escale solo cuando la carta se achica en los puestos. Se deja
+   aire arriba y abajo para no pisar los índices de las esquinas. */
+.bj-carta .bj-pipas{position:absolute; left:9%; right:9%; top:7%; bottom:7%; width:82%; height:86%}
+.bj-carta .bj-pipa{fill:currentColor}
 .bj-carta.bj-tapada{
     background:
-      repeating-linear-gradient(45deg,#7a1f1f 0 6px,#5e1616 6px 12px);
+      /* el enrejado cruzado del dorso de una baraja */
+      repeating-linear-gradient(45deg, rgba(255,255,255,.10) 0 2px, transparent 2px 7px),
+      repeating-linear-gradient(-45deg, rgba(0,0,0,.22) 0 2px, transparent 2px 7px),
+      radial-gradient(circle at 50% 45%, #9a2a2a 0%, #6d1a1a 60%, #4a1010 100%);
     border-color:#3d0f0f;
   }
-.bj-carta.bj-tapada::after{
-    content:''; position:absolute; inset:6px; border:1px solid rgba(255,216,74,.35); border-radius:4px;
+/* El doble filete del borde, que es lo que hace que un dorso se vea impreso
+   y no pintado. */
+  .bj-carta.bj-tapada::after{
+    content:''; position:absolute; inset:5px; border-radius:5px;
+    border:1px solid rgba(255,216,74,.45);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.35), inset 0 0 0 4px rgba(255,216,74,.10);
   }
 /* El reparto: la carta entra deslizándose desde arriba. */
   @keyframes reparte{
@@ -394,8 +406,36 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     );
   }
 
+  // ── Dónde van los palos en una carta de números ─────────────────────────
+  // Es el reparto de cualquier baraja de póker: dos columnas a los costados
+  // y, según el número, alguno en el medio. Las coordenadas van en tanto por
+  // uno de la carta; las de la mitad de abajo se dibujan CABEZA ABAJO, que es
+  // lo que hace que la carta se lea igual dada vuelta.
+  const IZQ = 0.28, DER = 0.72, CEN = 0.5;
+  const ARR = 0.17, MED = 0.5, ABA = 0.83;          // tres filas (hasta el 6)
+  const F1 = 0.17, F2 = 0.383, F3 = 0.617, F4 = 0.83; // cuatro filas (8 en adelante)
+  const ENTRE_ARRIBA = 0.285, ENTRE_ABAJO = 0.715;   // los del medio del 7 y el 10
+
+  const PIPAS = {
+    '2':  [[CEN, ARR], [CEN, ABA]],
+    '3':  [[CEN, ARR], [CEN, MED], [CEN, ABA]],
+    '4':  [[IZQ, ARR], [DER, ARR], [IZQ, ABA], [DER, ABA]],
+    '5':  [[IZQ, ARR], [DER, ARR], [CEN, MED], [IZQ, ABA], [DER, ABA]],
+    '6':  [[IZQ, ARR], [DER, ARR], [IZQ, MED], [DER, MED], [IZQ, ABA], [DER, ABA]],
+    '7':  [[IZQ, ARR], [DER, ARR], [CEN, ENTRE_ARRIBA],
+           [IZQ, MED], [DER, MED], [IZQ, ABA], [DER, ABA]],
+    '8':  [[IZQ, ARR], [DER, ARR], [CEN, ENTRE_ARRIBA],
+           [IZQ, MED], [DER, MED], [CEN, ENTRE_ABAJO], [IZQ, ABA], [DER, ABA]],
+    '9':  [[IZQ, F1], [DER, F1], [IZQ, F2], [DER, F2], [CEN, MED],
+           [IZQ, F3], [DER, F3], [IZQ, F4], [DER, F4]],
+    '10': [[IZQ, F1], [DER, F1], [CEN, ENTRE_ARRIBA], [IZQ, F2], [DER, F2],
+           [IZQ, F3], [DER, F3], [CEN, ENTRE_ABAJO], [IZQ, F4], [DER, F4]],
+  };
+
+  const FIGURAS_CARTA = { J: 'J', Q: 'Q', K: 'K' };
+
   // Una carta. La tapada no trae datos: el servidor no manda lo que no se ve.
-  function Carta({ carta, nueva, chica }) {
+  function Carta({ carta, nueva }) {
     if (carta && typeof carta === 'object' && carta.tapada) {
       return <div className={'bj-carta bj-tapada' + (nueva ? ' bj-nueva' : '')} />;
     }
@@ -405,10 +445,47 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     const idx = (
       <><span className="bj-v">{valor}</span><span className="bj-p">{simbolo}</span></>
     );
+
+    // El dibujo del medio va en SVG y no en texto suelto: así escala solo
+    // cuando la carta se achica en las columnas de los puestos, sin tener que
+    // llevar dos juegos de tamaños.
+    const puntos = PIPAS[valor];
+    const centro = (
+      <svg className="bj-pipas" viewBox="0 0 100 140" preserveAspectRatio="xMidYMid meet">
+        {rango === 'A' ? (
+          <text x="50" y="70" className="bj-pipa" fontSize="72"
+                textAnchor="middle" dominantBaseline="central">{simbolo}</text>
+        ) : FIGURAS_CARTA[rango] ? (
+          <>
+            {/* La figura: marco doble y la letra grande. Se probó dibujar el
+                rey, la reina y la jota como en una baraja ilustrada y quedaba
+                de juguete: una baraja de verdad son litografías, no líneas
+                hechas a mano. Sobria se ve como una mesa de casino. */}
+            <rect x="14" y="24" width="72" height="92" rx="6"
+                  fill="none" stroke="currentColor" strokeWidth="1.6" opacity="0.5" />
+            <rect x="18" y="28" width="64" height="84" rx="4"
+                  fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
+            <text x="50" y="62" className="bj-pipa" fontSize="42" fontFamily="Georgia, serif"
+                  textAnchor="middle" dominantBaseline="central">{FIGURAS_CARTA[rango]}</text>
+            <text x="50" y="97" className="bj-pipa" fontSize="26"
+                  textAnchor="middle" dominantBaseline="central">{simbolo}</text>
+          </>
+        ) : puntos ? (
+          puntos.map(([x, y], i) => (
+            <text key={i} x={x * 100} y={y * 140} className="bj-pipa" fontSize="31"
+                  textAnchor="middle" dominantBaseline="central"
+                  transform={y > 0.5 ? `rotate(180 ${x * 100} ${y * 140})` : undefined}>
+              {simbolo}
+            </text>
+          ))
+        ) : null}
+      </svg>
+    );
+
     return (
       <div className={'bj-carta' + (ROJOS[palo] ? ' bj-roja' : '') + (nueva ? ' bj-nueva' : '')}>
         <div className="bj-idx">{idx}</div>
-        <div className={'bj-palo' + (rango === 'A' ? ' bj-as' : '')}>{simbolo}</div>
+        {centro}
         <div className="bj-idx bj-abajo">{idx}</div>
       </div>
     );
@@ -742,4 +819,8 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
   }
 
   window.BlackjackScreen = BlackjackScreen;
+  // La carta se expone para poder mirar la baraja entera sin jugar
+  // (maquetas/cartas.html). No la usa el juego.
+  window.CartaBlackjack = Carta;
+  window.ESTILOS_BLACKJACK = ESTILOS;
 })();

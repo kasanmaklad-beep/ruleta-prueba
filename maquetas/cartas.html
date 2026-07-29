@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>La baraja de VOLTIO</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  body{margin:0;background:#0e3b2e;color:#e8dcc0;font-family:Georgia,serif;padding:18px}
+  h1{font-size:18px;letter-spacing:4px;color:#ffd84a;margin:0 0 4px}
+  p{font-size:12px;color:#bba876;margin:0 0 16px;line-height:1.6}
+  .fila{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  /* En la mesa las cartas se montan unas sobre otras; acá se separan para
+     poder mirarlas de a una. */
+  .fila .bj-carta{margin-left:0 !important}
+</style>
+</head>
+<body>
+<!-- Todas las cartas de la mesa, para mirarlas de un vistazo sin tener que
+     jugar hasta que salgan. Usa el MISMO componente que la mesa de verdad
+     (public/blackjack.js), así lo que se ve acá es lo que se ve jugando. -->
+<h1>LA BARAJA DE VOLTIO</h1>
+<p>Las mismas cartas que dibuja la mesa. Los palos van repartidos como en una baraja de póker,
+   y los de la mitad de abajo, cabeza abajo.</p>
+<div id="app"></div>
+
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="../public/blackjack.js"></script>
+<script>
+(function () {
+  var e = React.createElement;
+  var Carta = window.CartaBlackjack;
+  var RANGOS = ['A','2','3','4','5','6','7','8','9','T','J','Q','K'];
+  var PALOS = ['S','H','D','C'];
+  function Hoja() {
+    return e('div', { className: 'bj-pantalla' },
+      e('style', null, window.ESTILOS_BLACKJACK),
+      PALOS.map(function (p) {
+        return e('div', { key: p, className: 'fila' },
+          RANGOS.map(function (r) { return e(Carta, { key: r + p, carta: r + p }); })
+            .concat([e(Carta, { key: 'tapada' + p, carta: { tapada: true } })]));
+      }));
+  }
+  ReactDOM.createRoot(document.getElementById('app')).render(e(Hoja));
+})();
+</script>
+</body>
+</html>
