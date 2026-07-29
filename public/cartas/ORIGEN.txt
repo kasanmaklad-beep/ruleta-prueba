@@ -1,0 +1,17 @@
+Las figuras (J, Q, K) de la mesa de 21.
+
+Origen: baraja de patrón inglés de Dmitry Fomin, publicada en Wikimedia
+Commons y dedicada al DOMINIO PÚBLICO con CC0 1.0. Se puede usar con fines
+comerciales, modificar y redistribuir sin pedir permiso y sin obligación de
+dar crédito. Esta nota queda igual, para que dentro de un año se sepa de
+dónde salieron y con qué derecho se usan.
+
+  https://commons.wikimedia.org/wiki/File:English_pattern_playing_cards_deck.svg
+
+Qué se les hizo: de los SVG originales (unos 170 KB cada uno, con 260 trazos)
+se sacó una imagen de 208 px de alto —el doble del tamaño con que se dibuja la
+carta, para que no se vea borrosa en un teléfono— y se guardó en WebP con
+calidad 82. Las doce juntas pesan lo que pesaba UNA sola en vectorial.
+
+Los números y el as NO salen de acá: los dibuja la pantalla (ver la tabla
+PIPAS en src/blackjack.jsx), con el reparto de palos de cualquier baraja.

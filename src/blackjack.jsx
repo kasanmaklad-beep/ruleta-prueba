@@ -137,6 +137,12 @@
    SVG para que escale solo cuando la carta se achica en los puestos. Se deja
    aire arriba y abajo para no pisar los índices de las esquinas. */
 .bj-carta .bj-pipas{position:absolute; left:9%; right:9%; top:7%; bottom:7%; width:82%; height:86%}
+/* Las figuras vienen dibujadas enteras, con sus índices y su borde. La lámina
+   es un poco más angosta que nuestra carta, así que entra ENTERA (contain) y
+   no recortada: si se recorta, lo primero que se pierde es el índice de la
+   esquina, que es justo lo que el jugador mira cuando las cartas se montan. */
+.bj-carta.bj-figura{background:#fffdf5; overflow:hidden}
+.bj-carta.bj-figura img{width:100%; height:100%; object-fit:contain; display:block}
 .bj-carta .bj-pipa{fill:currentColor}
 .bj-carta.bj-tapada{
     background:
@@ -432,7 +438,16 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
            [IZQ, F3], [DER, F3], [CEN, ENTRE_ABAJO], [IZQ, F4], [DER, F4]],
   };
 
-  const FIGURAS_CARTA = { J: 'J', Q: 'Q', K: 'K' };
+  // ── Las figuras ──────────────────────────────────────────────────────────
+  // El rey, la reina y la jota son dibujos, no geometría: una baraja de verdad
+  // son litografías con cientos de trazos. Dibujarlas a mano quedaba de
+  // juguete, así que se usan las de la baraja de patrón inglés de Dmitry
+  // Fomin, que está en DOMINIO PÚBLICO (CC0) — ver public/cartas/ORIGEN.txt.
+  // Los números y el as los sigue dibujando esta pantalla.
+  const FIGURAS_CARTA = { J: 'jack', Q: 'queen', K: 'king' };
+  const PALO_ARCHIVO = { S: 'spades', H: 'hearts', D: 'diamonds', C: 'clubs' };
+  const imagenDeFigura = (rango, palo) =>
+    `/cartas/${FIGURAS_CARTA[rango]}_${PALO_ARCHIVO[palo]}.webp`;
 
   // Una carta. La tapada no trae datos: el servidor no manda lo que no se ve.
   function Carta({ carta, nueva }) {
@@ -449,27 +464,22 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     // El dibujo del medio va en SVG y no en texto suelto: así escala solo
     // cuando la carta se achica en las columnas de los puestos, sin tener que
     // llevar dos juegos de tamaños.
+    // Una figura es una carta dibujada entera: se muestra la lámina sola, sin
+    // los índices ni el fondo de acá, porque ya los trae puestos.
+    if (FIGURAS_CARTA[rango]) {
+      return (
+        <div className={'bj-carta bj-figura' + (nueva ? ' bj-nueva' : '')}>
+          <img src={imagenDeFigura(rango, palo)} alt={`${valor} de ${PALO_ARCHIVO[palo]}`} />
+        </div>
+      );
+    }
+
     const puntos = PIPAS[valor];
     const centro = (
       <svg className="bj-pipas" viewBox="0 0 100 140" preserveAspectRatio="xMidYMid meet">
         {rango === 'A' ? (
           <text x="50" y="70" className="bj-pipa" fontSize="72"
                 textAnchor="middle" dominantBaseline="central">{simbolo}</text>
-        ) : FIGURAS_CARTA[rango] ? (
-          <>
-            {/* La figura: marco doble y la letra grande. Se probó dibujar el
-                rey, la reina y la jota como en una baraja ilustrada y quedaba
-                de juguete: una baraja de verdad son litografías, no líneas
-                hechas a mano. Sobria se ve como una mesa de casino. */}
-            <rect x="14" y="24" width="72" height="92" rx="6"
-                  fill="none" stroke="currentColor" strokeWidth="1.6" opacity="0.5" />
-            <rect x="18" y="28" width="64" height="84" rx="4"
-                  fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.35" />
-            <text x="50" y="62" className="bj-pipa" fontSize="42" fontFamily="Georgia, serif"
-                  textAnchor="middle" dominantBaseline="central">{FIGURAS_CARTA[rango]}</text>
-            <text x="50" y="97" className="bj-pipa" fontSize="26"
-                  textAnchor="middle" dominantBaseline="central">{simbolo}</text>
-          </>
         ) : puntos ? (
           puntos.map(([x, y], i) => (
             <text key={i} x={x * 100} y={y * 140} className="bj-pipa" fontSize="31"
@@ -553,6 +563,18 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     }, [idMesa]);
 
     useEffect(() => { cargar(); }, [cargar]);
+
+    // Las figuras son láminas: se piden al entrar a la mesa para que ninguna
+    // aparezca en blanco justo cuando el crupier la reparte. Son 196 KB en
+    // total y se piden UNA vez; después las tiene el navegador.
+    useEffect(() => {
+      Object.keys(FIGURAS_CARTA).forEach((r) => {
+        Object.keys(PALO_ARCHIVO).forEach((p) => {
+          const img = new Image();
+          img.src = imagenDeFigura(r, p);
+        });
+      });
+    }, []);
 
     // El sonido del cierre: cuando la mano pasa de jugando a cerrada.
     useEffect(() => {

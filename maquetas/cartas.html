@@ -42,6 +42,14 @@
       }));
   }
   ReactDOM.createRoot(document.getElementById('app')).render(e(Hoja));
+
+  // La mesa pide las láminas en /cartas/… porque el juego se sirve desde
+  // public/. Esta hoja está fuera de public/, así que se corrigen las rutas.
+  new MutationObserver(function () {
+    document.querySelectorAll('img[src^="/cartas/"]').forEach(function (img) {
+      img.src = '../public' + img.getAttribute('src');
+    });
+  }).observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 </body>
