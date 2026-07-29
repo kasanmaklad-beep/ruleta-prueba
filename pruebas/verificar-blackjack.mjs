@@ -268,80 +268,51 @@ async function pruebas({ ADT, PLT, MZ, PAGO_NAT, MIN, MAX, CAPITAL }) {
   }
 
   // ══ El grueso: jugar manos y verificar todo ════════════════════════════
-  console.log(`C/D/A/B. Jugando ${MANOS} manos…`);
+  const ctx = { apostado: 0, cobrado: 0, dobladas: 0, naturales: 0, empates: 0,
+                salieron: {}, totalCartas: 0, manosJugadas: 0 };
   const saldoIni = (await api('/api/bj/ronda', { token: PLT })).balance;
-  let apostado = 0, cobrado = 0, dobladas = 0, naturales = 0, empates = 0;
-  // Cuántas veces salió cada rango, para ver si el mazo reparte parejo.
-  const salieron = {};
-  let totalCartas = 0;
 
+  console.log(`C/D/A/B. Jugando ${MANOS} manos en un puesto…`);
   for (let i = 0; i < MANOS; i++) {
-    let r = await apostar(PLT, APUESTA);
-    if (!r.ronda) { check('La mano abre', false, JSON.stringify(r)); break; }
-    apostado += APUESTA;
-
-    // A. La carta tapada, en cada respuesta con la ronda viva. Si el reparto
-    // trajo un natural, la ronda ya nació cerrada y no hay nada que tapar.
-    if (r.estado === 'jugando') verTapada(r);
-
-    // Jugar con estrategia básica (ver estrategia() abajo). Se juega bien a
-    // propósito: así el porcentaje que se mide al final se puede comparar con
-    // el de ESTRUCTURA-BLACKJACK.md, y una diferencia grande delata que algo
-    // del motor se rompió.
-    let vueltas = 0;
-    while (r.estado === 'jugando' && vueltas++ < 15) {
-      const mano = r.manos[r.mano_activa];
-      const jugada = estrategia(mano.cartas, r.crupier.cartas[0], r.acciones);
-      if (jugada === 'doblar') dobladas++;
-      const antesApuesta = mano.apuesta;
-      r = await api(`/api/bj/${jugada}`, { metodo: 'POST', token: PLT, cuerpo: { ronda: r.ronda, version: r.version } });
-      if (jugada === 'doblar' && r.manos) apostado += (r.manos[r.mano_activa].apuesta - antesApuesta);
-      if (r.estado === 'jugando') verTapada(r);
-    }
-
-    checkUna('La mano siempre termina cerrada', r.estado === 'cerrada', JSON.stringify(r));
-    if (r.estado !== 'cerrada') break;
-
-    // A. Al cerrar, la tapada se revela: ninguna carta puede seguir tapada.
-    checkUna('Al cerrar se revelan todas las cartas del crupier',
-      r.crupier.cartas.every((c) => typeof c === 'string'),
-      JSON.stringify(r.crupier.cartas));
-
-    // B. El mazo.
-    const todas = [...r.crupier.cartas, ...r.manos.flatMap((h) => h.cartas)];
-    for (const c of todas) {
-      salieron[String(c)[0]] = (salieron[String(c)[0]] || 0) + 1;
-      totalCartas++;
-    }
-    checkUna('Todas las cartas existen en un mazo',
-      todas.every((c) => CARTAS_VALIDAS.has(c)),
-      todas.filter((c) => !CARTAS_VALIDAS.has(c)).join(', '));
-    const cuenta = {};
-    for (const c of todas) cuenta[c] = (cuenta[c] || 0) + 1;
-    const pasadas = Object.entries(cuenta).filter(([, n]) => n > MZ);
-    checkUna('Ninguna carta sale más veces de las que hay en el shoe',
-      pasadas.length === 0,
-      pasadas.map(([c, n]) => `${c} salió ${n} veces con ${MZ} mazos`).join(', '));
-
-    // D. El crupier jugó como debe.
-    verificarCrupier(r);
-
-    // C. El pago de cada mano.
-    for (const h of r.manos) {
-      const esp = pagoEsperado(h, r.crupier.cartas, PAGO_NAT);
-      checkUna('El resultado de cada mano es el que corresponde',
-        h.resultado === esp.resultado,
-        `mano ${valor(h.cartas)} vs crupier ${valor(r.crupier.cartas)}: `
-        + `el servidor dijo "${h.resultado}" y corresponde "${esp.resultado}"`);
-      checkUna('El pago de cada mano es exacto',
-        h.pago === esp.pago,
-        `mano ${valor(h.cartas)} (apuesta ${h.apuesta}) vs crupier ${valor(r.crupier.cartas)}: `
-        + `pagó ${h.pago} y corresponde ${esp.pago}`);
-      cobrado += h.pago || 0;
-      if (h.resultado === 'natural') naturales++;
-      if (h.resultado === 'empate') empates++;
-    }
+    const ok = await jugarRonda(PLT, [{ puesto: 1, apuesta: APUESTA }], ctx, MZ, PAGO_NAT);
+    if (!ok) break;
   }
+
+  // ══ J. Los tres puestos ════════════════════════════════════════════════
+  // Un mismo jugador apostando en varios círculos contra el mismo crupier.
+  // Lo que más importa acá no es que funcione, es que NO se contamine: cada
+  // puesto tiene que pagarse solo, con su propia apuesta, y un 21 servido en
+  // un puesto tiene que seguir siendo un natural aunque haya otros puestos en
+  // juego. (Si el motor contara "más de una mano = división", apostar en dos
+  // círculos le anularía los naturales de los dos: 3 a 2 pasaría a 1 a 1 sin
+  // que nadie lo note.)
+  const PUESTOS_MANOS = Math.max(40, Math.round(MANOS / 3));
+  console.log(`J. Jugando ${PUESTOS_MANOS} rondas en los tres puestos…`);
+  for (let i = 0; i < PUESTOS_MANOS; i++) {
+    const ok = await jugarRonda(PLT, [
+      { puesto: 0, apuesta: APUESTA },
+      { puesto: 1, apuesta: APUESTA * 2 },
+      { puesto: 2, apuesta: APUESTA },
+    ], ctx, MZ, PAGO_NAT, 3);
+    if (!ok) break;
+  }
+
+  console.log('J. Lo que la mesa no deja hacer con los puestos');
+  const dosIguales = await api('/api/bj/apostar', { metodo: 'POST', token: PLT, cuerpo: {
+    mesa: MESA, puestos: [{ puesto: 1, apuesta: APUESTA }, { puesto: 1, apuesta: APUESTA }] } });
+  check('No deja dos apuestas en el mismo puesto', dosIguales.status === 400, JSON.stringify(dosIguales));
+  const inventado = await api('/api/bj/apostar', { metodo: 'POST', token: PLT, cuerpo: {
+    mesa: MESA, puestos: [{ puesto: 7, apuesta: APUESTA }] } });
+  check('No deja apostar en un puesto que no existe', inventado.status === 400, JSON.stringify(inventado));
+  const topePorPuesto = await api('/api/bj/apostar', { metodo: 'POST', token: PLT, cuerpo: {
+    mesa: MESA, puestos: [{ puesto: 0, apuesta: MAX }, { puesto: 1, apuesta: MAX + 1 }] } });
+  check('El máximo se controla puesto por puesto', topePorPuesto.status === 400, JSON.stringify(topePorPuesto));
+  const vacio = await api('/api/bj/apostar', { metodo: 'POST', token: PLT, cuerpo: { mesa: MESA, puestos: [] } });
+  check('No deja repartir sin fichas puestas', vacio.status === 400, JSON.stringify(vacio));
+
+  const apostado = ctx.apostado, cobrado = ctx.cobrado;
+  const dobladas = ctx.dobladas, naturales = ctx.naturales, empates = ctx.empates;
+  const salieron = ctx.salieron, totalCartas = ctx.totalCartas;
 
   // ══ H. La plata ════════════════════════════════════════════════════════
   console.log('H. El saldo y el libro de movimientos');
@@ -401,9 +372,10 @@ async function pruebas({ ADT, PLT, MZ, PAGO_NAT, MIN, MAX, CAPITAL }) {
   // Dos desvíos (el 95% de las veces cae adentro): con uno solo la banda es
   // tan angosta que suena una de cada tres corridas por pura suerte, y una
   // alarma que suena de gusto es peor que no tenerla.
-  const manosJugadas = apostado > 0 ? Math.round(apostado / APUESTA) : 0;
-  const margen = manosJugadas ? (2 * 115 / Math.sqrt(manosJugadas)) : 0;
+  const unidades = apostado > 0 ? Math.round(apostado / APUESTA) : 0;
+  const margen = unidades ? (2 * 115 / Math.sqrt(unidades)) : 0;
   console.log('\nI. Cómo le fue a la casa');
+  console.log(`   ${ctx.manosJugadas} rondas jugadas (un puesto y tres puestos).`);
   console.log(`   Apostado: ${apostado.toLocaleString('es-VE')} · Pagado: ${cobrado.toLocaleString('es-VE')}`);
   console.log(`   Se quedó la casa: ${ventaja.toFixed(2)}%  (dobladas ${dobladas}, naturales ${naturales}, empates ${empates})`);
   console.log(`   Teoría (ESTRUCTURA-BLACKJACK.md, sin dividir): ~1,1%`);
@@ -460,10 +432,103 @@ function verificarCrupier(r) {
 // La batería juega mucho más rápido que una persona, así que de vez en cuando
 // se choca con el freno de repetición del servidor. Eso no es una falla: es el
 // freno haciendo su trabajo. Se espera y se sigue.
-async function apostar(PLT, apuesta) {
+// Juega UNA ronda entera con estrategia básica y le pasa por encima todas las
+// comprobaciones. Sirve igual para un puesto que para tres: lo único que
+// cambia es la lista de apuestas.
+async function jugarRonda(PLT, apuestas, ctx, MZ, PAGO_NAT, puestosEsperados) {
+  let r = await apostar(PLT, apuestas);
+  if (!r.ronda) { check('La mano abre', false, JSON.stringify(r)); return false; }
+  ctx.apostado += apuestas.reduce((s, a) => s + a.apuesta, 0);
+  ctx.manosJugadas++;
+
+  if (puestosEsperados) {
+    checkUna('Se reparte una mano por cada puesto apostado',
+      r.manos.length === puestosEsperados,
+      `aposté en ${puestosEsperados} y me repartió ${r.manos.length}`);
+    checkUna('Cada mano sabe de qué puesto es',
+      r.manos.every((h, i) => h.puesto === apuestas[i].puesto && h.apuesta === apuestas[i].apuesta),
+      JSON.stringify(r.manos.map((h) => ({ puesto: h.puesto, apuesta: h.apuesta }))));
+  }
+
+  // A. La carta tapada, en cada respuesta con la ronda viva. Si el reparto
+  // trajo un natural, la ronda puede haber nacido cerrada.
+  if (r.estado === 'jugando') verTapada(r);
+
+  let vueltas = 0;
+  while (r.estado === 'jugando' && vueltas++ < 60) {
+    const mano = r.manos.find((m) => m.indice === r.mano_activa);
+    if (!mano) { checkUna('Siempre hay una mano en turno', false, JSON.stringify(r)); break; }
+    const jugada = estrategia(mano.cartas, r.crupier.cartas[0], r.acciones);
+    if (jugada === 'doblar') ctx.dobladas++;
+    const antes = mano.apuesta;
+    const idx = mano.indice;
+    r = await api(`/api/bj/${jugada}`, { metodo: 'POST', token: PLT, cuerpo: { ronda: r.ronda, version: r.version } });
+    if (jugada === 'doblar' && r.manos) {
+      const m2 = r.manos.find((m) => m.indice === idx);
+      if (m2) ctx.apostado += (m2.apuesta - antes);
+    }
+    if (r.estado === 'jugando') verTapada(r);
+  }
+
+  checkUna('La mano siempre termina cerrada', r.estado === 'cerrada', JSON.stringify(r));
+  if (r.estado !== 'cerrada') return false;
+
+  // A. Al cerrar, la tapada se revela: ninguna carta puede seguir tapada.
+  checkUna('Al cerrar se revelan todas las cartas del crupier',
+    r.crupier.cartas.every((c) => typeof c === 'string'),
+    JSON.stringify(r.crupier.cartas));
+
+  // B. El mazo.
+  const todas = [...r.crupier.cartas, ...r.manos.flatMap((h) => h.cartas)];
+  for (const c of todas) {
+    ctx.salieron[String(c)[0]] = (ctx.salieron[String(c)[0]] || 0) + 1;
+    ctx.totalCartas++;
+  }
+  checkUna('Todas las cartas existen en un mazo',
+    todas.every((c) => CARTAS_VALIDAS.has(c)),
+    todas.filter((c) => !CARTAS_VALIDAS.has(c)).join(', '));
+  const cuenta = {};
+  for (const c of todas) cuenta[c] = (cuenta[c] || 0) + 1;
+  const pasadas = Object.entries(cuenta).filter(([, n]) => n > MZ);
+  checkUna('Ninguna carta sale más veces de las que hay en el shoe',
+    pasadas.length === 0,
+    pasadas.map(([c, n]) => `${c} salió ${n} veces con ${MZ} mazos`).join(', '));
+
+  // D. El crupier jugó como debe.
+  verificarCrupier(r);
+
+  // C. El pago de cada mano, una por una y con su propia apuesta.
+  for (const h of r.manos) {
+    const esp = pagoEsperado(h, r.crupier.cartas, PAGO_NAT);
+    checkUna('El resultado de cada mano es el que corresponde',
+      h.resultado === esp.resultado,
+      `puesto ${h.puesto}, mano ${valor(h.cartas)} vs crupier ${valor(r.crupier.cartas)}: `
+      + `el servidor dijo "${h.resultado}" y corresponde "${esp.resultado}"`);
+    checkUna('El pago de cada mano es exacto',
+      h.pago === esp.pago,
+      `puesto ${h.puesto}, mano ${valor(h.cartas)} (apuesta ${h.apuesta}) vs crupier ${valor(r.crupier.cartas)}: `
+      + `pagó ${h.pago} y corresponde ${esp.pago}`);
+    // El que más muerde: un 21 servido tiene que pagar 3 a 2 AUNQUE haya
+    // otros puestos en juego. Si el motor confundiera "varias manos" con
+    // "dividida", acá pagaría 1 a 1 y nadie lo vería a simple vista.
+    if (natural(h.cartas)) {
+      checkUna('Un 21 servido paga como natural aunque haya otros puestos',
+        h.resultado === 'natural' || h.resultado === 'empate',
+        `puesto ${h.puesto} tenía ${h.cartas.join(' ')} y el resultado fue "${h.resultado}"`);
+    }
+    ctx.cobrado += h.pago || 0;
+    if (h.resultado === 'natural') ctx.naturales++;
+    if (h.resultado === 'empate') ctx.empates++;
+  }
+  return true;
+}
+
+async function apostar(PLT, apuestas) {
   // La ventana del freno es de un minuto, así que hay que tener esa paciencia.
   for (let intento = 0; intento < 7; intento++) {
-    const r = await api('/api/bj/apostar', { metodo: 'POST', token: PLT, cuerpo: { mesa: MESA, apuesta } });
+    const r = await api('/api/bj/apostar', {
+      metodo: 'POST', token: PLT, cuerpo: { mesa: MESA, puestos: apuestas },
+    });
     if (r.status !== 429) return r;
     await new Promise((cumplir) => setTimeout(cumplir, 10000));
   }

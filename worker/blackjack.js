@@ -104,6 +104,19 @@ function esNatural(cartas, dividida) {
   return !dividida && cartas.length === 2 && valorMano(cartas).total === 21;
 }
 
+// Qué PUESTOS tienen más de una mano, o sea cuáles se dividieron (Etapa B4).
+// Se cuenta por puesto y no por ronda: con tres círculos hay tres manos y
+// ninguna es una división. Contar las manos de la ronda entera haría que
+// apostar en dos círculos le anulara los naturales de los dos, que es una
+// forma silenciosa de quedarse con la plata del jugador.
+function puestosPartidos(ronda) {
+  const cuenta = {};
+  for (const h of ronda.manos) cuenta[h.puesto] = (cuenta[h.puesto] || 0) + 1;
+  const partido = {};
+  for (const p of Object.keys(cuenta)) partido[p] = cuenta[p] > 1;
+  return partido;
+}
+
 // ──────────────────────────── La ficha de mesa ────────────────────────────
 // Si la migración 012 todavía no corrió, o la fila se borró, la mesa igual
 // existe con estos valores. Es la misma red de seguridad que usa el catálogo
@@ -115,8 +128,14 @@ const MESA_RESPALDO = {
   pago_natural: 1.5,
   apuesta_min: 10,
   apuesta_max: 500,
+  puestos: 3,
   activo: 0,
 };
+
+// Un jugador no puede abrir más círculos que estos, aunque la ficha de la
+// mesa diga cualquier cosa. Tres es lo que entra en la pantalla de un
+// teléfono y lo que se dibujó en el paño.
+const MAX_PUESTOS = 3;
 
 const MESA_POR_DEFECTO = 'blackjack';
 
@@ -128,11 +147,11 @@ async function fichaMesa(env, raw) {
   let fila = null;
   try {
     fila = await env.DB.prepare(
-      `SELECT id, label, tipo, activo, mazos, pago_natural, apuesta_min, apuesta_max
+      `SELECT id, label, tipo, activo, mazos, pago_natural, apuesta_min, apuesta_max, puestos
          FROM games WHERE id = ?`
     ).bind(id).first();
   } catch (e) {
-    // La migración 012 todavía no corrió: la columna `tipo` no existe.
+    // Alguna migración todavía no corrió (la 012 trae `tipo`, la 013 `puestos`).
     fila = null;
   }
 
@@ -145,6 +164,7 @@ async function fichaMesa(env, raw) {
   // con lo de siempre.
   const mazos = Number(fila.mazos);
   const pago = Number(fila.pago_natural);
+  const puestos = Number(fila.puestos);
   return {
     id: fila.id,
     label: fila.label || fila.id,
@@ -152,6 +172,8 @@ async function fichaMesa(env, raw) {
     pago_natural: Number.isFinite(pago) && pago > 0 ? pago : MESA_RESPALDO.pago_natural,
     apuesta_min: Number(fila.apuesta_min) > 0 ? Number(fila.apuesta_min) : MESA_RESPALDO.apuesta_min,
     apuesta_max: Number(fila.apuesta_max) > 0 ? Number(fila.apuesta_max) : MESA_RESPALDO.apuesta_max,
+    puestos: Number.isInteger(puestos) && puestos >= 1 && puestos <= MAX_PUESTOS
+      ? puestos : MESA_RESPALDO.puestos,
     activo: fila.activo ? 1 : 0,
   };
 }
@@ -192,7 +214,7 @@ async function leerRonda(env, rondaId, userId) {
   if (userId != null && ronda.user_id !== userId) return null;
 
   const m = await env.DB.prepare(
-    'SELECT id, indice, cartas, apuesta, estado, resultado, pago FROM bj_manos WHERE ronda_id = ? ORDER BY indice'
+    'SELECT id, indice, puesto, cartas, apuesta, estado, resultado, pago FROM bj_manos WHERE ronda_id = ? ORDER BY indice'
   ).bind(rondaId).all();
 
   return {
@@ -224,10 +246,18 @@ function paraElCliente(ronda, mesa, saldo) {
   const visibles = abierta ? ronda.crupier.slice(0, 1) : ronda.crupier;
   const vCrupier = valorMano(visibles);
 
+  // Ojo con `dividida`: es por PUESTO, no por ronda. Con tres puestos hay tres
+  // manos y ninguna es una división — el 21 servido de cada una sigue siendo
+  // un natural y paga 3 a 2. Contar las manos de la ronda entera haría que
+  // apostar en dos círculos anulara los naturales de los dos.
+  const manosPorPuesto = {};
+  for (const h of ronda.manos) manosPorPuesto[h.puesto] = (manosPorPuesto[h.puesto] || 0) + 1;
+
   const manos = ronda.manos.map((h) => {
     const v = valorMano(h.cartas);
     return {
       indice: h.indice,
+      puesto: h.puesto,
       cartas: h.cartas,
       total: v.total,
       blando: v.blando,
@@ -235,7 +265,7 @@ function paraElCliente(ronda, mesa, saldo) {
       estado: h.estado,
       resultado: h.resultado,
       pago: h.pago,
-      natural: esNatural(h.cartas, ronda.manos.length > 1),
+      natural: esNatural(h.cartas, manosPorPuesto[h.puesto] > 1),
     };
   });
 
@@ -251,6 +281,7 @@ function paraElCliente(ronda, mesa, saldo) {
       pago_natural: mesa.pago_natural,
       apuesta_min: mesa.apuesta_min,
       apuesta_max: mesa.apuesta_max,
+      puestos: mesa.puestos,
       activo: mesa.activo,
     },
     crupier: {
@@ -295,12 +326,12 @@ async function saldoDe(env, userId) {
 // solo bolívar, pero le muestra al jugador una mano del crupier que nunca
 // existió — y encima quema cartas del mazo.
 //
-// Con división (Etapa B4) esto importa de verdad: si una mano es natural y la
-// otra no, el crupier SÍ tiene que jugar, por la segunda.
+// Con varios puestos esto importa de verdad: si una mano es natural y la otra
+// no, el crupier SÍ tiene que jugar, por la segunda.
 function jugarCrupier(ronda) {
-  const dividida = ronda.manos.length > 1;
+  const partido = puestosPartidos(ronda);
   const hayQueCompetir = ronda.manos.some(
-    (h) => h.estado !== 'pasada' && !esNatural(h.cartas, dividida)
+    (h) => h.estado !== 'pasada' && !esNatural(h.cartas, partido[h.puesto])
   );
   if (!hayQueCompetir) return;
 
@@ -327,11 +358,11 @@ function resolver(ronda, pagoNatural) {
   const vCrupier = valorMano(ronda.crupier).total;
   const crupierNatural = esNatural(ronda.crupier, false);
   const crupierPasado = vCrupier > 21;
-  const dividida = ronda.manos.length > 1;
+  const partido = puestosPartidos(ronda);
 
   for (const h of ronda.manos) {
     const v = valorMano(h.cartas).total;
-    const natural = esNatural(h.cartas, dividida);
+    const natural = esNatural(h.cartas, partido[h.puesto]);
 
     if (h.estado === 'pasada') {
       h.resultado = 'pierde'; h.pago = 0;
@@ -453,6 +484,54 @@ async function vencerSiCorresponde(env, ronda, mesa) {
   return true;
 }
 
+// ── Qué se apostó y en qué círculos ──────────────────────────────────────
+// Los puestos van numerados de izquierda a derecha, 0 en adelante. Cada uno
+// lleva su propia apuesta y su propio mínimo y máximo: el tope es POR PUESTO,
+// no por ronda, igual que en la mesa — el riesgo de la casa lo marca cuánto
+// puede cobrar una mano, y tres manos de 500 contra un mismo crupier no son
+// lo mismo que una de 1500, pero tampoco se cancelan entre sí.
+function leerApuestas(body, mesa) {
+  // El del medio es donde cae quien no dice nada (un cliente viejo, o la
+  // batería de pruebas). Con un solo puesto, el del medio es el 0.
+  const delMedio = Math.floor((mesa.puestos - 1) / 2);
+  const bruto = Array.isArray(body.puestos) ? body.puestos
+    : (body.apuesta != null ? [{ puesto: delMedio, apuesta: body.apuesta }] : null);
+
+  if (!bruto || !bruto.length) return { error: 'No pusiste ninguna ficha' };
+  if (bruto.length > mesa.puestos) {
+    return { error: `Esta mesa tiene ${mesa.puestos} puesto${mesa.puestos > 1 ? 's' : ''}` };
+  }
+
+  const vistos = new Set();
+  const apuestas = [];
+  for (const p of bruto) {
+    const puesto = Number(p && p.puesto);
+    if (!Number.isInteger(puesto) || puesto < 0 || puesto >= mesa.puestos) {
+      return { error: 'Ese puesto no existe en esta mesa' };
+    }
+    if (vistos.has(puesto)) return { error: 'Hay dos apuestas en el mismo puesto' };
+    vistos.add(puesto);
+
+    const apuesta = toPositiveInt(p && p.apuesta);
+    if (apuesta === null) return { error: 'Apuesta inválida' };
+    if (apuesta < mesa.apuesta_min) {
+      return { error: `La apuesta mínima de esta mesa es ${mesa.apuesta_min}` };
+    }
+    if (apuesta > mesa.apuesta_max) {
+      return { error: `La apuesta máxima de esta mesa es ${mesa.apuesta_max}` };
+    }
+    apuestas.push({ puesto, apuesta });
+  }
+  // De izquierda a derecha: es el orden en que se reparte y en que se juega.
+  apuestas.sort((a, b) => a.puesto - b.puesto);
+  return { apuestas };
+}
+
+function notaDeLaApuesta(manos) {
+  if (manos.length === 1) return 'Apuesta de blackjack';
+  return `Apuesta de blackjack en ${manos.length} puestos (${manos.map((m) => m.apuesta).join(' + ')})`;
+}
+
 // POST /api/bj/apostar — arranca la ronda.
 export async function bjApostar(request, env) {
   const auth = await requireAuth(request, env);
@@ -463,14 +542,14 @@ export async function bjApostar(request, env) {
   if (!mesa) return json({ error: 'Esa mesa no existe' }, 400);
   if (!mesa.activo) return json({ error: 'Esa mesa está cerrada' }, 400);
 
-  const apuesta = toPositiveInt(body.apuesta);
-  if (apuesta === null) return json({ error: 'Apuesta inválida' }, 400);
-  if (apuesta < mesa.apuesta_min) {
-    return json({ error: `La apuesta mínima de esta mesa es ${mesa.apuesta_min}` }, 400);
-  }
-  if (apuesta > mesa.apuesta_max) {
-    return json({ error: `La apuesta máxima de esta mesa es ${mesa.apuesta_max}` }, 400);
-  }
+  // Se puede apostar en varios círculos de la mesa. Se acepta la forma nueva
+  // (`puestos: [{puesto, apuesta}]`) y la vieja (`apuesta: 100` a secas, que
+  // cae en el círculo del medio) — así un cliente que no sepa de puestos
+  // sigue jugando igual.
+  const pedido = leerApuestas(body, mesa);
+  if (pedido.error) return json({ error: pedido.error }, 400);
+  const apuestas = pedido.apuestas;
+  const total = apuestas.reduce((s, a) => s + a.apuesta, 0);
 
   // ¿Ya tiene una ronda abierta? Si venció, se cierra y puede seguir; si no,
   // primero termina la que tiene.
@@ -493,7 +572,7 @@ export async function bjApostar(request, env) {
   //    apuestas a la vez no pueden gastar el mismo saldo.
   const upd = await env.DB.prepare(
     'UPDATE users SET balance = balance - ?, wagered_total = wagered_total + ? WHERE id = ? AND balance - held_balance >= ?'
-  ).bind(apuesta, apuesta, auth.userId, apuesta).run();
+  ).bind(total, total, auth.userId, total).run();
   if (upd.meta.changes === 0) {
     const c = await saldoDe(env, auth.userId);
     const disponible = c.balance - c.held_balance;
@@ -506,42 +585,66 @@ export async function bjApostar(request, env) {
   }
 
   try {
-    // ── Repartir: dos al jugador, dos al crupier (la segunda, tapada).
+    // ── Repartir como en la mesa: una carta a cada puesto en orden, después
+    //    una al crupier, y otra vuelta igual. No es adorno — el orden decide
+    //    qué carta le toca a cada uno, así que tiene que ser el de la mesa.
     const repartidas = [];
-    const jugador = [];
+    const manos = apuestas.map((a) => ({ puesto: a.puesto, apuesta: a.apuesta, cartas: [] }));
     const crupier = [];
-    for (let i = 0; i < 2; i++) {
-      const cj = sacarCarta(repartidas, mesa.mazos); repartidas.push(cj); jugador.push(cj);
-      const cc = sacarCarta(repartidas, mesa.mazos); repartidas.push(cc); crupier.push(cc);
+    for (let vuelta = 0; vuelta < 2; vuelta++) {
+      for (const m of manos) {
+        const c = sacarCarta(repartidas, mesa.mazos);
+        repartidas.push(c); m.cartas.push(c);
+      }
+      const c = sacarCarta(repartidas, mesa.mazos);
+      repartidas.push(c); crupier.push(c);
     }
 
     const id = crypto.randomUUID();
-    await env.DB.batch([
+    const ops = [
       env.DB.prepare(
         `INSERT INTO bj_rondas (id, user_id, game_id, mazos, pago_natural, estado,
                                 crupier, repartidas, mano_activa, version)
          VALUES (?, ?, ?, ?, ?, 'jugando', ?, ?, 0, 0)`
       ).bind(id, auth.userId, mesa.id, mesa.mazos, mesa.pago_natural,
              JSON.stringify(crupier), JSON.stringify(repartidas)),
-      env.DB.prepare(
-        "INSERT INTO bj_manos (ronda_id, indice, cartas, apuesta, estado) VALUES (?, 0, ?, ?, 'jugando')"
-      ).bind(id, JSON.stringify(jugador), apuesta),
-      env.DB.prepare(
-        "INSERT INTO transactions (user_id, type, amount, note, source, game_id) VALUES (?, 'bet', ?, ?, 'game', ?)"
-      ).bind(auth.userId, apuesta, 'Apuesta de blackjack', mesa.id),
-    ]);
+    ];
+    manos.forEach((m, i) => {
+      ops.push(env.DB.prepare(
+        "INSERT INTO bj_manos (ronda_id, indice, puesto, cartas, apuesta, estado) VALUES (?, ?, ?, ?, ?, 'jugando')"
+      ).bind(id, i, m.puesto, JSON.stringify(m.cartas), m.apuesta));
+    });
+    // Un solo movimiento por la ronda entera, con el detalle en la nota: el
+    // reporte del panel cuenta RONDAS, y tres apuntes por ronda le harían
+    // creer que se jugó el triple.
+    ops.push(env.DB.prepare(
+      "INSERT INTO transactions (user_id, type, amount, note, source, game_id) VALUES (?, 'bet', ?, ?, 'game', ?)"
+    ).bind(auth.userId, total, notaDeLaApuesta(manos), mesa.id));
+    await env.DB.batch(ops);
 
     let ronda = await leerRonda(env, id, auth.userId);
 
-    // Naturales: si alguno de los dos tiene 21 servido, la mano no se juega.
-    // El crupier "mira" su carta tapada acá adentro, donde nadie la ve — por
-    // eso esta mesa no ofrece seguro: no hace falta.
-    if (esNatural(jugador, false) || esNatural(crupier, false)) {
-      for (const h of ronda.manos) {
-        h.estado = 'plantada';
-        await env.DB.prepare("UPDATE bj_manos SET estado = 'plantada' WHERE id = ?").bind(h.id).run();
-      }
+    // Naturales: si el crupier tiene 21 servido se termina todo, y si lo tiene
+    // un puesto, ese puesto ya no juega. El crupier "mira" su carta tapada acá
+    // adentro, donde nadie la ve — por eso esta mesa no ofrece seguro.
+    const crupierNatural = esNatural(crupier, false);
+    const cerrarTodo = crupierNatural || ronda.manos.every((h) => esNatural(h.cartas, false));
+    if (cerrarTodo) {
+      await env.DB.prepare("UPDATE bj_manos SET estado = 'plantada' WHERE ronda_id = ? AND estado = 'jugando'")
+        .bind(id).run();
+      for (const h of ronda.manos) h.estado = 'plantada';
       await cerrarRonda(env, ronda, mesa);
+      ronda = await leerRonda(env, id, auth.userId);
+    } else {
+      // Los puestos con natural se plantan solos; el turno arranca en el
+      // primero que de verdad tenga algo que decidir.
+      for (const h of ronda.manos) {
+        if (esNatural(h.cartas, false)) {
+          h.estado = 'plantada';
+          await env.DB.prepare("UPDATE bj_manos SET estado = 'plantada' WHERE id = ?").bind(h.id).run();
+        }
+      }
+      await avanzar(env, ronda, mesa);
       ronda = await leerRonda(env, id, auth.userId);
     }
 
@@ -550,7 +653,7 @@ export async function bjApostar(request, env) {
     // Si algo falló después de cobrar, se devuelve la apuesta. Nunca se le
     // queda la plata a un jugador por un error nuestro.
     await env.DB.prepare('UPDATE users SET balance = balance + ?, wagered_total = wagered_total - ? WHERE id = ?')
-      .bind(apuesta, apuesta, auth.userId).run();
+      .bind(total, total, auth.userId).run();
     throw err;
   }
 }

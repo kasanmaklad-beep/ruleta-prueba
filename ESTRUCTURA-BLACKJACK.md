@@ -169,6 +169,19 @@ la apuesta inicial. En el MVP (sin dividir) el techo es 2x la apuesta.
 - Empate: se devuelve la apuesta.
 - **Sin seguro y sin rendirse.** El seguro es una apuesta que le saca al jugador
   el 7% cada vez que la toma; suma código y mala fama, y no la vale.
+- **Tres puestos** (decidido el 28/07/2026, ya construido). Un mismo jugador
+  puede poner fichas en uno, dos o tres círculos y jugarlos en orden, de
+  izquierda a derecha, contra el mismo crupier. Cada puesto lleva su apuesta,
+  y **el mínimo y el máximo son por puesto**, no por ronda: el riesgo de la
+  casa lo marca cuánto puede cobrar una mano. Cuántos círculos abre cada mesa
+  se guarda en su ficha (`games.puestos`).
+
+  **La trampa de esta función, para que no vuelva:** un 21 servido tiene que
+  seguir pagando 3 a 2 aunque haya otros puestos en juego. El motor sabe si
+  una mano es una división mirando cuántas manos tiene ESE PUESTO, no cuántas
+  tiene la ronda. Si se contara por ronda, apostar en dos círculos le anularía
+  los naturales de los dos —3 a 2 pasaría a 1 a 1— sin que nadie lo note. La
+  batería lo comprueba en cada 21 servido.
 
 ## 6. Lo único genuinamente nuevo por dentro: la ronda que queda abierta
 
