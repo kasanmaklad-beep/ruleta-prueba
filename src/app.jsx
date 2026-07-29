@@ -1961,9 +1961,6 @@ function AppRoot() {
   const esTaquillero = user && (user.role === 'cashier' || user.role === 'admin');
 
   // ── La mesa de 21 ────────────────────────────────────────────────────────
-  // La pantalla de verdad llega en la Etapa B3. Hasta entonces, entrar a una
-  // mesa de blackjack avisa en castellano en vez de dejar al jugador mirando
-  // una pantalla en blanco o, peor, tirarlo a la ruleta.
   if (status === 'mesa21') {
     if (!mesa21) {
       // La mesa no existe, está cerrada, o el catálogo todavía no llegó.
@@ -1975,31 +1972,13 @@ function AppRoot() {
         }}>Abriendo la mesa…</div>
       );
     }
-    return (
-      <div style={{
-        minHeight: '100vh', background: 'radial-gradient(ellipse at 50% 0%, #123a2a 0%, #0a1a14 55%, #060a08 100%)',
-        color: '#fff', fontFamily: 'Georgia, serif',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        gap: 14, padding: 24, textAlign: 'center',
-      }}>
-        <div style={{ fontSize: 44 }}>{mesa21.icono || '🃏'}</div>
-        <div style={{ fontSize: 22, fontWeight: 900, letterSpacing: 3, color: mesa21.color || '#4fd1a5' }}>
-          {(mesa21.label || 'BLACKJACK').toUpperCase()}
-        </div>
-        <div style={{ fontSize: 13, color: '#9ab8ac', lineHeight: 1.7, maxWidth: 340 }}>
-          La mesa está armada y el crupier ya reparte, pero la pantalla para jugarla
-          todavía se está construyendo.
-          <br /><br />
-          {mesa21.mazos} mazos · el natural paga {mesa21.pago_natural >= 1.5 ? '3 a 2' : '6 a 5'}
-          <br />apuesta de ${mesa21.apuesta_min} a ${mesa21.apuesta_max}
-        </div>
-        <button onClick={irAlSalon} style={{
-          marginTop: 8, padding: '12px 26px', borderRadius: 6, cursor: 'pointer',
-          border: '1px solid #8a6a1a', background: 'linear-gradient(180deg, #ffe98a, #d4a017)',
-          color: '#1a1205', fontFamily: 'Georgia, serif', fontWeight: 900, letterSpacing: 2,
-        }}>VOLVER AL SALÓN</button>
-      </div>
-    );
+    return <BlackjackScreen
+      user={user}
+      mesa={mesa21}
+      onSalirAlSalon={irAlSalon}
+      onOpenWallet={() => ir('/billetera', 'billetera')}
+      onLogout={salir}
+    />;
   }
 
   if (status === 'salon') {

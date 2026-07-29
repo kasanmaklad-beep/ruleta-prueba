@@ -101,6 +101,18 @@
       });
     },
 
+    // ── La mesa de 21 ──
+    // La ronda vive en el servidor: acá solo se pide su estado y se le manda
+    // lo que el jugador tocó. La `version` viaja en cada jugada — es lo que
+    // hace que un doble toque no pida dos cartas.
+    bjRonda(mesa) { return req('/api/bj/ronda' + qs({ mesa })); },
+    bjApostar(mesa, puestos) { return POST('/api/bj/apostar', { mesa, puestos }); },
+    // El servidor identifica la mano por la RONDA (una sola abierta por
+    // jugador), no por el puesto: el turno lo lleva él.
+    bjJugar(accion, ronda, version) {
+      return POST(`/api/bj/${accion}`, { ronda, version });
+    },
+
     // ── Billetera del jugador ──
     walletInfo() { return req('/api/wallet/info'); },
     walletHistory() { return req('/api/wallet/history'); },
