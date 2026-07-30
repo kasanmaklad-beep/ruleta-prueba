@@ -39,7 +39,7 @@ const ANIMALS = {
 window.ANIMALS = ANIMALS;
 function animalOf(n) { return ANIMALS[n] || ['', '']; }
 
-function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, theme, lightningNumbers, rotateLabels, winningNumber, mesa }) {
+function BettingTable({ bets, onPlaceBet, onRemoveBet, onMoveBet, selectedChip, disabled, theme, lightningNumbers, rotateLabels, winningNumber, mesa }) {
   // ── La ficha de la mesa ────────────────────────────────────────────────
   // Sin ficha se asume la mesa insignia (americana, animales y rayos).
   const dobleCero = !mesa || mesa.dobleCero !== false;
@@ -360,6 +360,77 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
     return bets
       .filter((b) => b.type === type && String(b.payload) === String(payload))
       .reduce((s, b) => s + b.amount, 0);
+  };
+
+  // ── Arrastrar una ficha por el paño ─────────────────────────────────────
+  // Una ficha puesta se puede MUDAR a otra casilla o RETIRAR, y las dos cosas
+  // son el mismo movimiento: lo que cambia es dónde se suelta. Mientras dura,
+  // una ficha fantasma sigue al dedo y dice qué va a pasar — sin eso el
+  // jugador arrastra a ciegas y sólo se entera cuando ya soltó.
+  const [arrastre, setArrastre] = React.useState(null);
+
+  // La última ficha puesta en esa casilla: es la que se levanta, como cuando
+  // uno saca la de arriba de la pila.
+  const ultimaFichaDe = (type, payload) => {
+    for (let i = bets.length - 1; i >= 0; i--) {
+      if (bets[i].type === type && String(bets[i].payload) === String(payload)) return bets[i];
+    }
+    return null;
+  };
+
+  // Sobre qué casilla está el dedo. Se pregunta al navegador en vez de medir
+  // posiciones a mano porque el paño va escalado (y a veces rotado 90°).
+  const casillaBajo = (x, y) => {
+    const el = document.elementFromPoint(x, y);
+    const casilla = el && el.closest ? el.closest('[data-apuesta]') : null;
+    if (!casilla) return null;
+    const [type, payload] = casilla.dataset.apuesta.split('|');
+    let numbers = [payload];
+    try { numbers = JSON.parse(casilla.dataset.numeros); } catch (e) { /* queda el payload */ }
+    return { type, payload, numbers };
+  };
+
+  const mismaCasilla = (a, b) => a && b && a.type === b.type && String(a.payload) === String(b.payload);
+
+  const iniciarArrastre = (hot, x, y) => {
+    if (disabled) return;
+    const ficha = ultimaFichaDe(hot.type, hot.payload);
+    if (!ficha) return;
+    const origen = { type: hot.type, payload: hot.payload };
+    setArrastre({ origen, monto: ficha.amount, x, y, destino: casillaBajo(x, y) });
+
+    // Los oyentes van en window y no en el elemento: el dedo se va a ir lejos
+    // de la casilla donde empezó. `passive: false` para poder frenar el
+    // desplazamiento de la página mientras dura el arrastre.
+    const mover = (ev) => {
+      const p = ev.touches ? ev.touches[0] : ev;
+      if (ev.cancelable) ev.preventDefault();
+      setArrastre((a) => (a ? { ...a, x: p.clientX, y: p.clientY, destino: casillaBajo(p.clientX, p.clientY) } : a));
+    };
+    const soltar = (ev) => {
+      window.removeEventListener('mousemove', mover);
+      window.removeEventListener('mouseup', soltar);
+      window.removeEventListener('touchmove', mover, { passive: false });
+      window.removeEventListener('touchend', soltar);
+      ultimoArrastre.t = Date.now();
+      const p = ev.changedTouches ? ev.changedTouches[0] : ev;
+      const destino = casillaBajo(p.clientX, p.clientY);
+      setArrastre(null);
+      if (!destino) {
+        // Soltada fuera del paño: la ficha se retira.
+        onRemoveBet(origen.type, origen.payload);
+        if (navigator.vibrate) navigator.vibrate(30);
+      } else if (!mismaCasilla(destino, origen) && onMoveBet) {
+        onMoveBet(origen, destino);
+        if (window.AudioEngine) window.AudioEngine.chip();
+        if (navigator.vibrate) navigator.vibrate(20);
+      }
+      // Soltada en la misma casilla: no pasa nada, la ficha se queda.
+    };
+    window.addEventListener('mousemove', mover);
+    window.addEventListener('mouseup', soltar);
+    window.addEventListener('touchmove', mover, { passive: false });
+    window.addEventListener('touchend', soltar);
   };
 
   // ───────────────────────────────────────────────
@@ -789,6 +860,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               hot={h}
               onPlace={() => placeBet(h.type, h.payload, h.numbers)}
               onRemove={() => onRemoveBet(h.type, h.payload)}
+              onArrastrar={iniciarArrastre}
               onHover={setHover}
               total={betTotalForKey(h.type, h.payload)}
               chipPos={null}
@@ -805,6 +877,7 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
               hot={h}
               onPlace={() => placeBet(h.type, h.payload, h.numbers || [h.payload])}
               onRemove={() => onRemoveBet(h.type, h.payload)}
+              onArrastrar={iniciarArrastre}
               onHover={setHover}
               total={betTotalForKey(h.type, h.payload)}
               chipPos={{ x: h.chipX, y: h.chipY }}
@@ -835,6 +908,28 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, selectedChip, disabled, t
           })}
         </div>
       </div>
+
+      {/* La ficha en la mano: sigue al dedo y dice qué va a pasar al soltar.
+          Se dibuja FUERA del paño (portal al body) por dos razones: tiene que
+          poder salirse de la mesa —soltarla afuera es lo que la retira— y
+          porque el paño va escalado y a veces rotado 90°, y un `position:
+          fixed` adentro de algo transformado se acomoda respecto de ESO y no
+          de la pantalla: la ficha aparecía en cualquier lado. */}
+      {arrastre && ReactDOM.createPortal((
+        <div style={{
+          position: 'fixed', left: arrastre.x, top: arrastre.y,
+          transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 10000,
+          width: 40, height: 40, borderRadius: '50%',
+          background: chipColorFor(arrastre.monto),
+          border: arrastre.destino ? '2px dashed rgba(255,255,255,0.9)' : '3px solid #ff5252',
+          color: '#fff', fontSize: 12, fontWeight: 900, fontFamily: 'Georgia, serif',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 6px 14px rgba(0,0,0,0.75)',
+          opacity: 0.95,
+        }}>
+          {arrastre.destino ? arrastre.monto : '✕'}
+        </div>
+      ), document.body)}
     </div>
   );
 }
@@ -857,25 +952,31 @@ function CellRect({ x, y, w, h, fill, stroke }) {
 }
 
 // Hotspot clicable + chip stack si corresponde
-// Cómo se saca una ficha del paño, de más natural a menos:
-//   · deslizarla de costado (el gesto que la mano hace sola)
-//   · dejar el dedo apoyado 500 ms
-//   · clic derecho, en computadora
-// Cuántos píxeles hay que correr el dedo para que sea "arrastré la ficha
-// afuera" y no "toqué medio torcido".
-const ARRASTRE_MINIMO = 26;
+//
+// ── Qué se puede hacer con una ficha que ya está en el paño ───────────────
+//   · arrastrarla a otra casilla  → la ficha se MUDA ahí
+//   · arrastrarla fuera del paño  → se RETIRA
+//   · dejar el dedo apoyado 500ms → se retira (el gesto de antes, sigue)
+//   · clic derecho, en computadora → se retira
+// Lo mismo vale en la mesa de 21, entre los tres círculos (src/blackjack.jsx).
+//
+// Mudar y retirar son el MISMO gesto y se distinguen por dónde se suelta,
+// que es como pasa con una ficha de verdad. Mientras se arrastra, la ficha
+// fantasma sigue al dedo y avisa qué va a pasar al soltar.
+const ARRASTRE_MINIMO = 26;   // píxeles antes de que un toque torcido sea un arrastre
 
-function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, disabled, rotateChip }) {
+// El clic que el navegador manda al soltar un arrastre no debe poner otra
+// ficha. Se descarta POR TIEMPO y no con una bandera de un solo uso: ese clic
+// no siempre llega, y cuando no llegaba la bandera se comía el toque
+// siguiente, el de verdad. Vive fuera del componente porque el que suelta
+// puede no ser la casilla donde empezó todo.
+const ultimoArrastre = { t: 0 };
+
+function Hotspot({ hot, onPlace, onRemove, onArrastrar, onHover, total, chipPos, showChip, disabled, rotateChip }) {
   const longPressTimer = React.useRef(null);
   const longPressFired = React.useRef(false);
   const startPos = React.useRef({ x: 0, y: 0 });
   const arrastrando = React.useRef(false);
-  // Cuándo se retiró una ficha arrastrándola. Al soltar, el navegador manda
-  // igual un "clic" en el mismo lugar: si no se lo descarta, la ficha que se
-  // acaba de sacar vuelve a ponerse sola. Se descarta POR TIEMPO y no con una
-  // banderita de un solo uso, porque ese clic no siempre llega — y cuando no
-  // llegaba, la bandera se comía el toque siguiente, el de verdad.
-  const ultimoArrastre = React.useRef(0);
 
   const cancelLongPress = () => {
     if (longPressTimer.current) {
@@ -884,23 +985,17 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
     }
   };
 
-  // Retirar una ficha CORRIÉNDOLA de su casilla, que es lo que hace la mano
-  // sola. El toque largo sigue existiendo (y el clic derecho en la
-  // computadora), pero nadie los descubre: el gesto natural es empujarla.
-  //
-  // El arrastre se toma sólo en HORIZONTAL, y las casillas con ficha llevan
-  // `touch-action: pan-y`. Así el navegador nos deja los movimientos de
-  // costado —los que retiran— y se queda con los verticales, que son los que
-  // desplazan la página. Si tomáramos los dos, el jugador no podría bajar la
-  // pantalla con el dedo apoyado sobre una ficha.
   const tieneFichas = total > 0;
 
-  const retirarPorArrastre = () => {
+  // El arrastre se toma sólo en HORIZONTAL, y las casillas con ficha llevan
+  // `touch-action: pan-y`: el navegador nos deja los movimientos de costado y
+  // se queda con los verticales, que son los que desplazan la página. Si
+  // tomáramos los dos, el jugador no podría bajar la pantalla con el dedo
+  // apoyado sobre una ficha.
+  const empezarArrastre = (x, y) => {
     arrastrando.current = true;
-    ultimoArrastre.current = Date.now();
     cancelLongPress();
-    onRemove();
-    if (navigator.vibrate) navigator.vibrate(30);
+    onArrastrar(hot, x, y);
   };
 
   const onTouchStart = (e) => {
@@ -921,15 +1016,13 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
     const dx = touch.clientX - startPos.current.x;
     const dy = touch.clientY - startPos.current.y;
     if (Math.abs(dx) > 16 || Math.abs(dy) > 16) cancelLongPress();
-    // Una sola ficha por arrastre: si no, cruzar el paño de lado a lado
-    // levantaría la pila entera sin querer.
     if (disabled || arrastrando.current || !tieneFichas) return;
-    if (Math.abs(dx) >= ARRASTRE_MINIMO && Math.abs(dx) > Math.abs(dy)) retirarPorArrastre();
+    if (Math.abs(dx) >= ARRASTRE_MINIMO && Math.abs(dx) > Math.abs(dy)) {
+      empezarArrastre(touch.clientX, touch.clientY);
+    }
   };
 
-  const onTouchEnd = () => {
-    cancelLongPress();
-  };
+  const onTouchEnd = () => { cancelLongPress(); };
 
   // Lo mismo con el mouse: se aprieta sobre la ficha y se la corre.
   const onMouseDown = (e) => {
@@ -942,8 +1035,8 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
       const dy = ev.clientY - desde.y;
       if (Math.abs(dx) >= ARRASTRE_MINIMO && Math.abs(dx) > Math.abs(dy)) {
         listo = true;
-        retirarPorArrastre();
         soltar();
+        empezarArrastre(ev.clientX, ev.clientY);
       }
     };
     const soltar = () => {
@@ -955,7 +1048,7 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
   };
 
   const handleClick = (e) => {
-    if (Date.now() - ultimoArrastre.current < 350) { e.preventDefault(); return; }
+    if (Date.now() - ultimoArrastre.t < 350) { e.preventDefault(); return; }
     if (longPressFired.current) {
       e.preventDefault();
       longPressFired.current = false;
@@ -976,6 +1069,11 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         onTouchCancel={cancelLongPress}
+        // Con qué apuesta se corresponde esta casilla. Lo lee el arrastre para
+        // saber sobre qué se soltó la ficha (elementFromPoint), que es más
+        // confiable que medir posiciones: el paño va escalado.
+        data-apuesta={`${hot.type}|${hot.payload}`}
+        data-numeros={JSON.stringify(hot.numbers || [hot.payload])}
         style={{
           position: 'absolute',
           left: hot.x,
@@ -983,8 +1081,6 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
           width: hot.w,
           height: hot.h,
           cursor: disabled ? 'default' : 'pointer',
-          // Con ficha puesta, los movimientos de costado son nuestros (retiran)
-          // y los verticales quedan para desplazar la página.
           touchAction: tieneFichas && !disabled ? 'pan-y' : 'manipulation',
           WebkitTapHighlightColor: 'transparent',
           zIndex: hot.type === 'straight' || hot.type === 'column' || hot.type === 'dozen' || hot.type === 'half' || hot.type === 'parity' || hot.type === 'color' ? 2 : 5,

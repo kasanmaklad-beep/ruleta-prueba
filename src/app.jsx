@@ -425,6 +425,41 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     setBets((bs) => [...bs, bet]);
   }, [apuestasAbiertas, balance, bets, topeDe, avisar]);
 
+  // Mudar una ficha de una casilla a otra: se levanta la ÚLTIMA de la casilla
+  // de origen y se apoya en la de destino, con el mismo monto. No es poner una
+  // ficha nueva — el saldo no se toca, la plata ya estaba sobre el paño.
+  //
+  // Lo único que puede negarse es el tope del destino: si la casilla a la que
+  // se la lleva ya está cargada, la ficha se queda donde estaba y se avisa.
+  // Dejarla caer igual sería armar una apuesta que el servidor va a rechazar
+  // al girar, y ahí el jugador ya no entiende qué pasó.
+  const moveBet = useCallback((origen, destino) => {
+    if (!apuestasAbiertas) return;
+    const claveOrigen = betKey(origen.type, origen.payload);
+    const claveDestino = betKey(destino.type, destino.payload);
+    if (claveOrigen === claveDestino) return;
+
+    const idx = [...bets].reverse().findIndex((b) => betKey(b.type, b.payload) === claveOrigen);
+    if (idx === -1) return;
+    const realIdx = bets.length - 1 - idx;
+    const ficha = bets[realIdx];
+
+    const tope = topeDe(destino.type);
+    if (tope > 0) {
+      const yaPuesto = bets.reduce(
+        (acc, b, i) => (i !== realIdx && betKey(b.type, b.payload) === claveDestino ? acc + b.amount : acc), 0);
+      if (yaPuesto + ficha.amount > tope) {
+        const donde = destino.type === 'straight' ? 'pleno' : 'casilla';
+        avisar(`El máximo por ${donde} es $${tope.toLocaleString()}: la ficha se queda donde estaba.`);
+        return;
+      }
+    }
+
+    setBets((bs) => bs.map((b, i) => (i === realIdx
+      ? { type: destino.type, payload: destino.payload, numbers: destino.numbers, amount: b.amount }
+      : b)));
+  }, [apuestasAbiertas, bets, topeDe, avisar]);
+
   const removeBet = useCallback((type, payload) => {
     if (!apuestasAbiertas) return;
     setBets((bs) => {
@@ -1149,6 +1184,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                       bets={bets}
                       onPlaceBet={placeBet}
                       onRemoveBet={removeBet}
+                      onMoveBet={moveBet}
                       selectedChip={selectedChip}
                       disabled={!apuestasAbiertas}
                       theme={t.theme}
@@ -1318,6 +1354,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                         bets={bets}
                         onPlaceBet={placeBet}
                         onRemoveBet={removeBet}
+                        onMoveBet={moveBet}
                         selectedChip={selectedChip}
                         disabled={!apuestasAbiertas}
                         theme={t.theme}

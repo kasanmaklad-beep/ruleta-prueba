@@ -687,54 +687,91 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
       sacarFicha(p);
     };
 
-    // Retirar una ficha CORRIÉNDOLA fuera del círculo. Es el gesto que la mano
-    // hace sola; el toque sigue funcionando igual para el que ya lo aprendió.
-    // Sólo se toma el movimiento HORIZONTAL (y el círculo lleva `pan-y`): los
-    // verticales quedan para desplazar la pantalla, que si no el jugador no
-    // podría bajar con el dedo apoyado sobre su apuesta.
+    // ── Arrastrar una ficha ya puesta ─────────────────────────────────────
+    // Igual que en el paño de la ruleta, y a propósito: el mismo movimiento
+    // tiene que significar lo mismo en las dos mesas.
+    //   · soltarla sobre OTRO círculo → la ficha se muda a ese puesto
+    //   · soltarla fuera de los círculos → se retira
+    //   · tocar el círculo → saca la de arriba (el gesto de antes, sigue)
+    // Sólo se toma el movimiento HORIZONTAL (los círculos con ficha llevan
+    // `pan-y`): los verticales quedan para desplazar la pantalla, que si no el
+    // jugador no podría bajar con el dedo apoyado sobre su apuesta.
     const arrastreHecho = React.useRef(0);
+    const [arrastre, setArrastre] = useState(null);
+
+    const puestoBajo = (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      const c = el && el.closest ? el.closest('[data-puesto]') : null;
+      return c ? Number(c.dataset.puesto) : null;
+    };
+
+    const mudarFicha = (desde, hasta) => {
+      const ficha = (pilas[desde] || [])[(pilas[desde] || []).length - 1];
+      if (ficha == null) return;
+      const yaHay = (pilas[hasta] || []).reduce((a, b) => a + b, 0);
+      if (yaHay + ficha > maximo) {
+        setAviso(`El máximo por puesto en esta mesa es ${maximo}: la ficha se queda donde estaba.`);
+        return;
+      }
+      setAviso('');
+      Sonido.ficha();
+      setPilas((ps) => ps.map((x, i) => {
+        if (i === desde) return x.slice(0, -1);
+        if (i === hasta) return [...x, ficha];
+        return x;
+      }));
+    };
+
     const arrastreDe = (p) => {
       if (ocupado || enPaño) return {};
-      const empezar = (x0, y0, escuchar) => {
-        let listo = false;
-        const mover = (x, y) => {
-          if (listo) return false;
-          const dx = x - x0, dy = y - y0;
-          if (Math.abs(dx) >= 26 && Math.abs(dx) > Math.abs(dy)) {
-            listo = true;
-            if (sacarFicha(p) && navigator.vibrate) navigator.vibrate(30);
-            arrastreHecho.current = Date.now();
-            return true;   // una sola ficha por arrastre
+
+      const arrancar = (x0, y0, tipo) => {
+        const monto = (pilas[p] || [])[(pilas[p] || []).length - 1];
+        if (monto == null) return;
+        let vivo = false;
+        const puntoDe = (ev) => (ev.touches && ev.touches[0]) || (ev.changedTouches && ev.changedTouches[0]) || ev;
+
+        const mover = (ev) => {
+          const q = puntoDe(ev);
+          if (!vivo) {
+            const dx = q.clientX - x0, dy = q.clientY - y0;
+            if (!(Math.abs(dx) >= 26 && Math.abs(dx) > Math.abs(dy))) return;
+            vivo = true;
           }
-          return false;
+          if (ev.cancelable && ev.type === 'touchmove') ev.preventDefault();
+          setArrastre({ desde: p, monto, x: q.clientX, y: q.clientY, destino: puestoBajo(q.clientX, q.clientY) });
         };
-        escuchar(mover);
+
+        const soltar = (ev) => {
+          window.removeEventListener('mousemove', mover);
+          window.removeEventListener('mouseup', soltar);
+          window.removeEventListener('touchmove', mover, { passive: false });
+          window.removeEventListener('touchend', soltar);
+          if (!vivo) return;
+          const q = puntoDe(ev);
+          const destino = puestoBajo(q.clientX, q.clientY);
+          setArrastre(null);
+          arrastreHecho.current = Date.now();
+          if (destino == null) {
+            if (sacarFicha(p) && navigator.vibrate) navigator.vibrate(30);
+          } else if (destino !== p) {
+            mudarFicha(p, destino);
+            if (navigator.vibrate) navigator.vibrate(20);
+          }
+        };
+
+        if (tipo === 'touch') {
+          window.addEventListener('touchmove', mover, { passive: false });
+          window.addEventListener('touchend', soltar);
+        } else {
+          window.addEventListener('mousemove', mover);
+          window.addEventListener('mouseup', soltar);
+        }
       };
+
       return {
-        onTouchStart: (e) => {
-          const t = e.touches[0];
-          empezar(t.clientX, t.clientY, (mover) => {
-            const alMover = (ev) => { if (mover(ev.touches[0].clientX, ev.touches[0].clientY)) fin(); };
-            const fin = () => {
-              e.target.removeEventListener('touchmove', alMover);
-              e.target.removeEventListener('touchend', fin);
-            };
-            e.target.addEventListener('touchmove', alMover);
-            e.target.addEventListener('touchend', fin);
-          });
-        },
-        onMouseDown: (e) => {
-          if (e.button !== 0) return;
-          empezar(e.clientX, e.clientY, (mover) => {
-            const alMover = (ev) => { if (mover(ev.clientX, ev.clientY)) fin(); };
-            const fin = () => {
-              window.removeEventListener('mousemove', alMover);
-              window.removeEventListener('mouseup', fin);
-            };
-            window.addEventListener('mousemove', alMover);
-            window.addEventListener('mouseup', fin);
-          });
-        },
+        onTouchStart: (e) => { const t = e.touches[0]; arrancar(t.clientX, t.clientY, 'touch'); },
+        onMouseDown: (e) => { if (e.button === 0) arrancar(e.clientX, e.clientY, 'mouse'); },
       };
     };
 
@@ -841,6 +878,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
           {!manos.length && <div className="bj-cartas" />}
 
           <div className={'bj-circulo' + (editable ? ' bj-tocable' : '')}
+               data-puesto={p}
                onClick={() => tocarCirculo(p)}
                {...(editable && (pilas[p] || []).length ? arrastreDe(p) : {})}
                style={editable && (pilas[p] || []).length ? { touchAction: 'pan-y' } : undefined}>
@@ -896,6 +934,22 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
             </span>
           </span>
         </div>
+
+        {/* La ficha en la mano mientras se la arrastra. Va por portal al body:
+            el paño está escalado y un `position: fixed` adentro de algo
+            transformado se acomoda respecto de ESO y no de la pantalla. */}
+        {arrastre && ReactDOM.createPortal((
+          <div style={{
+            position: 'fixed', left: arrastre.x, top: arrastre.y,
+            transform: 'translate(-50%, -50%)', pointerEvents: 'none', zIndex: 10000,
+            width: 40, height: 40, borderRadius: '50%',
+            background: (fichaDe(arrastre.monto) || {}).cuerpo || '#b4101a',
+            border: arrastre.destino != null ? '2px dashed rgba(255,255,255,.9)' : '3px solid #ff5252',
+            color: '#fff', fontFamily: 'Georgia, serif', fontWeight: 900, fontSize: 12,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 6px 14px rgba(0,0,0,.75)',
+          }}>{arrastre.destino != null ? arrastre.monto : '✕'}</div>
+        ), document.body)}
 
         {/* Los avisos van FUERA de la mesa: un error al entrar tiene que verse
             aunque el paño todavía no se haya dibujado. */}
