@@ -166,7 +166,9 @@
     adminGames() { return req('/api/admin/games'); },
     adminCreateGame(mesa) { return POST('/api/admin/games', mesa); },
     adminUpdateGame(id, mesa) { return PUT(`/api/admin/games/${id}`, mesa); },
-    adminToggleGame(id, activo) { return POST(`/api/admin/games/${id}/activo`, { activo }); },
+    // El estado de una mesa: 0 cerrada, 1 abierta, 2 en pruebas (sólo el dueño
+    // y las cuentas de prueba la ven).
+    adminEstadoMesa(id, estado) { return POST(`/api/admin/games/${id}/activo`, { estado }); },
 
     // ── Panel: socios ──
     adminCashiers() { return req('/api/admin/cashiers'); },

@@ -15,7 +15,7 @@
 //   3. La ronda que el jugador abandona     → se cierra sola a las 12 horas.
 // ════════════════════════════════════════════════════════════════════════
 
-import { json, readJson, requireAuth, toPositiveInt, nowSql } from './lib.js';
+import { json, readJson, requireAuth, toPositiveInt, nowSql, esProbador } from './lib.js';
 
 // ─────────────────────────────── El mazo ──────────────────────────────────
 // Una carta es un texto de dos letras: rango + palo.
@@ -138,6 +138,7 @@ const MESA_RESPALDO = {
   apuesta_max: 500,
   puestos: 3,
   activo: 0,
+  en_pruebas: false,
 };
 
 // Un jugador no puede abrir más círculos que estos, aunque la ficha de la
@@ -182,7 +183,11 @@ async function fichaMesa(env, raw) {
     apuesta_max: Number(fila.apuesta_max) > 0 ? Number(fila.apuesta_max) : MESA_RESPALDO.apuesta_max,
     puestos: Number.isInteger(puestos) && puestos >= 1 && puestos <= MAX_PUESTOS
       ? puestos : MESA_RESPALDO.puestos,
-    activo: fila.activo ? 1 : 0,
+    // `activo` en la base es un estado de tres valores (ver lib.js): 0 cerrada,
+    // 1 abierta, 2 en pruebas. Acá se separa igual que en la ficha de ruleta:
+    // `activo` es "abierta para todos" y el estado en pruebas viaja aparte.
+    activo: Number(fila.activo) === 1 ? 1 : 0,
+    en_pruebas: Number(fila.activo) === 2,
   };
 }
 
@@ -291,6 +296,7 @@ function paraElCliente(ronda, mesa, saldo) {
       apuesta_max: mesa.apuesta_max,
       puestos: mesa.puestos,
       activo: mesa.activo,
+      en_pruebas: !!mesa.en_pruebas,
     },
     crupier: {
       cartas: cartasCrupier,
@@ -488,6 +494,9 @@ export async function bjRonda(request, env, url) {
 
   const mesa = await fichaMesa(env, url && url.searchParams.get('mesa'));
   if (!mesa) return json({ error: 'Esa mesa no existe' }, 400);
+  // Una mesa en pruebas no se abre ni escribiendo la dirección a mano: al que
+  // no es probador se le contesta que no existe, porque para él no existe.
+  if (mesa.en_pruebas && !esProbador(auth)) return json({ error: 'Esa mesa no existe' }, 400);
 
   const abiertaId = await rondaAbierta(env, auth.userId);
   if (!abiertaId) {
@@ -640,7 +649,12 @@ export async function bjApostar(request, env) {
   const body = await readJson(request);
   const mesa = await fichaMesa(env, body.mesa);
   if (!mesa) return json({ error: 'Esa mesa no existe' }, 400);
-  if (!mesa.activo) return json({ error: 'Esa mesa está cerrada' }, 400);
+  // Una mesa EN PRUEBAS la juegan sólo el dueño y las cuentas de prueba. Al
+  // resto se le contesta lo mismo que si estuviera cerrada, y es la verdad:
+  // para ellos lo está.
+  if (!mesa.activo && !(mesa.en_pruebas && esProbador(auth))) {
+    return json({ error: 'Esa mesa está cerrada' }, 400);
+  }
 
   // Se puede apostar en varios círculos de la mesa. Se acepta la forma nueva
   // (`puestos: [{puesto, apuesta}]`) y la vieja (`apuesta: 100` a secas, que

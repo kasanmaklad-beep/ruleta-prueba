@@ -37,6 +37,7 @@ function conCuentas(m, settings) {
       tipo: m.tipo,
       label: m.label,
       activo: m.activo,
+      en_pruebas: m.enPruebas,
       orden: m.orden,
       icono: m.icono,
       color: m.color,
@@ -62,6 +63,7 @@ function conCuentas(m, settings) {
     rayos: m.rayos,
     pago_pleno: m.pagoPleno,
     activo: m.activo,
+    en_pruebas: m.enPruebas,
     orden: m.orden,
     icono: m.icono,
     color: m.color,
@@ -171,8 +173,9 @@ export async function adminUpdateGame(request, env, id) {
     }, 400);
   }
 
-  // Apagarla desde la edición cuenta igual que apagarla con el botón.
-  if (actual.activo && !m.activo) {
+  // Apagarla desde la edición cuenta igual que apagarla con el botón. Pasarla
+  // a pruebas también: deja de estar abierta para el jugador común.
+  if (Number(actual.activo) === 1 && Number(m.activo) !== 1) {
     const err = await noDejarElSalonVacio(env, id);
     if (err) return json({ error: err }, 400);
   }
@@ -204,14 +207,28 @@ export async function adminToggleGame(request, env, id) {
   if (!fila) return json({ error: 'Esa mesa no existe' }, 404);
 
   const body = await readJson(request);
-  const encender = body.activo === undefined ? !fila.activo : !!body.activo;
+  // Tres estados: 0 cerrada, 1 abierta, 2 en pruebas (sólo el dueño y las
+  // cuentas de prueba). Se sigue aceptando el `activo: true/false` de antes
+  // para que el botón viejo del panel no se rompa.
+  let estado;
+  if (body.estado !== undefined) {
+    estado = Number(body.estado);
+    if (![0, 1, 2].includes(estado)) return json({ error: 'Estado inválido' }, 400);
+  } else if (body.activo !== undefined) {
+    estado = body.activo ? 1 : 0;
+  } else {
+    estado = Number(fila.activo) === 1 ? 0 : 1;
+  }
 
-  if (!encender) {
+  // Sólo la mesa ABIERTA cuenta para no dejar el salón vacío: una en pruebas no
+  // le sirve al jugador común, así que dejarla como única "encendida" sería
+  // dejar el salón cerrado sin darse cuenta.
+  if (estado !== 1) {
     const err = await noDejarElSalonVacio(env, id);
     if (err) return json({ error: err }, 400);
   }
 
-  await env.DB.prepare('UPDATE games SET activo = ? WHERE id = ?').bind(encender ? 1 : 0, id).run();
+  await env.DB.prepare('UPDATE games SET activo = ? WHERE id = ?').bind(estado, id).run();
   return adminGames(request, env);
 }
 

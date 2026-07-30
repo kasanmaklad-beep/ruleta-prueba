@@ -68,13 +68,23 @@ async function api(ruta, { metodo = 'GET', cuerpo, token } = {}) {
 }
 
 // ── El premio que TIENE que pagar una apuesta, según el número que salió ──
-function premioEsperado(bet, resultNum, pagoPleno) {
+// `rayos` es el mapa número→multiplicador que vino EN ESE GIRO. Va porque los
+// rayos no se pueden apagar del todo desde los ajustes: el mínimo que acepta el
+// servidor es 1 rayo por giro (y está bien que sea así — una mesa con rayos
+// encendidos y CERO rayos por giro pagaría el pleno 29 a 1 y le dejaría a la
+// casa el 21%, que es un robo). Así que en vez de pedirle al servidor que los
+// apague, la prueba cuenta con ellos: si el número que salió traía rayo, el
+// pleno paga el multiplicador y no el pago de la mesa.
+function premioEsperado(bet, resultNum, pagoPleno, rayos) {
   const cubre = bet.numbers.some((n) => String(n) === String(resultNum));
   if (!cubre) return 0;
   const externa = ['column', 'dozen', 'half', 'parity', 'color'].includes(bet.type);
   if (externa && (resultNum === 0 || resultNum === '00')) return 0;
-  const pago = bet.type === 'straight' ? pagoPleno : PAGOS[bet.type];
-  return bet.amount * (pago + 1);
+  if (bet.type === 'straight') {
+    const mult = rayos && rayos.get(String(resultNum));
+    return mult ? bet.amount * mult : bet.amount * (pagoPleno + 1);
+  }
+  return bet.amount * (PAGOS[bet.type] + 1);
 }
 
 // La canasta de prueba: una apuesta de cada tipo que exista en la mesa, para
@@ -175,7 +185,9 @@ async function main() {
     for (let i = 0; i < RONDAS_PAGOS; i++) {
       const r = await girar(apuestas.map((b) => ({ type: b.type, payload: b.payload, amount: b.amount })));
       if (r.error) { malos++; ejemplo = r.error; break; }
-      const esperado = apuestas.reduce((s, b) => s + premioEsperado(b, r.resultNum, mesa.pago_pleno), 0);
+      const rayos = new Map((r.lightning || []).map(([n, m]) => [String(n), m]));
+      const esperado = apuestas.reduce(
+        (s, b) => s + premioEsperado(b, r.resultNum, mesa.pago_pleno, rayos), 0);
       if (r.win !== esperado) {
         malos++;
         if (!ejemplo) ejemplo = `salió el ${r.resultNum}: el servidor pagó ${r.win} y correspondían ${esperado}`;

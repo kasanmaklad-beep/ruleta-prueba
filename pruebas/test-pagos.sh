@@ -8,7 +8,9 @@
 #
 # Con 35 a 1 en la europea: 37×10 = 370 apostado, cobra 360, neto −10.
 # Con 35 a 1 en la americana: 38×10 = 380 apostado, cobra 360, neto −20.
-API=http://localhost:8787
+# El puerto se puede pasar por parámetro (wrangler no siempre toma el 8787):
+#   bash <este script> http://localhost:8795
+API=${1:-http://localhost:8787}
 ok=0; fail=0
 check(){ if [ "$2" = "$3" ]; then echo "  ✓ $1 (=$3)"; ok=$((ok+1)); else echo "  ✗ $1 — esperado $3, dio $2"; fail=$((fail+1)); fi; }
 post(){ curl -s -X POST "$API$1" -H 'Content-Type: application/json' ${2:+-H "Authorization: Bearer $2"} -d "$3"; }
@@ -21,6 +23,19 @@ post /api/auth/register "" "{\"username\":\"pg_$S\",\"password\":\"clave123\",\"
 PLT=$(post /api/auth/login "" "{\"username\":\"pg_$S\",\"password\":\"clave123\"}" | jq -r .token)
 post /api/admin/deposit "$ADT" "{\"username\":\"pg_$S\",\"amount\":500000}" >/dev/null
 put /api/admin/settings "$ADT" '{"settings":{"max_bet_pleno":100,"max_win_per_spin":999999999}}' >/dev/null
+
+# Las dos mesas clásicas tienen que estar abiertas para jugarlas. El script se
+# las abre y las deja como estaban al terminar.
+guardar_estado(){ get /api/admin/games "$ADT" | jq -r ".mesas[] | select(.id==\"$1\") | if .activo then 1 elif .en_pruebas then 2 else 0 end"; }
+EST_EUROPEA=$(guardar_estado europea)
+EST_AMERICANA=$(guardar_estado americana)
+post /api/admin/games/europea/activo "$ADT" '{"estado":1}' >/dev/null
+post /api/admin/games/americana/activo "$ADT" '{"estado":1}' >/dev/null
+restaurar_mesas(){
+  post /api/admin/games/europea/activo "$ADT" "{\"estado\":${EST_EUROPEA:-0}}" >/dev/null
+  post /api/admin/games/americana/activo "$ADT" "{\"estado\":${EST_AMERICANA:-0}}" >/dev/null
+}
+trap restaurar_mesas EXIT
 
 # apuestas a todos los números de una rueda
 apuestas_americana() {

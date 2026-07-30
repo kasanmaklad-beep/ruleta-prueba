@@ -142,14 +142,28 @@ dueño arme desde el panel:
 node pruebas/verificar-mesa.mjs <id-de-la-mesa> --api=http://localhost:8795
 ```
 
-Abre la mesa, comprueba la rueda, los pagos giro por giro (con los rayos
-apagados, comparando cada premio con el que corresponde), los topes, lo que
-no va en esa mesa (el 00 en una europea), los rayos y el reporte por mesa; y
-la deja como estaba, aunque algo falle. Termina con un veredicto: APTA o no.
+Abre la mesa, comprueba la rueda, los pagos giro por giro (contando los rayos
+que trajo cada giro, porque los rayos NO se pueden apagar del todo desde los
+ajustes: el mínimo que acepta el servidor es 1 por giro, y está bien que sea
+así — una mesa con rayos encendidos y cero rayos por giro pagaría el pleno 29 a
+1 y le dejaría a la casa el 21%), los topes, lo que no va en esa mesa (el 00 en
+una europea), los rayos y el reporte por mesa; y la deja como estaba, aunque
+algo falle. Termina con un veredicto: APTA o no.
 
 Al 28/07/2026 las cuatro mesas pasaron la batería en local. Falta la parte que
 no se automatiza: los días de juego real con la cuenta `prueba` en producción,
 mesa por mesa, antes de dejarla abierta para todos.
+
+**Y esa parte ya no obliga a abrirle la mesa al público.** Desde el 29/07/2026
+una mesa tiene tres estados y no dos (`games.activo`): `0` cerrada, `1` abierta
+y `2` **en pruebas** — viva en producción, jugándose con plata de verdad, pero
+visible y jugable sólo para el dueño y las cuentas `prueba`, `prueba2`… El
+detalle de cómo cierra ese portón y qué lo comprueba está en
+`ESTRUCTURA-BLACKJACK.md`, Etapa B5; el estado sirve igual para una ruleta:
+
+```bash
+node pruebas/verificar-mesa-en-pruebas.mjs --api=http://localhost:8795
+```
 
 ### Publicación
 Igual que la vez pasada: respaldo primero, ensayo de las migraciones sobre la

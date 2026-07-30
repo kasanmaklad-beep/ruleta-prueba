@@ -1509,10 +1509,17 @@
       finally { setGuardando(false); }
     };
 
-    const prender = (m) => aplicar(
-      () => window.Api.adminToggleGame(m.id, !m.activo),
-      m.activo ? `${m.label} quedó cerrada: ya no se puede entrar.`
-               : `${m.label} está abierta. Los jugadores ya la ven en el salón.`
+    // Una mesa tiene tres estados y el dueño los toca desde acá:
+    //   CERRADA · EN PRUEBAS (sólo él y las cuentas `prueba`) · ABIERTA.
+    const AVISO = {
+      0: (l) => `${l} quedó cerrada: ya no se puede entrar.`,
+      1: (l) => `${l} está abierta. Los jugadores ya la ven en el salón.`,
+      2: (l) => `${l} quedó EN PRUEBAS: la ven y la juegan sólo vos y las cuentas `
+              + `de prueba. El jugador común no la ve en el salón.`,
+    };
+    const cambiarEstado = (m, estado) => aplicar(
+      () => window.Api.adminEstadoMesa(m.id, estado),
+      AVISO[estado](m.label)
     );
 
     const guardar = () => {
@@ -1566,7 +1573,7 @@
             key={m.id}
             m={m}
             puedeEditar={datos.en_la_base}
-            onPrender={() => prender(m)}
+            onEstado={(estado) => cambiarEstado(m, estado)}
             onEditar={() => { setEditando({ ...m }); setCreando(false); }}
             guardando={guardando}
           />
@@ -1577,13 +1584,19 @@
 
   // Una mesa en la lista: cómo está armada, qué le deja a la casa y los dos
   // botones de todos los días.
-  function FichaMesa({ m, onPrender, onEditar, puedeEditar, guardando }) {
+  function FichaMesa({ m, onEstado, onEditar, puedeEditar, guardando }) {
     const es21 = m.tipo === 'blackjack';
+    const estado = m.activo ? 1 : (m.en_pruebas ? 2 : 0);
+    const CINTA = {
+      0: { texto: 'CERRADA', color: '#ccc', fondo: '#444' },
+      1: { texto: 'ABIERTA', color: '#0a0a0a', fondo: 'linear-gradient(180deg, #ffe98a, #d4a017)' },
+      2: { texto: 'EN PRUEBAS', color: '#0a0a0a', fondo: 'linear-gradient(180deg, #9ad7ff, #2b8fd4)' },
+    }[estado];
     return (
       <div style={{
         ...S.card,
-        borderColor: m.activo ? '#8b6a20' : '#333',
-        opacity: m.activo ? 1 : 0.75,
+        borderColor: estado === 1 ? '#8b6a20' : (estado === 2 ? '#2b6f9e' : '#333'),
+        opacity: estado === 0 ? 0.75 : 1,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 26 }}>{m.icono || '🎡'}</div>
@@ -1608,9 +1621,8 @@
           </div>
           <div style={{
             fontSize: 10, letterSpacing: 2, fontWeight: 900, padding: '4px 9px', borderRadius: 4,
-            color: m.activo ? '#0a0a0a' : '#ccc',
-            background: m.activo ? 'linear-gradient(180deg, #ffe98a, #d4a017)' : '#444',
-          }}>{m.activo ? 'ABIERTA' : 'CERRADA'}</div>
+            color: CINTA.color, background: CINTA.fondo,
+          }}>{CINTA.texto}</div>
         </div>
 
         <div style={{
@@ -1640,9 +1652,23 @@
 
         {puedeEditar && (
           <div style={{ display: 'flex', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
-            <Boton chico tono={m.activo ? 'rojo' : 'verde'} onClick={onPrender} disabled={guardando}>
-              {m.activo ? 'CERRAR MESA' : 'ABRIR MESA'}
-            </Boton>
+            {/* Los tres estados, cada uno un botón: se ve de una cuál está puesto
+                y no hay que adivinar qué hace un botón que cambia de nombre. */}
+            {estado !== 1 && (
+              <Boton chico tono="verde" onClick={() => onEstado(1)} disabled={guardando}>
+                ABRIR AL PÚBLICO
+              </Boton>
+            )}
+            {estado !== 2 && (
+              <Boton chico tono="gris" onClick={() => onEstado(2)} disabled={guardando}>
+                PONER EN PRUEBAS
+              </Boton>
+            )}
+            {estado !== 0 && (
+              <Boton chico tono="rojo" onClick={() => onEstado(0)} disabled={guardando}>
+                CERRAR MESA
+              </Boton>
+            )}
             <Boton chico tono="gris" onClick={onEditar} disabled={guardando}>EDITAR</Boton>
             {m.rondas > 0 && (
               <div style={{ fontSize: 10, color: '#777', alignSelf: 'center' }}>
@@ -1784,10 +1810,21 @@
               </label>
             </>
           )}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, cursor: 'pointer' }}>
-            <input type="checkbox" checked={!!mesa.activo} onChange={(e) => set('activo', e.target.checked)} />
-            Abierta al público
-          </label>
+          {/* Tres estados, no un sí o un no. EN PRUEBAS es lo que permite tener
+              una mesa nueva viva en producción, jugándose con plata de verdad,
+              sin abrírsela a nadie: la ven el dueño y las cuentas `prueba`. */}
+          <Campo label="ESTADO DE LA MESA">
+            <select style={S.input}
+                    value={mesa.activo ? 1 : (mesa.en_pruebas ? 2 : 0)}
+                    onChange={(e) => {
+                      const est = Number(e.target.value);
+                      setMesa({ ...mesa, estado: est, activo: est === 1, en_pruebas: est === 2 });
+                    }}>
+              <option value={0}>Cerrada — nadie entra</option>
+              <option value={2}>En pruebas — sólo el dueño y las cuentas de prueba</option>
+              <option value={1}>Abierta — para todos</option>
+            </select>
+          </Campo>
         </div>
 
         <div style={{

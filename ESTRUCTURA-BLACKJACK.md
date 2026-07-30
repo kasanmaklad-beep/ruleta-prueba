@@ -332,6 +332,39 @@ Ojo con dos cosas al programarla:
 La batería completa, después unos días con la cuenta `prueba` en producción, y
 recién ahí abierta para todos. Igual que se hace con cada ruleta.
 
+**Para que ese "unos días con la cuenta prueba" fuera posible hubo que agregar
+un estado que no existía.** Antes una mesa estaba abierta o cerrada: cerrada no
+se podía jugar ni siquiera el dueño, y abierta la veía todo el mundo. O sea que
+probar una mesa nueva en producción, con plata de verdad, obligaba a abrírsela
+al público el primer día. Ahora `games.activo` tiene tres valores:
+
+| Estado | Quién la ve en el salón | Quién puede jugarla |
+|---|---|---|
+| `0` cerrada | nadie | nadie |
+| `2` **en pruebas** | el dueño y las cuentas de prueba | los mismos |
+| `1` abierta | todos | todos |
+
+Un **probador** es el dueño (rol `admin`) o una cuenta que se llame `prueba`,
+`prueba2`, `prueba3`… No es un rol nuevo en la base a propósito: un rol se le
+puede asignar a un jugador por error y quedaría entrando a mesas sin terminar,
+mientras que para llamarse "prueba7" hay que crear la cuenta a mano.
+
+El portón cierra en cuatro lugares, y los cuatro se comprueban en
+`pruebas/verificar-mesa-en-pruebas.mjs`:
+1. **El catálogo** (`/api/games`): la mesa no le VIAJA al jugador común. No se
+   esconde al dibujar — no llega al teléfono.
+2. **La dirección escrita a mano** (`/api/bj/ronda`, `/juego?mesa=`): contesta
+   que la mesa no existe, porque para él no existe.
+3. **La apuesta** (`/api/bj/apostar`, `/api/game/spin`): se rechaza aunque
+   llegue con un token válido. Es la única de las cuatro que cuida la plata.
+4. **El salón vacío**: una mesa en pruebas NO cuenta como mesa abierta, así que
+   no se puede dejar el salón con una sola mesa "encendida" que nadie ve.
+
+Y el que sí puede se da cuenta de dónde está parado: la tarjeta del salón lleva
+la cinta celeste **EN PRUEBAS** y el paño de la mesa dice *MESA EN PRUEBAS · NO
+ABIERTA AL PÚBLICO*. El que prueba juega con plata de verdad; no puede depender
+de acordarse.
+
 ## 9. Qué se puede adelantar mientras siguen las ruletas
 
 Las tres mesas de ruleta que faltan **se abren desde el panel, sin publicar

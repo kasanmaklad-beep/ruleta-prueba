@@ -302,6 +302,11 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
   .bj-pila{position:absolute; bottom:10px; left:50%; transform:translateX(-50%); width:36px}
 .bj-pila .bj-ficha{margin-top:-30px; cursor:inherit; pointer-events:none; width:36px; height:36px; font-size:10px}
 .bj-pila .bj-ficha:first-child{margin-top:0}
+.bj-en-pruebas{
+    display:block; margin-top:5px; font-size:8px; letter-spacing:2px; font-weight:700;
+    color:#0a0a0a; background:linear-gradient(180deg,#9ad7ff,#2b8fd4);
+    border-radius:3px; padding:3px 7px;
+  }
 .bj-monto{text-align:center; line-height:1.1}
 .bj-monto b{display:block; font-size:15px; color:var(--oro); font-weight:700; text-shadow:0 2px 6px rgba(0,0,0,.7)}
 .bj-oculto{display:none !important}
@@ -830,6 +835,12 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
             <div className="bj-letrero">
               <b>EL BLACKJACK PAGA {(E.mesa && E.mesa.pago_natural) >= 1.5 ? '3 A 2' : '6 A 5'}</b>
               EL CRUPIER SE PLANTA EN 17 · APUESTA {minimo}–{maximo}
+              {/* La mesa en pruebas lo dice EN EL PAÑO. El que está probando
+                  juega con plata de verdad: tiene que saber en qué mesa está
+                  parado sin tener que acordarse. */}
+              {E.mesa && E.mesa.en_pruebas && (
+                <span className="bj-en-pruebas">MESA EN PRUEBAS · NO ABIERTA AL PÚBLICO</span>
+              )}
             </div>
             <div className="bj-marca-paño">VOLTIO</div>
             <div className="bj-arco" />

@@ -34,13 +34,16 @@
       icono: m.icono || (es21 ? '🃏' : '🎡'),
       color: m.color || DORADO,
       // La cinta la manda el estado real: una mesa cerrada siempre se anuncia
-      // como lo que viene, nunca con un título de venta.
-      cinta: m.activo ? 'MESA ABIERTA' : 'PRÓXIMAMENTE',
+      // como lo que viene, nunca con un título de venta. Y una mesa EN PRUEBAS
+      // se anuncia como lo que es: el que la ve es el dueño o una cuenta de
+      // prueba, y tiene que saber que está mirando algo que el público no ve.
+      cinta: m.en_pruebas ? 'EN PRUEBAS' : (m.activo ? 'MESA ABIERTA' : 'PRÓXIMAMENTE'),
+      enPruebas: !!m.en_pruebas,
       detalle: detalle.length ? detalle : auto,
       // La apuesta más chica que acepta la mesa: en el 21 la pone la ficha de
       // la mesa, y en la ruleta es siempre la de $1.
-      apuestaDesde: m.activo ? (es21 ? (m.apuesta_min || 1) : 1) : null,
-      activa: !!m.activo,
+      apuestaDesde: (m.activo || m.en_pruebas) ? (es21 ? (m.apuesta_min || 1) : 1) : null,
+      activa: !!(m.activo || m.en_pruebas),
     };
   }
 
@@ -71,7 +74,9 @@
           position: 'absolute', top: 10, right: 10, fontSize: 8, letterSpacing: 2,
           fontWeight: 700, borderRadius: 3, padding: '3px 7px',
           color: apagada ? '#ccc' : '#0a0a0a',
-          background: apagada ? '#555' : 'linear-gradient(180deg, #ffe98a, #d4a017)',
+          background: apagada ? '#555'
+            : (mesa.enPruebas ? 'linear-gradient(180deg, #9ad7ff, #2b8fd4)'
+                              : 'linear-gradient(180deg, #ffe98a, #d4a017)'),
         }}>{mesa.cinta}</div>
 
         <div style={{ fontSize: isMobile ? 28 : 34 }}>{mesa.icono}</div>
@@ -116,7 +121,10 @@
     // en el catálogo y el dueño las ve en su panel, pero al jugador no se le
     // anuncia lo que todavía no puede jugar: una tarjeta apagada ocupa lugar,
     // invita a tocarla y no lleva a ninguna parte.
-    const abiertas = (mesas || []).filter((m) => m.activo);
+    // Las mesas EN PRUEBAS ya vienen filtradas por el servidor: al jugador
+    // común no le llegan. Si llegaron, es porque quien mira es el dueño o una
+    // cuenta de prueba, y entonces las tiene que ver.
+    const abiertas = (mesas || []).filter((m) => m.activo || m.en_pruebas);
 
     const [isMobile, setIsMobile] = useState(window.innerWidth < 700);
     useEffect(() => {

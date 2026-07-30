@@ -86,7 +86,8 @@ function fichaDeMesa(m) {
     animales: !!m.animales,
     rayos: !!m.rayos,
     pagoPleno: m.pago_pleno,
-    activa: !!m.activo,
+    activa: !!(m.activo || m.en_pruebas),
+    enPruebas: !!m.en_pruebas,
   };
 }
 
@@ -1858,14 +1859,18 @@ function AppRoot() {
     if (cat.length === 0) return mesaId === FICHA_CATATUMBO.id ? FICHA_CATATUMBO : null;
     // Solo ruletas: una mesa de 21 tiene su propia pantalla y no se dibuja con
     // esta ficha (no tiene rueda ni casillas).
-    const elegida = cat.find((m) => m.id === mesaId && m.activo && esRuleta(m));
+    // `activo || en_pruebas`: el servidor sólo le manda una mesa en pruebas a
+    // quien puede entrar (el dueño o una cuenta de prueba), así que si la ficha
+    // llegó hasta acá, esta pantalla es para él.
+    const elegida = cat.find((m) => m.id === mesaId && (m.activo || m.en_pruebas) && esRuleta(m));
     if (elegida) return fichaDeMesa(elegida);
     const deSiempre = cat.find((m) => m.id === MESA_POR_DEFECTO);
     return deSiempre ? fichaDeMesa(deSiempre) : FICHA_CATATUMBO;
   })();
 
   // La mesa de 21 que se está jugando, si es que se entró a una.
-  const mesa21 = (mesas || []).find((m) => m.id === mesaId && m.activo && !esRuleta(m)) || null;
+  const mesa21 = (mesas || []).find(
+    (m) => m.id === mesaId && (m.activo || m.en_pruebas) && !esRuleta(m)) || null;
 
   // Si se pidió una mesa que no se puede jugar y se cayó a la de siempre, la
   // dirección se corrige sola: si no, quedaría diciendo una mesa y mostrando

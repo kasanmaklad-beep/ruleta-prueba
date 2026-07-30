@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS games (
   -- multiplicadores compensan; sin ellos la casa se quedaría con el 21% del
   -- pleno. El servidor lo valida, esto es el recordatorio.
   pago_pleno   INTEGER NOT NULL DEFAULT 35,
-  activo       INTEGER NOT NULL DEFAULT 0,     -- 0 = se anuncia, pero no se puede jugar
+  activo       INTEGER NOT NULL DEFAULT 0,     -- 0 cerrada · 1 abierta · 2 en pruebas (sólo el dueño y las cuentas `prueba`)
   orden        INTEGER NOT NULL DEFAULT 100,   -- en qué orden se muestran en el salón
   icono        TEXT,
   color        TEXT,                           -- acento de la tarjeta (#rrggbb)

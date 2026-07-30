@@ -107,6 +107,21 @@ export const RUEDAS = {
 // `activo: false` = la mesa existe y se anuncia en el salón, pero no se puede
 // jugar. Se encienden de a una en la Etapa 5, cada una después de verificar
 // sus pagos.
+//
+// En la BASE `activo` no es un sí o un no: es un estado de tres valores, y por
+// eso la columna es un entero.
+//   0 = cerrada       — nadie entra, y el salón no la muestra.
+//   1 = abierta       — abierta para todos.
+//   2 = en pruebas    — la mesa vive en producción, pero sólo la ven y la
+//                       juegan el dueño y las cuentas de prueba. Es el paso
+//                       que faltaba: hasta ahora, para probar una mesa nueva
+//                       con plata de verdad había que abrírsela al público.
+// Ojo con esto al leer el código: la ficha que arma armarFicha() sigue
+// teniendo `activo` BOOLEANO y significa "abierta para todos". El estado en
+// pruebas viaja aparte, en `enPruebas`. Se hizo así a propósito: cualquier
+// pantalla vieja que pregunte `if (mesa.activo)` sigue haciendo lo correcto
+// (no mostrar una mesa que todavía no es del público) en vez de heredar un
+// 2 que le parecería un sí.
 // OJO con `pagoPleno`: el pleno paga 29 a 1 SOLO en las mesas con rayos, donde
 // los multiplicadores compensan la diferencia. En una mesa sin rayos hay que
 // pagar los 35 a 1 de cualquier ruleta: con 29 a 1 y sin rayos la casa se
@@ -176,11 +191,16 @@ function armarFicha(id, j) {
 
   // Lo que comparten todas las mesas, sean del juego que sean: cómo se
   // anuncian en el salón y si están abiertas.
+  // El estado de tres valores de la base (ver el comentario de JUEGOS). La red
+  // de seguridad de arriba usa true/false, que valen 1 y 0.
+  const estado = j.activo === true ? 1 : (j.activo === false ? 0 : Number(j.activo) || 0);
+
   const comun = {
     id,
     tipo,
     label: j.label || id,
-    activo: !!j.activo,
+    activo: estado === 1,
+    enPruebas: estado === 2,
     orden: Number.isFinite(Number(j.orden)) ? Number(j.orden) : 100,
     icono: j.icono || null,
     color: j.color || null,
@@ -269,11 +289,33 @@ export const JUEGO_POR_DEFECTO = 'catatumbo';
 // Sin dato (cliente viejo que todavía no lo manda) cae en la mesa por defecto.
 // Ojo: esto es para el GIRO de la ruleta, así que una mesa de blackjack no
 // sirve por más abierta que esté — el giro no sabría qué hacer con ella.
-export async function mesaJugable(env, raw) {
+export async function mesaJugable(env, raw, auth) {
   const id = (raw == null || raw === '') ? JUEGO_POR_DEFECTO : String(raw).trim().toLowerCase();
   const j = await juegoDe(env, id);
-  if (!j || !j.activo || j.tipo !== 'ruleta') return null;
+  if (!j || j.tipo !== 'ruleta') return null;
+  if (!puedeEntrar(j, auth)) return null;
   return j;
+}
+
+// ── Las mesas en pruebas y quién entra ────────────────────────────────────
+// Un probador es el dueño (que necesita mirar la mesa con plata de verdad
+// antes de abrírsela a nadie) y las cuentas de prueba de la casa. Las cuentas
+// de prueba se reconocen por el nombre: se llaman `prueba`, `prueba2`,
+// `prueba3`… No es un rol nuevo en la base a propósito — un rol se le puede
+// asignar a un jugador por error y quedaría entrando a mesas sin terminar,
+// mientras que para llamarse "prueba7" hay que crear la cuenta a mano.
+export function esProbador(auth) {
+  if (!auth || auth.error) return false;
+  if (auth.role === 'admin') return true;
+  return /^prueba[0-9]*$/.test(String(auth.username || '').toLowerCase());
+}
+
+// ¿Este usuario puede entrar a esta mesa? Abierta, cualquiera; en pruebas,
+// sólo un probador; cerrada, nadie.
+export function puedeEntrar(mesa, auth) {
+  if (!mesa) return false;
+  if (mesa.activo) return true;
+  return !!mesa.enPruebas && esProbador(auth);
 }
 
 // ── Rayos (Lightning) ─────────────────────────────────────────────────────
@@ -373,8 +415,14 @@ export function infoRayos(settings) {
 // cilindro del navegador tiene que dibujar las casillas EN EL MISMO ORDEN que
 // usó el servidor para sortear, o la bola caería en un número distinto al que
 // salió. Una sola fuente de verdad (RUEDAS) evita esa desincronización.
-export async function catalogoMesas(env) {
-  const cat = await catalogoInterno(env);
+//
+// `auth` es quién está pidiendo el catálogo. Las mesas EN PRUEBAS sólo salen
+// para un probador: al jugador común no se le esconden con un `display:none`,
+// simplemente no viajan — si viajaran, cualquiera que abra las herramientas
+// del navegador vería una mesa que no existe para él.
+export async function catalogoMesas(env, auth) {
+  const cat = (await catalogoInterno(env))
+    .filter((j) => !j.enPruebas || esProbador(auth));
   return cat.map((j) => (j.tipo === 'blackjack' ? {
     // Una mesa de blackjack: el salón la anuncia y la pantalla del 21 se arma
     // con esto. Nada de ruedas ni de plenos.
@@ -382,6 +430,7 @@ export async function catalogoMesas(env) {
     tipo: j.tipo,
     label: j.label,
     activo: j.activo,
+    en_pruebas: j.enPruebas,
     icono: j.icono,
     color: j.color,
     detalle1: j.detalle1,
@@ -404,6 +453,7 @@ export async function catalogoMesas(env) {
     rayos: j.rayos,
     pago_pleno: j.pagoPleno,
     activo: j.activo,
+    en_pruebas: j.enPruebas,
     // Presentación: lo que el salón usa para armar la tarjeta.
     icono: j.icono,
     color: j.color,
@@ -435,7 +485,14 @@ export function validarMesa(body, { creando = false } = {}) {
 
   // Lo que se anuncia en el salón vale igual para los dos juegos.
   const presentacion = () => {
-    out.activo = body.activo ? 1 : 0;
+    // El estado de la mesa: 0 cerrada, 1 abierta, 2 en pruebas. Se acepta
+    // también el `activo: true/false` de antes.
+    // Si el panel manda `estado`, manda ese. Si no (cliente viejo, o una mesa
+    // que se guardó sin tocar el selector) se deduce de los dos campos que sí
+    // vienen: así una mesa EN PRUEBAS no se cierra sola al guardarla.
+    const est = body.estado !== undefined ? Number(body.estado)
+              : (body.activo ? 1 : (body.en_pruebas ? 2 : 0));
+    out.activo = [0, 1, 2].includes(est) ? est : 0;
     const orden = Number(body.orden);
     out.orden = Number.isInteger(orden) && orden >= 0 && orden <= 9999 ? orden : 100;
     out.icono = str(body.icono, 12);

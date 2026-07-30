@@ -278,7 +278,9 @@ async function gameSpin(request, env) {
 
   // En qué mesa se está jugando. La ficha manda: define la rueda, si hay
   // rayos, cuánto paga el pleno y qué apuestas son válidas.
-  const mesa = await mesaJugable(env, body.game);
+  // `auth` va porque una mesa EN PRUEBAS la juegan sólo el dueño y las cuentas
+  // de prueba: quién pide el giro es parte de si la mesa está jugable o no.
+  const mesa = await mesaJugable(env, body.game, auth);
   if (!mesa) return json({ error: 'Esa mesa no existe o está cerrada' }, 400);
   const gameId = mesa.id;
 
@@ -415,7 +417,7 @@ async function gameSpin(request, env) {
 async function listGames(request, env) {
   const auth = await requireAuth(request, env);
   if (auth.error) return auth.response;
-  return json({ mesas: await catalogoMesas(env) });
+  return json({ mesas: await catalogoMesas(env, auth) });
 }
 
 // ═══════════════════════════════════════════════════════════════════════

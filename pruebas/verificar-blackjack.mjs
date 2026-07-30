@@ -203,15 +203,15 @@ async function main() {
   const MAX = antes.mesa.apuesta_max;
   console.log(`Mesa "${antes.mesa.label}": ${MZ} mazos · natural paga ${PAGO_NAT} · apuesta ${MIN}–${MAX}\n`);
 
-  const estabaAbierta = await mesaAbierta(ADT);
-  await api(`/api/admin/games/${MESA}/activo`, { metodo: 'POST', token: ADT, cuerpo: { activo: true } });
+  const estabaEn = await estadoMesa(ADT);
+  await api(`/api/admin/games/${MESA}/activo`, { metodo: 'POST', token: ADT, cuerpo: { estado: 1 } });
 
   try {
     await pruebas({ ADT, PLT, MZ, PAGO_NAT, MIN, MAX, CAPITAL, usuario });
   } finally {
-    // Pase lo que pase, la mesa queda como estaba.
-    await api(`/api/admin/games/${MESA}/activo`, { metodo: 'POST', token: ADT, cuerpo: { activo: !!estabaAbierta } });
-    console.log(`\nLa mesa quedó ${estabaAbierta ? 'ABIERTA' : 'CERRADA'}, como estaba.`);
+    // Pase lo que pase, la mesa queda como estaba: abierta, cerrada o en pruebas.
+    await api(`/api/admin/games/${MESA}/activo`, { metodo: 'POST', token: ADT, cuerpo: { estado: estabaEn } });
+    console.log(`\nLa mesa quedó ${NOMBRE_ESTADO[estabaEn]}, como estaba.`);
   }
 
   console.log(`\n─────────────────────────────────────────`);
@@ -224,12 +224,21 @@ async function main() {
   process.exit(fail === 0 ? 0 : 1);
 }
 
-async function mesaAbierta(ADT) {
-  // El catálogo del panel todavía es sólo de ruletas (eso llega en la Etapa
-  // B2), así que el estado de la mesa se mira por el lado del jugador.
-  const r = await api(`/api/bj/ronda?mesa=${MESA}`, { token: ADT });
-  return !!(r && r.mesa && r.mesa.activo);
+// El estado de la mesa, con sus tres valores: 0 cerrada, 1 abierta, 2 en
+// pruebas. Importa leerlo así y no como un sí o un no: la batería la abre para
+// exprimirla y después la tiene que dejar COMO ESTABA — si una mesa en pruebas
+// se restaurara como "cerrada", el dueño perdería el estado sin darse cuenta.
+async function estadoMesa(ADT) {
+  const r = await api('/api/admin/games', { token: ADT });
+  const m = (r.mesas || []).find((x) => x.id === MESA);
+  if (m) return m.activo ? 1 : (m.en_pruebas ? 2 : 0);
+  // Si el panel no la tiene (migración 011 sin correr), se mira por el lado
+  // del jugador, que es de donde se leía antes.
+  const j = await api(`/api/bj/ronda?mesa=${MESA}`, { token: ADT });
+  return j && j.mesa && j.mesa.activo ? 1 : 0;
 }
+
+const NOMBRE_ESTADO = { 0: 'CERRADA', 1: 'ABIERTA', 2: 'EN PRUEBAS' };
 
 async function pruebas({ ADT, PLT, MZ, PAGO_NAT, MIN, MAX, CAPITAL }) {
   const APUESTA = Math.max(MIN, 10);

@@ -1,7 +1,9 @@
 #!/bin/bash
 # Mide con giros de verdad contra el servidor que la rueda europea pague bien.
-# Se corre con la europea encendida a mano en lib.js.
-API=http://localhost:8787
+# El script se abre la mesa europea solo y la deja como estaba al terminar.
+# El puerto se puede pasar por parámetro (wrangler no siempre toma el 8787):
+#   bash <este script> http://localhost:8795
+API=${1:-http://localhost:8787}
 ok=0; fail=0
 check(){ if echo "$3" | jq -e "$2" >/dev/null 2>&1; then echo "  ✓ $1"; ok=$((ok+1)); else echo "  ✗ $1"; echo "     → $(echo "$3"|head -c 240)"; fail=$((fail+1)); fi; }
 post(){ curl -s -X POST "$API$1" -H 'Content-Type: application/json' ${2:+-H "Authorization: Bearer $2"} -d "$3"; }
@@ -14,6 +16,14 @@ post /api/auth/register "" "{\"username\":\"eu_$S\",\"password\":\"clave123\",\"
 PLT=$(post /api/auth/login "" "{\"username\":\"eu_$S\",\"password\":\"clave123\"}" | jq -r .token)
 post /api/admin/deposit "$ADT" "{\"username\":\"eu_$S\",\"amount\":2000000}" >/dev/null
 put /api/admin/settings "$ADT" '{"settings":{"max_bet_pleno":100,"max_win_per_spin":999999999}}' >/dev/null
+# La europea tiene que estar abierta para jugarla. El script se la abre y la
+# deja como estaba al terminar: así no depende de en qué estado quedó el salón
+# ni obliga a tocar nada a mano (antes el encabezado pedía encenderla en lib.js).
+ESTADO_EUROPEA=$(get /api/admin/games "$ADT" | jq -r '.mesas[] | select(.id=="europea") | if .activo then 1 elif .en_pruebas then 2 else 0 end')
+post "/api/admin/games/europea/activo" "$ADT" '{"estado":1}' >/dev/null
+restaurar_europea(){ post "/api/admin/games/europea/activo" "$ADT" "{\"estado\":${ESTADO_EUROPEA:-0}}" >/dev/null; }
+trap restaurar_europea EXIT
+
 
 echo "── El 00 no existe en la europea ──"
 R=$(post /api/game/spin "$PLT" '{"bets":[{"type":"straight","payload":"00","amount":10}],"game":"europea"}')

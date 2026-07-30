@@ -8,16 +8,28 @@
 # cantidad de números, así que en una rueda de 37 le dejan a la casa el mismo
 # 2,7% que el resto de la mesa. Si alguna pagara de menos sería un robo
 # escondido, y de más, un agujero en la caja.
-API=http://localhost:8787
+# El puerto se puede pasar por parámetro (wrangler no siempre toma el 8787):
+#   bash <este script> http://localhost:8795
+API=${1:-http://localhost:8787}
 ok=0; fail=0
 check(){ if echo "$3" | jq -e "$2" >/dev/null 2>&1; then echo "  ✓ $1"; ok=$((ok+1)); else echo "  ✗ $1"; echo "     → $(echo "$3"|head -c 260)"; fail=$((fail+1)); fi; }
 post(){ curl -s -X POST "$API$1" -H 'Content-Type: application/json' ${2:+-H "Authorization: Bearer $2"} -d "$3"; }
+get(){  curl -s "$API$1" ${2:+-H "Authorization: Bearer $2"}; }
 
 ADT=$(post /api/auth/login "" '{"username":"admin","password":"123456"}' | jq -r .token)
 S=$(date +%s); N=$(echo "$S" | tail -c 8)
 post /api/auth/register "" "{\"username\":\"c0_$S\",\"password\":\"clave123\",\"first_name\":\"Cero\",\"last_name\":\"Test\",\"cedula\":\"${N}7\",\"phone\":\"04141112233\",\"email\":\"c0$S@correo.com\",\"bank\":\"0134 - Banesco\"}" >/dev/null
 PLT=$(post /api/auth/login "" "{\"username\":\"c0_$S\",\"password\":\"clave123\"}" | jq -r .token)
 post /api/admin/deposit "$ADT" "{\"username\":\"c0_$S\",\"amount\":500000}" >/dev/null
+
+
+# La europea tiene que estar abierta para jugarla. El script se la abre y la
+# deja como estaba al terminar: así no depende de en qué estado quedó el salón
+# ni obliga a tocar nada a mano (antes el encabezado pedía encenderla en lib.js).
+ESTADO_EUROPEA=$(get /api/admin/games "$ADT" | jq -r '.mesas[] | select(.id=="europea") | if .activo then 1 elif .en_pruebas then 2 else 0 end')
+post "/api/admin/games/europea/activo" "$ADT" '{"estado":1}' >/dev/null
+restaurar_europea(){ post "/api/admin/games/europea/activo" "$ADT" "{\"estado\":${ESTADO_EUROPEA:-0}}" >/dev/null; }
+trap restaurar_europea EXIT
 
 MONTO=10
 

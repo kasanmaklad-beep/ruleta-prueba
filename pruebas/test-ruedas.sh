@@ -1,6 +1,9 @@
 #!/bin/bash
 # Etapa 3a: que el servidor juegue bien las dos ruedas.
-API=http://localhost:8787
+# El servidor local no siempre está en el 8787 (wrangler toma otro puerto si
+# está ocupado), así que se puede pasar por parámetro:
+#   bash pruebas/test-ruedas.sh http://localhost:8795
+API=${1:-http://localhost:8787}
 ok=0; fail=0
 check(){ if echo "$3" | jq -e "$2" >/dev/null 2>&1; then echo "  ✓ $1"; ok=$((ok+1)); else echo "  ✗ $1"; echo "     → $(echo "$3"|head -c 260)"; fail=$((fail+1)); fi; }
 post(){ curl -s -X POST "$API$1" -H 'Content-Type: application/json' ${2:+-H "Authorization: Bearer $2"} -d "$3"; }
