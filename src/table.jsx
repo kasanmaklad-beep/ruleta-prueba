@@ -857,11 +857,25 @@ function CellRect({ x, y, w, h, fill, stroke }) {
 }
 
 // Hotspot clicable + chip stack si corresponde
-// Long-press (500ms) en táctil = retirar (sustituye al clic derecho)
+// Cómo se saca una ficha del paño, de más natural a menos:
+//   · deslizarla de costado (el gesto que la mano hace sola)
+//   · dejar el dedo apoyado 500 ms
+//   · clic derecho, en computadora
+// Cuántos píxeles hay que correr el dedo para que sea "arrastré la ficha
+// afuera" y no "toqué medio torcido".
+const ARRASTRE_MINIMO = 26;
+
 function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, disabled, rotateChip }) {
   const longPressTimer = React.useRef(null);
   const longPressFired = React.useRef(false);
   const startPos = React.useRef({ x: 0, y: 0 });
+  const arrastrando = React.useRef(false);
+  // Cuándo se retiró una ficha arrastrándola. Al soltar, el navegador manda
+  // igual un "clic" en el mismo lugar: si no se lo descarta, la ficha que se
+  // acaba de sacar vuelve a ponerse sola. Se descarta POR TIEMPO y no con una
+  // banderita de un solo uso, porque ese clic no siempre llega — y cuando no
+  // llegaba, la bandera se comía el toque siguiente, el de verdad.
+  const ultimoArrastre = React.useRef(0);
 
   const cancelLongPress = () => {
     if (longPressTimer.current) {
@@ -870,9 +884,29 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
     }
   };
 
+  // Retirar una ficha CORRIÉNDOLA de su casilla, que es lo que hace la mano
+  // sola. El toque largo sigue existiendo (y el clic derecho en la
+  // computadora), pero nadie los descubre: el gesto natural es empujarla.
+  //
+  // El arrastre se toma sólo en HORIZONTAL, y las casillas con ficha llevan
+  // `touch-action: pan-y`. Así el navegador nos deja los movimientos de
+  // costado —los que retiran— y se queda con los verticales, que son los que
+  // desplazan la página. Si tomáramos los dos, el jugador no podría bajar la
+  // pantalla con el dedo apoyado sobre una ficha.
+  const tieneFichas = total > 0;
+
+  const retirarPorArrastre = () => {
+    arrastrando.current = true;
+    ultimoArrastre.current = Date.now();
+    cancelLongPress();
+    onRemove();
+    if (navigator.vibrate) navigator.vibrate(30);
+  };
+
   const onTouchStart = (e) => {
     if (disabled) return;
     longPressFired.current = false;
+    arrastrando.current = false;
     const touch = e.touches[0];
     startPos.current = { x: touch.clientX, y: touch.clientY };
     longPressTimer.current = setTimeout(() => {
@@ -887,13 +921,41 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
     const dx = touch.clientX - startPos.current.x;
     const dy = touch.clientY - startPos.current.y;
     if (Math.abs(dx) > 16 || Math.abs(dy) > 16) cancelLongPress();
+    // Una sola ficha por arrastre: si no, cruzar el paño de lado a lado
+    // levantaría la pila entera sin querer.
+    if (disabled || arrastrando.current || !tieneFichas) return;
+    if (Math.abs(dx) >= ARRASTRE_MINIMO && Math.abs(dx) > Math.abs(dy)) retirarPorArrastre();
   };
 
   const onTouchEnd = () => {
     cancelLongPress();
   };
 
+  // Lo mismo con el mouse: se aprieta sobre la ficha y se la corre.
+  const onMouseDown = (e) => {
+    if (disabled || !tieneFichas || e.button !== 0) return;
+    const desde = { x: e.clientX, y: e.clientY };
+    let listo = false;
+    const mover = (ev) => {
+      if (listo) return;
+      const dx = ev.clientX - desde.x;
+      const dy = ev.clientY - desde.y;
+      if (Math.abs(dx) >= ARRASTRE_MINIMO && Math.abs(dx) > Math.abs(dy)) {
+        listo = true;
+        retirarPorArrastre();
+        soltar();
+      }
+    };
+    const soltar = () => {
+      window.removeEventListener('mousemove', mover);
+      window.removeEventListener('mouseup', soltar);
+    };
+    window.addEventListener('mousemove', mover);
+    window.addEventListener('mouseup', soltar);
+  };
+
   const handleClick = (e) => {
+    if (Date.now() - ultimoArrastre.current < 350) { e.preventDefault(); return; }
     if (longPressFired.current) {
       e.preventDefault();
       longPressFired.current = false;
@@ -907,6 +969,7 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
       <div
         onClick={handleClick}
         onContextMenu={(e) => { e.preventDefault(); onRemove(); }}
+        onMouseDown={onMouseDown}
         onMouseEnter={() => onHover(hot)}
         onMouseLeave={() => onHover(null)}
         onTouchStart={onTouchStart}
@@ -920,7 +983,9 @@ function Hotspot({ hot, onPlace, onRemove, onHover, total, chipPos, showChip, di
           width: hot.w,
           height: hot.h,
           cursor: disabled ? 'default' : 'pointer',
-          touchAction: 'manipulation',
+          // Con ficha puesta, los movimientos de costado son nuestros (retiran)
+          // y los verticales quedan para desplazar la página.
+          touchAction: tieneFichas && !disabled ? 'pan-y' : 'manipulation',
           WebkitTapHighlightColor: 'transparent',
           zIndex: hot.type === 'straight' || hot.type === 'column' || hot.type === 'dozen' || hot.type === 'half' || hot.type === 'parity' || hot.type === 'color' ? 2 : 5,
         }}

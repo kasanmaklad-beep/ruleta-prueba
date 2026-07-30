@@ -669,13 +669,73 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
       setPilas((ps) => ps.map((p, i) => (i === puestoActivo ? [...p, v] : p)));
     };
 
+    const sacarFicha = (p) => {
+      if (!(pilas[p] || []).length) return false;
+      Sonido.ficha();
+      setPilas((ps) => ps.map((x, i) => (i === p ? x.slice(0, -1) : x)));
+      return true;
+    };
+
     const tocarCirculo = (p) => {
       if (ocupado || enPaño) return;
+      // El clic que manda el navegador al soltar un arrastre no cuenta: si
+      // contara, la ficha recién sacada volvería a la mesa. Se descarta por
+      // tiempo, no con una bandera de un solo uso — ese clic no siempre llega,
+      // y entonces la bandera se comía el toque siguiente.
+      if (Date.now() - arrastreHecho.current < 350) return;
       if (puestoActivo !== p) { setPuestoActivo(p); return; }
-      if ((pilas[p] || []).length) {
-        Sonido.ficha();
-        setPilas((ps) => ps.map((x, i) => (i === p ? x.slice(0, -1) : x)));
-      }
+      sacarFicha(p);
+    };
+
+    // Retirar una ficha CORRIÉNDOLA fuera del círculo. Es el gesto que la mano
+    // hace sola; el toque sigue funcionando igual para el que ya lo aprendió.
+    // Sólo se toma el movimiento HORIZONTAL (y el círculo lleva `pan-y`): los
+    // verticales quedan para desplazar la pantalla, que si no el jugador no
+    // podría bajar con el dedo apoyado sobre su apuesta.
+    const arrastreHecho = React.useRef(0);
+    const arrastreDe = (p) => {
+      if (ocupado || enPaño) return {};
+      const empezar = (x0, y0, escuchar) => {
+        let listo = false;
+        const mover = (x, y) => {
+          if (listo) return false;
+          const dx = x - x0, dy = y - y0;
+          if (Math.abs(dx) >= 26 && Math.abs(dx) > Math.abs(dy)) {
+            listo = true;
+            if (sacarFicha(p) && navigator.vibrate) navigator.vibrate(30);
+            arrastreHecho.current = Date.now();
+            return true;   // una sola ficha por arrastre
+          }
+          return false;
+        };
+        escuchar(mover);
+      };
+      return {
+        onTouchStart: (e) => {
+          const t = e.touches[0];
+          empezar(t.clientX, t.clientY, (mover) => {
+            const alMover = (ev) => { if (mover(ev.touches[0].clientX, ev.touches[0].clientY)) fin(); };
+            const fin = () => {
+              e.target.removeEventListener('touchmove', alMover);
+              e.target.removeEventListener('touchend', fin);
+            };
+            e.target.addEventListener('touchmove', alMover);
+            e.target.addEventListener('touchend', fin);
+          });
+        },
+        onMouseDown: (e) => {
+          if (e.button !== 0) return;
+          empezar(e.clientX, e.clientY, (mover) => {
+            const alMover = (ev) => { if (mover(ev.clientX, ev.clientY)) fin(); };
+            const fin = () => {
+              window.removeEventListener('mousemove', alMover);
+              window.removeEventListener('mouseup', fin);
+            };
+            window.addEventListener('mousemove', alMover);
+            window.addEventListener('mouseup', fin);
+          });
+        },
+      };
     };
 
     // Lo que había puesto cada puesto AL EMPEZAR la mano que terminó. No es la
@@ -781,7 +841,9 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
           {!manos.length && <div className="bj-cartas" />}
 
           <div className={'bj-circulo' + (editable ? ' bj-tocable' : '')}
-               onClick={() => tocarCirculo(p)}>
+               onClick={() => tocarCirculo(p)}
+               {...(editable && (pilas[p] || []).length ? arrastreDe(p) : {})}
+               style={editable && (pilas[p] || []).length ? { touchAction: 'pan-y' } : undefined}>
             {monto ? (
               <div className="bj-pila">
                 {pilaPara(monto).sort((a, b) => b - a).map((v, i, todas) => (
