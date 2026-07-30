@@ -102,10 +102,11 @@
     };
 
     return (
-      <div style={S.page}>
+      <div style={{ ...S.page, ...U.paleta('socio') }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <Encabezado
             titulo="🎟 TAQUILLA"
+            rol="socio"
             subtitulo={`Sesión: ${user.username}`}
             acciones={<>
               <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
@@ -133,7 +134,7 @@
               {/* Cupo disponible: el número más importante de esta pantalla. */}
               <div style={{
                 ...S.card,
-                background: 'linear-gradient(180deg, #2a2008, #140d02)',
+                background: 'var(--fondo-destacado, linear-gradient(180deg, #2a2008, #140d02))',
                 textAlign: 'center', padding: '24px 16px',
               }}>
                 <div style={{ fontSize: 12, color: '#999', letterSpacing: 2 }}>TUS FICHAS DISPONIBLES</div>
@@ -459,9 +460,9 @@
         <div style={{ ...S.titulo, color: '#9ff0a0' }}>TU CÓDIGO PARA SUMAR AFILIADOS</div>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{
-            fontSize: 32, fontWeight: 900, letterSpacing: 3, color: '#ffd84a',
+            fontSize: 32, fontWeight: 900, letterSpacing: 3, color: 'var(--acento, #d4a94a)',
             fontFamily: 'monospace', background: 'rgba(0,0,0,0.4)',
-            padding: '8px 18px', borderRadius: 8, border: '1px dashed #8b6a20',
+            padding: '8px 18px', borderRadius: 8, border: '1px dashed var(--borde, #8b6a20)',
           }}>{codigo}</div>
           <Boton chico tono="gris" onClick={() => copiar(codigo, 'El código')}>COPIAR CÓDIGO</Boton>
           <Boton chico tono="verde" onClick={() => copiar(enlace, 'El enlace')}>COPIAR ENLACE</Boton>

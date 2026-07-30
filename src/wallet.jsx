@@ -38,10 +38,11 @@
       : 0;
 
     return (
-      <div style={S.page}>
+      <div style={{ ...S.page, ...U.paleta('jugador') }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <Encabezado
             titulo="💰 MI BILLETERA"
+            rol="jugador"
             subtitulo={user.username}
             acciones={<>
               <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
@@ -52,7 +53,7 @@
           {info && (
             <div style={{
               ...S.card, marginBottom: 16, textAlign: 'center',
-              background: 'linear-gradient(180deg, #2a2008, #140d02)',
+              background: 'var(--fondo-destacado, linear-gradient(180deg, #2a2008, #140d02))',
             }}>
               <div style={{ fontSize: 12, color: '#999', letterSpacing: 2 }}>SALDO PARA JUGAR</div>
               <div style={{ fontSize: 42, fontWeight: 900, color: '#ffd84a', lineHeight: 1.2 }}>
@@ -140,7 +141,7 @@
                 style={{
                   padding: '12px 8px', borderRadius: 8, cursor: 'pointer',
                   fontFamily: 'Georgia, serif', fontSize: 14, fontWeight: 700,
-                  border: `2px solid ${metodo === id ? U.GOLD : '#3a2a10'}`,
+                  border: `2px solid ${metodo === id ? U.GOLD : 'var(--linea, #3a2a10)'}`,
                   background: metodo === id ? 'rgba(212,169,74,0.18)' : 'rgba(0,0,0,0.3)',
                   color: metodo === id ? U.GOLD : '#999',
                 }}
@@ -294,7 +295,7 @@
 
             {yaTieneDoc ? (
               <div style={{
-                background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
+                background: 'rgba(0,0,0,0.35)', border: '1px solid var(--linea, #3a2a10)',
                 borderRadius: 6, padding: '10px 12px', fontSize: 13, color: '#aaa',
               }}>
                 Te pagamos a nombre de{' '}

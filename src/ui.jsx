@@ -3,8 +3,62 @@
 (function () {
   const { useState } = React;
 
-  const GOLD = '#d4a94a';
-  const BORDER = '#8b6a20';
+  // ── El color de cada panel ────────────────────────────────────────────
+  // Los tres paneles (dueño, socio, jugador) comparten estos estilos, y hasta
+  // ahora compartían también el color: los tres eran dorados y de un vistazo
+  // no se sabía en cuál estabas. Ahora el color sale de variables CSS que cada
+  // panel define en su raíz — así no hay que duplicar ni un estilo, y el que
+  // no las define sigue viéndose dorado como siempre.
+  const GOLD = 'var(--acento, #d4a94a)';
+  const BORDER = 'var(--borde, #8b6a20)';
+  const LINEA = 'var(--linea, #3a2a10)';       // separadores
+  const LINEA_SUAVE = 'var(--linea-suave, #221a0c)';
+  const FONDO_PAGINA = 'var(--fondo-pagina, radial-gradient(ellipse at center, #2a1a08 0%, #120a02 60%, #050200 100%))';
+  const FONDO_TARJETA = 'var(--fondo-tarjeta, linear-gradient(180deg, #1a1410, #100a06))';
+
+  // Las tres paletas. Se aplican con `style={{ ...UI.paleta('dueno') }}` en la
+  // raíz de cada panel; de ahí para abajo hereda todo.
+  const PALETAS = {
+    // El dueño: azul. Es el panel donde se mueve la plata de todos.
+    dueno: {
+      '--acento': '#5aa9e6',
+      '--borde': '#2b5f8f',
+      '--linea': '#1e3a52',
+      '--linea-suave': '#142634',
+      '--fondo-pagina': 'radial-gradient(ellipse at center, #0a2036 0%, #061420 60%, #020609 100%)',
+      '--fondo-tarjeta': 'linear-gradient(180deg, #0e1c28, #071018)',
+      '--boton-acento': 'linear-gradient(180deg, #7cc3f5, #2b6f9e)',
+      '--boton-texto': '#04121d',
+      // La tarjeta del número grande (cupo, saldo): más clara que el resto,
+      // en el tono del panel.
+      '--fondo-destacado': 'linear-gradient(180deg, #10283a, #071620)',
+    },
+    // El socio: verde. Es la taquilla: entra y sale efectivo.
+    socio: {
+      '--acento': '#4fd18b',
+      '--borde': '#2a7f52',
+      '--linea': '#1e4a34',
+      '--linea-suave': '#132a1f',
+      '--fondo-pagina': 'radial-gradient(ellipse at center, #08301f 0%, #051a11 60%, #010806 100%)',
+      '--fondo-tarjeta': 'linear-gradient(180deg, #0c2118, #06120d)',
+      '--boton-acento': 'linear-gradient(180deg, #86e7b4, #2a8a5c)',
+      '--boton-texto': '#03150d',
+      '--fondo-destacado': 'linear-gradient(180deg, #0d2b1d, #061510)',
+    },
+    // El jugador: el dorado de la casa, que es el de las mesas.
+    jugador: {
+      '--acento': '#d4a94a',
+      '--borde': '#8b6a20',
+      '--linea': '#3a2a10',
+      '--linea-suave': '#221a0c',
+      '--fondo-pagina': 'radial-gradient(ellipse at center, #2a1a08 0%, #120a02 60%, #050200 100%)',
+      '--fondo-tarjeta': 'linear-gradient(180deg, #1a1410, #100a06)',
+      '--boton-acento': 'linear-gradient(180deg, #d4a94a, #8b6a20)',
+      '--boton-texto': '#1a1006',
+      '--fondo-destacado': 'linear-gradient(180deg, #2a2008, #140d02)',
+    },
+  };
+  const paleta = (rol) => PALETAS[rol] || PALETAS.jugador;
 
   // Bolívares con separador de miles. Los montos son siempre enteros.
   function bs(n) {
@@ -28,11 +82,11 @@
   const styles = {
     page: {
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at center, #2a1a08 0%, #120a02 60%, #050200 100%)',
+      background: FONDO_PAGINA,
       color: '#fff', fontFamily: 'Georgia, serif', padding: '16px 12px',
     },
     card: {
-      background: 'linear-gradient(180deg, #1a1410, #100a06)',
+      background: FONDO_TARJETA,
       border: `1px solid ${BORDER}`, borderRadius: 10, padding: 16,
     },
     input: {
@@ -43,15 +97,15 @@
     label: { fontSize: 11, color: '#999', letterSpacing: 1, display: 'block', marginBottom: 4 },
     th: {
       textAlign: 'left', padding: '8px 10px', color: '#888', fontSize: 11,
-      letterSpacing: 1, borderBottom: '1px solid #3a2a10', whiteSpace: 'nowrap',
+      letterSpacing: 1, borderBottom: `1px solid ${LINEA}`, whiteSpace: 'nowrap',
     },
-    td: { padding: '8px 10px', borderBottom: '1px solid #221a0c', fontSize: 14 },
+    td: { padding: '8px 10px', borderBottom: `1px solid ${LINEA_SUAVE}`, fontSize: 14 },
     titulo: { fontSize: 15, fontWeight: 900, letterSpacing: 1, color: GOLD, marginBottom: 12 },
   };
 
   function Boton({ children, onClick, tono = 'oro', chico, disabled, type, style }) {
     const tonos = {
-      oro:   { bg: 'linear-gradient(180deg, #d4a94a, #8b6a20)', bd: GOLD,      fg: '#1a1006' },
+      oro:   { bg: 'var(--boton-acento, linear-gradient(180deg, #d4a94a, #8b6a20))', bd: GOLD, fg: 'var(--boton-texto, #1a1006)' },
       verde: { bg: 'linear-gradient(180deg, #2a8a2a, #155015)', bd: '#2a8a2a', fg: '#fff' },
       rojo:  { bg: 'linear-gradient(180deg, #b8101a, #6a0a10)', bd: '#b8101a', fg: '#fff' },
       gris:  { bg: 'linear-gradient(180deg, #333, #111)',       bd: '#555',    fg: '#ddd' },
@@ -102,7 +156,7 @@
     const size = largo > 12 ? base - 8 : largo > 9 ? base - 5 : base;
     return (
       <div style={{
-        background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
+        background: 'rgba(0,0,0,0.35)', border: `1px solid ${LINEA}`,
         borderRadius: 8, padding: chico ? '10px 12px' : '14px 16px', minWidth: 0,
       }}>
         <div style={{ fontSize: 10, color: '#999', letterSpacing: 1, textTransform: 'uppercase' }}>{titulo}</div>
@@ -116,7 +170,14 @@
   }
 
   // Encabezado común: título, quién está en sesión y botón de salida.
-  function Encabezado({ titulo, subtitulo, acciones }) {
+  //
+  // `rol` pinta una cinta con el nombre del panel al lado del título. El color
+  // ya lo dice, pero el color solo no alcanza: hay gente que no lo distingue,
+  // y a pleno sol en la calle un azul oscuro y un verde oscuro son lo mismo.
+  // Escrito no falla.
+  const NOMBRE_ROL = { dueno: 'DUEÑO', socio: 'SOCIO', jugador: 'JUGADOR' };
+
+  function Encabezado({ titulo, subtitulo, acciones, rol }) {
     return (
       <div style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
@@ -124,7 +185,16 @@
         gap: 10, flexWrap: 'wrap',
       }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: GOLD }}>{titulo}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 20, fontWeight: 900, letterSpacing: 2, color: GOLD }}>{titulo}</div>
+            {rol && NOMBRE_ROL[rol] && (
+              <span style={{
+                fontSize: 9, letterSpacing: 2, fontWeight: 900, padding: '3px 8px', borderRadius: 4,
+                background: 'var(--boton-acento, linear-gradient(180deg, #d4a94a, #8b6a20))',
+                color: 'var(--boton-texto, #1a1006)',
+              }}>{NOMBRE_ROL[rol]}</span>
+            )}
+          </div>
           {subtitulo && <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{subtitulo}</div>}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{acciones}</div>
@@ -137,7 +207,7 @@
     return (
       <div style={{
         display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap',
-        borderBottom: '1px solid #2a1f10', paddingBottom: 10,
+        borderBottom: `1px solid ${LINEA_SUAVE}`, paddingBottom: 10,
       }}>
         {tabs.map((t) => (
           <button
@@ -146,7 +216,7 @@
             style={{
               padding: '8px 14px', borderRadius: 6, cursor: 'pointer',
               fontFamily: 'Georgia, serif', fontSize: 13, fontWeight: 700, letterSpacing: 1,
-              border: `1px solid ${activa === t.id ? GOLD : '#3a2a10'}`,
+              border: `1px solid ${activa === t.id ? GOLD : LINEA}`,
               background: activa === t.id ? 'rgba(212,169,74,0.18)' : 'rgba(0,0,0,0.3)',
               color: activa === t.id ? GOLD : '#999',
               display: 'flex', alignItems: 'center', gap: 6,
@@ -295,7 +365,7 @@
   }
 
   window.UI = {
-    GOLD, BORDER, bs, fecha, styles, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
+    GOLD, BORDER, bs, fecha, styles, paleta, PALETAS, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
     Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm,
   };
 })();

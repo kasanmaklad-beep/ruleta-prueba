@@ -46,10 +46,11 @@
     ];
 
     return (
-      <div style={S.page}>
+      <div style={{ ...S.page, ...U.paleta('dueno') }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <Encabezado
             titulo="⚙ PANEL DEL DUEÑO"
+            rol="dueno"
             subtitulo={`Sesión: ${user.username}`}
             acciones={<>
               <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
@@ -1692,7 +1693,7 @@
     const es21 = mesa.tipo === 'blackjack';
 
     return (
-      <div style={{ ...S.card, borderColor: '#d4a94a' }}>
+      <div style={{ ...S.card, borderColor: 'var(--acento, #d4a94a)' }}>
         <div style={S.titulo}>
           {creando ? (es21 ? 'MESA DE 21 NUEVA' : 'RULETA NUEVA') : `EDITANDO ${mesa.label.toUpperCase()}`}
         </div>
@@ -1829,7 +1830,7 @@
 
         <div style={{
           marginTop: 14, padding: 12, borderRadius: 8,
-          background: 'rgba(0,0,0,0.35)', border: '1px solid #3a2a10',
+          background: 'rgba(0,0,0,0.35)', border: '1px solid var(--linea, #3a2a10)',
           fontSize: 12, color: '#bba876', lineHeight: 1.7,
         }}>
           {es21 ? (
@@ -2117,7 +2118,7 @@
             const pct = sumaPesos > 0 ? (pesos[i] / sumaPesos) * 100 : 0;
             return (
               <div key={val} style={{
-                background: 'rgba(0,0,0,0.3)', border: '1px solid #3a2a10',
+                background: 'rgba(0,0,0,0.3)', border: '1px solid var(--linea, #3a2a10)',
                 borderRadius: 6, padding: '8px 10px',
               }}>
                 <div style={{ fontSize: 13, fontWeight: 900, color: '#ffd84a' }}>{val}x</div>
