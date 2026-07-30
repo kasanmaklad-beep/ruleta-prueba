@@ -543,6 +543,14 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     const [pilas, setPilas] = useState([[], [], []]);
     const [puestoActivo, setPuestoActivo] = useState(1);
 
+    // Cuando la mano termina, la mesa NO se limpia sola: las cartas y la
+    // apuesta se quedan a la vista para que el jugador vea cómo le fue. Recién
+    // cuando toca OTRA MANO (o REPETIR) el crupier barre el paño. Antes de esto
+    // la ficha de la mano muerta se quedaba puesta y no había forma de sacarla:
+    // se podían poner fichas nuevas y el círculo seguía mostrando la apuesta
+    // vieja, así que el jugador miraba 20 mientras estaba por apostar 100.
+    const [barrido, setBarrido] = useState(false);
+
     // Qué cartas ya se dibujaron, para animar y hacer sonar solo las nuevas.
     const vistas = useRef(new Set());
     const primerDibujo = useRef(true);
@@ -553,6 +561,13 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     const minimo = (E && E.mesa && E.mesa.apuesta_min) || (mesa && mesa.apuesta_min) || 10;
     const maximo = (E && E.mesa && E.mesa.apuesta_max) || (mesa && mesa.apuesta_max) || 500;
     const jugando = E && E.estado === 'jugando';
+    // La mano terminada, todavía sobre el paño: cartas, resultado y la apuesta
+    // como quedó. Es el momento en que en una mesa de verdad el crupier paga y
+    // recién después recoge.
+    const mostrandoCierre = !!E && E.estado === 'cerrada' && !barrido
+                            && ((E.manos || []).length > 0);
+    // Con la mano a la vista no se pone una ficha nueva: primero se barre.
+    const enPaño = jugando || mostrandoCierre;
     const saldo = E && E.balance != null ? E.balance : (user ? user.balance : 0);
 
     const montoDe = (p) => (pilas[p] || []).reduce((s, v) => s + v, 0);
@@ -566,6 +581,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
       setAviso('');
       setE(d);
       setPilas([[], [], []]);
+      setBarrido(false);
     }, []);
 
     const cargar = useCallback(async () => {
@@ -642,7 +658,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     };
 
     const ponerFicha = (v) => {
-      if (ocupado || jugando) return;
+      if (ocupado || enPaño) return;
       if (montoDe(puestoActivo) + v > maximo) {
         setAviso(`El máximo por puesto en esta mesa es ${maximo}`);
         return;
@@ -654,12 +670,44 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
     };
 
     const tocarCirculo = (p) => {
-      if (ocupado || jugando) return;
+      if (ocupado || enPaño) return;
       if (puestoActivo !== p) { setPuestoActivo(p); return; }
       if ((pilas[p] || []).length) {
         Sonido.ficha();
         setPilas((ps) => ps.map((x, i) => (i === p ? x.slice(0, -1) : x)));
       }
+    };
+
+    // Lo que había puesto cada puesto AL EMPEZAR la mano que terminó. No es la
+    // suma de lo que quedó en la mesa: si se dividió hay dos manos con la misma
+    // apuesta (sumarlas repetiría el doble), y si se dobló la mano quedó con el
+    // doble anotado (repetirlo obligaría a doblar de entrada). Así que se toma
+    // la PRIMERA mano del puesto y, si está doblada, se le saca la mitad.
+    const apostadoAntes = () => {
+      const out = [0, 0, 0];
+      for (const p of [0, 1, 2]) {
+        const suyas = ((E && E.manos) || []).filter((h) => h.puesto === p)
+          .sort((a, b) => a.indice - b.indice);
+        if (!suyas.length) continue;
+        const primera = suyas[0];
+        out[p] = primera.estado === 'doblada' ? Math.round(primera.apuesta / 2) : primera.apuesta;
+      }
+      return out;
+    };
+
+    // El barrido: se recoge la mano terminada. `repetir` vuelve a poner la
+    // misma apuesta sobre el paño limpio (sin cobrarla: eso lo hace APOSTAR).
+    const barrer = (repetir) => {
+      const previas = apostadoAntes();
+      const total = previas.reduce((a, b) => a + b, 0);
+      if (repetir && total > saldo) {
+        setAviso('No te alcanza el saldo para repetir la misma apuesta.');
+        return;
+      }
+      setAviso('');
+      Sonido.ficha();
+      setPilas(repetir ? previas.map((m) => (m > 0 ? pilaPara(m) : [])) : [[], [], []]);
+      setBarrido(true);
     };
 
     // Marca una carta como vista y avisa si es nueva (para animarla y sonarla).
@@ -685,10 +733,12 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
 
     // ── Una columna: el puesto con sus cartas, su cuenta y su círculo ────
     const Columna = (p) => {
-      const manos = ((E && E.manos) || []).filter((h) => h.puesto === p);
+      // Barrida la mesa, las manos ya no están sobre el paño aunque el
+      // servidor las siga contando en la ronda cerrada.
+      const manos = enPaño ? ((E && E.manos) || []).filter((h) => h.puesto === p) : [];
       const enJuego = manos.reduce((s, h) => s + h.apuesta, 0);
-      const monto = (jugando || manos.length) ? enJuego : montoDe(p);
-      const editable = !jugando;
+      const monto = manos.length ? enJuego : montoDe(p);
+      const editable = !enPaño;
       const enTurno = jugando && manos.some(
         (h) => h.indice === E.mano_activa && h.estado === 'jugando');
 
@@ -819,7 +869,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
               <div>
                 <div className="bj-quien">CRUPIER</div>
                 <div className="bj-cuenta">
-                  {E.crupier ? (
+                  {enPaño && E.crupier ? (
                     <>{E.crupier.total}{E.crupier.parcial ? <span className="bj-nota"> + ?</span> : null}</>
                   ) : '—'}
                 </div>
@@ -827,7 +877,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
             </div>
 
             <div className="bj-cartas">
-              {((E.crupier && E.crupier.cartas) || []).map((c, i) => (
+              {(enPaño ? ((E.crupier && E.crupier.cartas) || []) : []).map((c, i) => (
                 <Carta key={'c' + i} carta={c} nueva={esNueva('c' + i)} />
               ))}
             </div>
@@ -846,15 +896,17 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
             <div className="bj-arco" />
 
             <div className="bj-quien" style={{ marginBottom: 2 }}>
-              {jugando ? 'TU MANO' : 'TU APUESTA'}
+              {enPaño ? 'TU MANO' : 'TU APUESTA'}
             </div>
 
-            <div className={'bj-puestos' + (jugando || (E.manos || []).length ? ' bj-con-cartas' : '')}>
+            <div className={'bj-puestos' + (enPaño ? ' bj-con-cartas' : '')}>
               {Array.from({ length: puestos }, (_, p) => Columna(p))}
             </div>
 
-            {/* Las fichas del jugador, de su lado: a mano, sin cruzar el paño. */}
-            {!jugando && (
+            {/* Las fichas del jugador, de su lado: a mano, sin cruzar el paño.
+                Con la mano terminada todavía sobre la mesa no se muestran:
+                primero se recoge, después se apuesta. */}
+            {!enPaño && (
               <div className="bj-fichas">
                 {FICHAS.map((f) => (
                   <Ficha key={f.v} f={f} onClick={() => ponerFicha(f.v)}
@@ -871,6 +923,19 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
                     {TEXTO_ACCION[a] || a.toUpperCase()}
                   </button>
                 ))
+              ) : mostrandoCierre ? (
+                /* La mano terminó y sigue sobre el paño. Acá se recoge: OTRA
+                   MANO deja la mesa limpia, REPETIR la deja limpia y vuelve a
+                   poner la misma apuesta, que es lo que hace casi siempre el
+                   que acaba de jugar. Sin estos botones la ficha de la mano
+                   muerta se quedaba puesta para siempre. */
+                <>
+                  <button disabled={ocupado} onClick={() => barrer(true)}>
+                    REPETIR {apostadoAntes().reduce((a, b) => a + b, 0)}
+                  </button>
+                  <button className="bj-gris" disabled={ocupado}
+                          onClick={() => barrer(false)}>OTRA MANO</button>
+                </>
               ) : (
                 <>
                   <button

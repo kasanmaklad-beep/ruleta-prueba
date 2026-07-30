@@ -301,6 +301,17 @@ tiene que heredar:
   de más de un cuarto de segundo: el golpe de la ficha contra el paño, el roce
   de la carta al deslizarse, y el cierre de la mano. Sin un solo archivo. Y
   botón de silencio, que nadie tiene por qué aguantarse el ruido de una mesa.
+- **La mano terminada se recoge, no se pisa.** Cuando la ronda cierra, las
+  cartas y la apuesta se quedan sobre el paño —así se ve cómo salió— y aparecen
+  dos botones: **REPETIR <monto>** (barre y vuelve a poner la misma apuesta) y
+  **OTRA MANO** (barre y deja el paño limpio). Hasta que no se barre no se
+  pueden poner fichas. Sin esto la ficha de la mano muerta se quedaba puesta
+  para siempre: se podían agregar fichas nuevas y el círculo seguía mostrando
+  la apuesta vieja, así que el jugador miraba 20 mientras estaba por apostar
+  100. Ojo con lo que REPETIR vuelve a poner: es lo que se apostó AL EMPEZAR,
+  no lo que quedó en la mesa — si se dividió hay dos manos con la misma
+  apuesta (sumarlas repetiría el doble) y si se dobló la mano quedó anotada con
+  el doble (repetirlo obligaría a doblar de entrada).
 - **La marca del paño va en la banda del arco**, hundida en el fieltro (como
   serigrafiada), no en el centro: el centro se lo comen las cartas y la marca
   se lee cortada.
