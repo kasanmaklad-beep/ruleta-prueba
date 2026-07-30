@@ -141,6 +141,27 @@
    es un poco más angosta que nuestra carta, así que entra ENTERA (contain) y
    no recortada: si se recorta, lo primero que se pierde es el índice de la
    esquina, que es justo lo que el jugador mira cuando las cartas se montan. */
+/* Las dos manos de un puesto dividido: cada una con su marco, y la que está
+   en turno marcada. Con las cartas más chicas, para que las dos entren en el
+   ancho del círculo sin desarmar la fila de puestos. */
+.bj-col .bj-mano.bj-partida{
+    border-radius:8px; padding:2px 3px; margin-bottom:3px;
+    box-shadow:inset 0 0 0 1px rgba(255,236,190,.12);
+  }
+.bj-col .bj-mano.bj-partida.bj-activa{
+    background:rgba(255,216,74,.10); box-shadow:inset 0 0 0 1px rgba(255,216,74,.45);
+  }
+.bj-col .bj-mano.bj-partida .bj-carta{width:38px; height:55px; border-radius:5px; margin-left:-18px}
+.bj-col .bj-mano.bj-partida .bj-carta:first-child{margin-left:0}
+.bj-col .bj-mano.bj-partida .bj-cartas{min-height:57px}
+.bj-col .bj-mano.bj-partida .bj-cuenta{font-size:13px; padding:3px 8px; min-width:30px}
+/* Al dividir, el puesto queda con DOS apuestas. La pila del círculo suma las
+   dos, y una pila no se lee en números: se lee de un vistazo. Así que cada
+   mano dividida lleva escrito lo que tiene puesto, que es lo que el jugador
+   necesita saber antes de decidir si pide o se planta. */
+.bj-col .bj-mano.bj-partida .bj-apostado{
+    display:block; font-size:9px; letter-spacing:1px; color:#c9b781; margin-top:2px;
+  }
 .bj-carta.bj-figura{background:#fffdf5; overflow:hidden}
 .bj-carta.bj-figura img{width:100%; height:100%; object-fit:contain; display:block}
 .bj-carta .bj-pipa{fill:currentColor}
@@ -671,26 +692,38 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
           + (enTurno ? ' bj-activa' : '')
           + (!monto && !manos.length ? ' bj-vacia' : '')
           + (editable && p === puestoActivo ? ' bj-elegida' : '')}>
-          <div className="bj-cartas">
-            {manos.map((h) => h.cartas.map((c, i) => (
-              <Carta key={`m${h.indice}-${i}`} carta={c} nueva={esNueva(`m${h.indice}-${i}`)} />
-            )))}
-          </div>
-
-          <div className="bj-pie-col">
-            {manos.map((h) => (
-              <React.Fragment key={h.indice}>
-                <span className="bj-cuenta">
-                  {h.total}{h.blando ? <span className="bj-nota"> blando</span> : null}
-                </span>
-                {h.resultado && (
-                  <div className={'bj-resultado bj-' + h.resultado}>
-                    {NOMBRE[h.resultado]}{h.pago ? ' +' + h.pago : ''}
-                  </div>
-                )}
-              </React.Fragment>
-            ))}
-          </div>
+          {/* Un puesto puede tener DOS manos si se dividió. Cada una va con
+              sus cartas y su cuenta pegadas: si se mezclaran las cartas de las
+              dos en una fila, el jugador no sabría cuál está jugando ni qué
+              suma cada una. La que está en turno se marca. */}
+          {manos.map((h) => {
+            const suTurno = jugando && h.indice === E.mano_activa && h.estado === 'jugando';
+            return (
+              <div key={h.indice}
+                   className={'bj-mano' + (manos.length > 1 ? ' bj-partida' : '')
+                     + (manos.length > 1 && suTurno ? ' bj-activa' : '')}>
+                <div className="bj-cartas">
+                  {h.cartas.map((c, i) => (
+                    <Carta key={`m${h.indice}-${i}`} carta={c} nueva={esNueva(`m${h.indice}-${i}`)} />
+                  ))}
+                </div>
+                <div className="bj-pie-col">
+                  <span className="bj-cuenta">
+                    {h.total}{h.blando ? <span className="bj-nota"> blando</span> : null}
+                  </span>
+                  {manos.length > 1 && (
+                    <span className="bj-apostado">${h.apuesta}</span>
+                  )}
+                  {h.resultado && (
+                    <div className={'bj-resultado bj-' + h.resultado}>
+                      {NOMBRE[h.resultado]}{h.pago ? ' +' + h.pago : ''}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {!manos.length && <div className="bj-cartas" />}
 
           <div className={'bj-circulo' + (editable ? ' bj-tocable' : '')}
                onClick={() => tocarCirculo(p)}>

@@ -222,7 +222,7 @@ async function leerRonda(env, rondaId, userId) {
   if (userId != null && ronda.user_id !== userId) return null;
 
   const m = await env.DB.prepare(
-    'SELECT id, indice, puesto, cartas, apuesta, estado, resultado, pago FROM bj_manos WHERE ronda_id = ? ORDER BY indice'
+    'SELECT id, indice, puesto, cartas, apuesta, estado, resultado, pago FROM bj_manos WHERE ronda_id = ? ORDER BY puesto, indice'
   ).bind(rondaId).all();
 
   return {
@@ -301,7 +301,7 @@ function paraElCliente(ronda, mesa, saldo) {
     },
     manos,
     mano_activa: ronda.mano_activa,
-    acciones: activa ? accionesDe(activa) : [],
+    acciones: activa ? accionesDe(activa, ronda) : [],
     // El cliente tiene que devolver esta versión en cada jugada: es lo que
     // hace que el doble clic no reparta dos cartas. Ver tomar().
     version: ronda.version,
@@ -311,11 +311,41 @@ function paraElCliente(ronda, mesa, saldo) {
 
 // Qué puede hacer el jugador con la mano que tiene delante.
 // Dividir llega en la Etapa B4; hasta entonces no se ofrece.
-function accionesDe(mano) {
+function accionesDe(mano, ronda) {
   if (mano.estado !== 'jugando') return [];
   const acc = ['pedir', 'plantarse'];
   if (mano.cartas.length === 2) acc.push('doblar');
+  if (ronda && sePuedeDividir(mano, ronda)) acc.push('dividir');
   return acc;
+}
+
+// Cuánto vale una carta suelta. El as vale 11 acá: para decidir si dos cartas
+// "valen lo mismo" da igual, porque se comparan entre ellas.
+function valorCarta(c) {
+  const r = String(c)[0];
+  if (r === 'A') return 11;
+  return FIGURAS.has(r) ? 10 : Number(r);
+}
+
+// ── Cuándo se puede dividir ──────────────────────────────────────────────
+// SE DIVIDE POR VALOR, no por rango (decidido el 28/07): un 10 con una K se
+// puede partir, igual que J con Q. Es lo que hace la mayoría de los casinos y
+// además le conviene a la casa — partir un 20 es la peor jugada del blackjack.
+//
+// Una sola vez por puesto: si el puesto ya tiene dos manos, no se vuelve a
+// partir. Y con las dos primeras cartas nada más.
+function sePuedeDividir(mano, ronda) {
+  if (mano.estado !== 'jugando' || mano.cartas.length !== 2) return false;
+  if (valorCarta(mano.cartas[0]) !== valorCarta(mano.cartas[1])) return false;
+  const enElPuesto = ronda.manos.filter((h) => h.puesto === mano.puesto).length;
+  return enElPuesto === 1;
+}
+
+// Un par de ases se parte, pero cada mano recibe UNA carta y se planta sola.
+// Es la regla de la casa en cualquier mesa: si no, dos ases divididos con
+// carta libre le darían al jugador la mejor mano del juego dos veces.
+function sonAses(mano) {
+  return String(mano.cartas[0])[0] === 'A';
 }
 
 async function saldoDe(env, userId) {
@@ -864,5 +894,86 @@ export async function bjDoblar(request, env) {
   ]);
 
   await avanzar(env, ronda, mesa);
+  return respuesta(env, ronda.id, auth.userId, mesa);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  POST /api/bj/dividir — partir un par en dos manos (Etapa B4)
+//
+//  Tres reglas que son las que se equivocan siempre en esta etapa:
+//   1. UNA MANO DIVIDIDA NUNCA ES UN NATURAL. 21 con dos cartas después de
+//      partir paga 1 a 1, no 3 a 2. Lo cuida esNatural() a través de
+//      puestosPartidos(), y por eso la mano nueva va al MISMO puesto: es lo
+//      que hace que las dos queden marcadas como divididas.
+//   2. Los ASES reciben una carta cada uno y se plantan solos.
+//   3. Se parte UNA vez por puesto. Sin volver a dividir.
+//
+//  La segunda apuesta se cobra igual que la primera: del saldo DISPONIBLE y
+//  con el mismo UPDATE condicional, así dos llamadas a la vez no gastan el
+//  mismo saldo. Si no alcanza, la mano sigue como estaba.
+// ══════════════════════════════════════════════════════════════════════════
+export async function bjDividir(request, env) {
+  const p = await prepararJugada(request, env, { exigeDosCartas: true });
+  if (p.salida) return p.salida;
+  const { auth, ronda, mano, mesa } = p;
+
+  if (!sePuedeDividir(mano, ronda)) {
+    const c = await saldoDe(env, auth.userId);
+    return json({
+      error: valorCarta(mano.cartas[0]) !== valorCarta(mano.cartas[1])
+        ? 'Solo se parte un par: las dos cartas tienen que valer lo mismo.'
+        : 'Esa mano ya está dividida. En esta mesa se parte una sola vez.',
+      ...paraElCliente(await leerRonda(env, ronda.id, auth.userId), mesa, c),
+    }, 400);
+  }
+
+  const extra = mano.apuesta;
+  const upd = await env.DB.prepare(
+    'UPDATE users SET balance = balance - ?, wagered_total = wagered_total + ? WHERE id = ? AND balance - held_balance >= ?'
+  ).bind(extra, extra, auth.userId, extra).run();
+  if (upd.meta.changes === 0) {
+    const c = await saldoDe(env, auth.userId);
+    return json({
+      error: `No te alcanza para dividir: la segunda mano cuesta ${extra} y tenés ${c.balance - c.held_balance} disponible.`,
+      ...paraElCliente(await leerRonda(env, ronda.id, auth.userId), mesa, c),
+    }, 400);
+  }
+
+  // Cada mano se queda con una de las dos cartas del par y recibe una nueva.
+  const ases = sonAses(mano);
+  const segunda = mano.cartas.pop();
+  const c1 = sacarCarta(ronda.repartidas, ronda.mazos);
+  ronda.repartidas.push(c1);
+  mano.cartas.push(c1);
+
+  const c2 = sacarCarta(ronda.repartidas, ronda.mazos);
+  ronda.repartidas.push(c2);
+  const cartasNueva = [segunda, c2];
+
+  // Con ases, las dos se plantan solas. Si no, siguen jugando (con dos cartas
+  // nadie se pasa, así que no hace falta mirar el total).
+  const estado = ases ? 'plantada' : 'jugando';
+  mano.estado = estado;
+
+  const indiceNuevo = Math.max(...ronda.manos.map((h) => h.indice)) + 1;
+
+  await env.DB.batch([
+    env.DB.prepare('UPDATE bj_manos SET cartas = ?, estado = ? WHERE id = ?')
+      .bind(JSON.stringify(mano.cartas), estado, mano.id),
+    env.DB.prepare(
+      'INSERT INTO bj_manos (ronda_id, indice, puesto, cartas, apuesta, estado) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(ronda.id, indiceNuevo, mano.puesto, JSON.stringify(cartasNueva), extra, estado),
+    env.DB.prepare('UPDATE bj_rondas SET repartidas = ? WHERE id = ?')
+      .bind(JSON.stringify(ronda.repartidas), ronda.id),
+    env.DB.prepare(
+      "INSERT INTO transactions (user_id, type, amount, note, source, game_id) VALUES (?, 'bet', ?, ?, 'game', ?)"
+    ).bind(auth.userId, extra, ases ? 'Blackjack: dividió un par de ases' : 'Blackjack: dividió el par',
+           ronda.game_id),
+  ]);
+
+  // Se vuelve a leer porque hay una mano más: avanzar() tiene que verla para
+  // decidir el turno, y si las dos se plantaron (ases) cierra la ronda.
+  const fresca = await leerRonda(env, ronda.id, auth.userId);
+  await avanzar(env, fresca, mesa);
   return respuesta(env, ronda.id, auth.userId, mesa);
 }

@@ -49,6 +49,9 @@ const MESA = opt('mesa', 'blackjack');
 
 let ok = 0, fail = 0;
 const fallas = [];
+// El balance de control lo llevan varias partes del script (el grueso de las
+// manos y el bloque de dividir), así que vive acá y no dentro de main().
+const CTX_GLOBAL = { apostado: 0, cobrado: 0 };
 const check = (nombre, cond, detalle) => {
   if (cond) { ok++; return true; }
   fail++;
@@ -268,8 +271,9 @@ async function pruebas({ ADT, PLT, MZ, PAGO_NAT, MIN, MAX, CAPITAL }) {
   }
 
   // ══ El grueso: jugar manos y verificar todo ════════════════════════════
-  const ctx = { apostado: 0, cobrado: 0, dobladas: 0, naturales: 0, empates: 0,
-                salieron: {}, totalCartas: 0, manosJugadas: 0 };
+  const ctx = CTX_GLOBAL;
+  Object.assign(ctx, { apostado: 0, cobrado: 0, dobladas: 0, naturales: 0, empates: 0,
+                       salieron: {}, totalCartas: 0, manosJugadas: 0 });
   const saldoIni = (await api('/api/bj/ronda', { token: PLT })).balance;
 
   console.log(`C/D/A/B. Jugando ${MANOS} manos en un puesto…`);
@@ -295,6 +299,79 @@ async function pruebas({ ADT, PLT, MZ, PAGO_NAT, MIN, MAX, CAPITAL }) {
       { puesto: 2, apuesta: APUESTA },
     ], ctx, MZ, PAGO_NAT, 3);
     if (!ok) break;
+  }
+
+  // ══ K. Dividir (Etapa B4) ══════════════════════════════════════════════
+  // Las tres cosas que se equivocan siempre al programar esta etapa, y que
+  // acá se exigen mano por mano y no en promedio.
+  console.log('K. Dividir un par');
+  let partidas = 0, asesPartidos = 0, malPagadas = 0, detalleMal = '';
+  let veintiunoPartido = 0, reSplit = 0, unaSolaCarta = true;
+
+  for (let i = 0; i < Math.max(120, MANOS) && (partidas < 8 || asesPartidos < 1); i++) {
+    const r = await apostar(PLT, [{ puesto: 1, apuesta: APUESTA }]);
+    if (r.error && r.status !== 400) break;
+    if (r.estado === 'cerrada') { ctx.apostado += APUESTA; sumarPagos(r); continue; }
+    if (r.estado !== 'jugando') continue;
+    ctx.apostado += APUESTA;
+
+    if (!(r.acciones || []).includes('dividir')) {
+      const cerrada = await plantarseHastaCerrar(PLT);
+      sumarPagos(cerrada);
+      continue;
+    }
+
+    const eranAses = String(r.manos[0].cartas[0])[0] === 'A';
+    const d = await api('/api/bj/dividir', {
+      metodo: 'POST', token: PLT, cuerpo: { ronda: r.ronda, version: r.version },
+    });
+    if (d.error) { detalleMal = detalleMal || d.error; break; }
+    partidas++;
+    ctx.apostado += APUESTA;   // la segunda mano cuesta otra apuesta igual
+
+    const delPuesto = d.manos.filter((h) => h.puesto === 1);
+    if (delPuesto.length !== 2) { detalleMal = detalleMal || `quedaron ${delPuesto.length} manos`; break; }
+    // No se vuelve a partir.
+    if ((d.acciones || []).includes('dividir')) reSplit++;
+
+    if (eranAses) {
+      asesPartidos++;
+      if (!delPuesto.every((h) => h.cartas.length === 2)) unaSolaCarta = false;
+      if (d.estado !== 'cerrada') { detalleMal = detalleMal || 'los ases no se plantaron solos'; }
+    }
+
+    // Se termina la ronda y se controla el pago de CADA mano por separado.
+    const fin = d.estado === 'cerrada' ? d : await plantarseHastaCerrar(PLT);
+    if (!fin) { detalleMal = detalleMal || 'la ronda no cerró'; break; }
+    sumarPagos(fin);
+    for (const h of fin.manos.filter((x) => x.puesto === 1)) {
+      const esp = pagoEsperado(h, fin.crupier.cartas, PAGO_NAT);
+      // La diferencia de esta etapa: una mano dividida NO es natural.
+      if (valor(h.cartas) === 21 && h.cartas.length === 2) {
+        veintiunoPartido++;
+        const comoNatural = h.apuesta + Math.floor(h.apuesta * PAGO_NAT);
+        if (h.pago === comoNatural && comoNatural !== h.apuesta * 2) {
+          malPagadas++;
+          detalleMal = detalleMal || `21 dividido pagó ${h.pago} (como natural)`;
+        }
+      } else if (h.pago !== esp.pago) {
+        malPagadas++;
+        detalleMal = detalleMal || `${h.cartas} contra ${fin.crupier.cartas}: pagó ${h.pago}, correspondían ${esp.pago}`;
+      }
+    }
+  }
+
+  check(`Se pudo partir un par (${partidas} veces)`, partidas > 0, detalleMal);
+  check('Cada mano dividida pagó exactamente lo que corresponde', malPagadas === 0, detalleMal);
+  check('No deja volver a partir una mano ya dividida', reSplit === 0, `pasó ${reSplit} veces`);
+  if (veintiunoPartido > 0) {
+    check(`El 21 de una mano dividida NO paga 3 a 2 (${veintiunoPartido} casos)`, malPagadas === 0, detalleMal);
+  }
+  if (asesPartidos > 0) {
+    check(`Los ases divididos reciben UNA carta y se plantan (${asesPartidos} casos)`,
+      unaSolaCarta && !detalleMal, detalleMal);
+  } else {
+    console.log('   (no salió un par de ases en esta corrida: se prueba con --manos alto)');
   }
 
   console.log('J. Lo que la mesa no deja hacer con los puestos');
@@ -521,6 +598,12 @@ async function jugarRonda(PLT, apuestas, ctx, MZ, PAGO_NAT, puestosEsperados) {
     if (h.resultado === 'empate') ctx.empates++;
   }
   return true;
+}
+
+// Suma al balance de control lo que pagó una ronda ya cerrada.
+function sumarPagos(estado) {
+  if (!estado || !estado.manos) return;
+  for (const h of estado.manos) CTX_GLOBAL.cobrado += h.pago || 0;
 }
 
 async function apostar(PLT, apuestas) {

@@ -21,7 +21,7 @@ import {
 } from './games.js';
 
 import {
-  bjRonda, bjApostar, bjPedir, bjPlantarse, bjDoblar, barrerRondasAbandonadas,
+  bjRonda, bjApostar, bjPedir, bjPlantarse, bjDoblar, bjDividir, barrerRondasAbandonadas,
 } from './blackjack.js';
 
 import {
@@ -122,6 +122,7 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/bj/pedir')      return bjPedir(request, env);
   if (method === 'POST' && path === '/api/bj/plantarse')  return bjPlantarse(request, env);
   if (method === 'POST' && path === '/api/bj/doblar')     return bjDoblar(request, env);
+  if (method === 'POST' && path === '/api/bj/dividir')    return bjDividir(request, env);
 
   // ── Billetera del jugador ──
   if (method === 'GET'  && path === '/api/wallet/info')     return walletInfo(request, env);
