@@ -447,40 +447,62 @@ window.AudioEngine = AudioEngine;
 const Voice = (() => {
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
   let enabled = true;
-  let voice = null;
-  // Orden de preferencia: Paulina (es-MX) → cualquier es-MX → cualquier es-*
-  const PREFERRED = ['Paulina', 'Mónica'];
+  // La voz elegida, GUARDADA POR IDIOMA: si el jugador cambia de idioma, la
+  // voz tiene que cambiar con él.
+  const voces = { es: null, en: null };
 
-  function pickVoice() {
+  const idioma = () => ((window.I18N && window.I18N.get()) === 'en' ? 'en' : 'es');
+
+  // Nombres que suenan bien y existen en la mayoría de los teléfonos. Si no
+  // está ninguno, se toma cualquiera del idioma; y si tampoco hay, no se
+  // habla — el juego nunca depende de la voz.
+  const PREFERIDAS = {
+    es: ['Paulina', 'Mónica'],
+    en: ['Samantha', 'Karen', 'Daniel', 'Alex'],
+  };
+
+  function pickVoice(lang) {
     if (!supported) return null;
     const all = speechSynthesis.getVoices();
     if (!all.length) return null;
-    for (const name of PREFERRED) {
-      const v = all.find((x) => x.name.startsWith(name));
+    const marca = new RegExp('^' + lang, 'i');
+    for (const name of PREFERIDAS[lang] || []) {
+      const v = all.find((x) => x.name.startsWith(name) && marca.test(x.lang));
       if (v) return v;
     }
-    return all.find((x) => /^es-MX/i.test(x.lang))
-        || all.find((x) => /^es/i.test(x.lang))
-        || null;
+    if (lang === 'es') {
+      return all.find((x) => /^es-MX/i.test(x.lang)) || all.find((x) => /^es/i.test(x.lang)) || null;
+    }
+    return all.find((x) => /^en-US/i.test(x.lang)) || all.find((x) => /^en/i.test(x.lang)) || null;
+  }
+
+  function vozDelIdioma() {
+    const l = idioma();
+    if (!voces[l]) voces[l] = pickVoice(l);
+    return voces[l];
   }
 
   if (supported) {
-    voice = pickVoice();
+    vozDelIdioma();
     // En algunos navegadores la lista llega asíncrona
-    speechSynthesis.onvoiceschanged = () => { if (!voice) voice = pickVoice(); };
+    speechSynthesis.onvoiceschanged = () => {
+      voces.es = voces.es || pickVoice('es');
+      voces.en = voces.en || pickVoice('en');
+    };
   }
 
   function setEnabled(v) { enabled = !!v; if (!enabled) cancel(); }
   function isEnabled() { return enabled; }
-  function isSupported() { return supported && !!pickVoice(); }
+  function isSupported() { return supported && !!vozDelIdioma(); }
   function cancel() { if (supported) { try { speechSynthesis.cancel(); } catch (e) {} } }
 
   function say(text, opts = {}) {
     if (!supported || !enabled || !text) return;
-    if (!voice) voice = pickVoice();
+    const voice = vozDelIdioma();
     try {
       const u = new SpeechSynthesisUtterance(text);
-      if (voice) { u.voice = voice; u.lang = voice.lang; } else { u.lang = 'es-MX'; }
+      if (voice) { u.voice = voice; u.lang = voice.lang; }
+      else { u.lang = idioma() === 'en' ? 'en-US' : 'es-MX'; }
       u.rate = opts.rate || 1.02;
       u.pitch = opts.pitch || 1;
       u.volume = opts.volume != null ? opts.volume : 1;
@@ -488,11 +510,14 @@ const Voice = (() => {
     } catch (e) { /* si falla, el juego sigue igual */ }
   }
 
-  // "0" → cero · "00" → doble cero · el resto lo lee bien el sintetizador
+  // "0" y "00" hay que escribirlos con letras: un sintetizador lee "00" como
+  // "cero cero" y en inglés directamente lo deletrea. El resto de los números
+  // los dice bien solo.
   function numeroHablado(n) {
     const s = String(n);
-    if (s === '00') return 'doble cero';
-    if (s === '0') return 'cero';
+    const en = idioma() === 'en';
+    if (s === '00') return en ? 'double zero' : 'doble cero';
+    if (s === '0') return en ? 'zero' : 'cero';
     return s;
   }
 
@@ -508,6 +533,15 @@ const Voice = (() => {
   // El 00 suena mejor sin la palabra "número": "¡Salió la Ballena, doble cero!"
   function anunciarGanador(n, animal, articulo) {
     cancel(); // corta cualquier anuncio anterior
+
+    // EN INGLÉS, SÓLO EL NÚMERO. Es lo que pidió el dueño y además es lo que
+    // conviene: el color y el animal ya se ven grandes en la pantalla, la voz
+    // es para el que NO está mirando. Corto también por tiempo — entre que
+    // cae la bola y sigue la mesa hay 4 segundos, y la frase corta entra
+    // sobrada. En español se mantiene el cantito de animalitos, que es la
+    // identidad de Catatumbo.
+    if (idioma() === 'en') { say(numeroHablado(n)); return; }
+
     if (!animal) { say(`Número ganador: ${numeroHablado(n)}`); return; }
     const art = articulo || 'el';
     const nombre = nombrePropio(animal);
@@ -515,8 +549,16 @@ const Voice = (() => {
     const cola = String(n) === '00' ? 'doble cero' : `número ${num}`;
     say(`¡Salió ${art} ${nombre}, ${cola}!`);
   }
-  function anunciarPremio(monto) { say(`¡Ganaste ${monto}!`); }
-  function anunciarNoMasApuestas() { cancel(); say('No más apuestas', { rate: 1.08 }); }
+  // El premio se canta sólo en español: en inglés se pidió el número y nada
+  // más, y encima el premio se ve en pantalla en el mismo momento.
+  function anunciarPremio(monto) {
+    if (idioma() === 'en') return;
+    say(`¡Ganaste ${monto}!`);
+  }
+  function anunciarNoMasApuestas() {
+    cancel();
+    say(idioma() === 'en' ? 'No more bets' : 'No más apuestas', { rate: 1.08 });
+  }
 
   // La voz también se calla si la pestaña pasa a segundo plano o se cierra:
   // si no, termina de cantar el número aunque ya nadie esté mirando.
