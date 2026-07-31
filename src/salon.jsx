@@ -13,6 +13,12 @@
 (() => {
   const { useState, useEffect } = React;
 
+  // Si por lo que sea el diccionario no cargó (una copia vieja de index.html
+  // guardada en el teléfono, por ejemplo), T() sigue existiendo y devuelve el
+  // español. Una pantalla en español se lee; una pantalla en blanco por un
+  // "T is not defined" no.
+  const T = window.T || ((s) => s);
+
   // La ficha del servidor, vestida para la tarjeta. El ícono, el color y las
   // dos líneas los escribe el dueño en el panel (Etapa 4); si una mesa nueva
   // vino sin ellos, igual se anuncia: el texto se arma con la ficha.

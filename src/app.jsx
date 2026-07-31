@@ -1,6 +1,12 @@
 // App principal — Ruleta Catatumbo
 const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+  // Si por lo que sea el diccionario no cargó (una copia vieja de index.html
+  // guardada en el teléfono, por ejemplo), T() sigue existiendo y devuelve el
+  // español. Una pantalla en español se lee; una pantalla en blanco por un
+  // "T is not defined" no.
+  const T = window.T || ((s) => s);
+
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "theme": "classic",
   "spinDuration": 7,

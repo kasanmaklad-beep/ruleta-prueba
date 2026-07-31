@@ -22,6 +22,12 @@
 (() => {
   const { useState, useEffect, useRef, useCallback } = React;
 
+  // Si por lo que sea el diccionario no cargó (una copia vieja de index.html
+  // guardada en el teléfono, por ejemplo), T() sigue existiendo y devuelve el
+  // español. Una pantalla en español se lee; una pantalla en blanco por un
+  // "T is not defined" no.
+  const T = window.T || ((s) => s);
+
   const ESTILOS = `
 .bj-pantalla{
     --fondo:#0a0604; --paño:#0e3b2e; --oro:#ffd84a; --oro-suave:#d4a94a;
