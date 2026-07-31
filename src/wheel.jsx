@@ -620,44 +620,68 @@ function RouletteWheel({
               choca con los radios del cono; curvado sigue la forma de la pieza
               y entra completo. El tamaño baja con la cantidad de letras para
               que "EUROPEA CATATUMBO" entre igual que "CATATUMBO". */}
-          {nombre && (() => {
-            const cx = WHEEL_SIZE / 2;
-            const cy = WHEEL_SIZE / 2;
-            const texto = String(nombre).toUpperCase();
-            const rTexto = (INNER_R - 10) * 0.66;
-            // De 15px para nombres cortos a 10px para los largos.
-            const tam = texto.length <= 10 ? 15 : texto.length <= 16 ? 12.5 : 10.5;
-            const espaciado = texto.length <= 10 ? 3.5 : 2;
-            // El arco arranca a la izquierda y sube por arriba: así el texto se
-            // lee de izquierda a derecha, como en una etiqueta.
-            const d = `M ${cx - rTexto} ${cy} A ${rTexto} ${rTexto} 0 0 1 ${cx + rTexto} ${cy}`;
-            return (
-              <>
-                <path id="aro-nombre-mesa" d={d} fill="none" />
-                <text
-                  fill={th.accent}
-                  fontFamily="Georgia, serif"
-                  fontSize={tam}
-                  fontWeight="700"
-                  letterSpacing={espaciado}
-                  opacity="0.92"
-                  style={{ paintOrder: 'stroke', pointerEvents: 'none' }}
-                  stroke="rgba(0,0,0,0.55)"
-                  strokeWidth="2.2"
-                >
-                  <textPath href="#aro-nombre-mesa" startOffset="50%" textAnchor="middle">
-                    {texto}
-                  </textPath>
-                </text>
-              </>
-            );
-          })()}
-
           {/* Corona central */}
           <circle cx={WHEEL_SIZE / 2} cy={WHEEL_SIZE / 2} r={22} fill={th.accent} opacity="0.9" />
           <circle cx={WHEEL_SIZE / 2} cy={WHEEL_SIZE / 2} r={8} fill="#1a1006" />
         </svg>
       </div>
+
+      {/* ═══ El nombre de la mesa, en el cono ═══
+          Va en la capa QUIETA y no adentro del cilindro que gira. En una mesa
+          física el cono da vueltas con la rueda y el nombre queda en cualquier
+          ángulo; acá se vería de cabeza la mitad del tiempo, y un nombre de
+          cabeza no parece una ruleta real: parece un error. Quieto se lee
+          siempre, que es para lo que está puesto. */}
+      {nombre && (() => {
+        const cx = WHEEL_SIZE / 2;
+        const cy = WHEEL_SIZE / 2;
+        const texto = String(nombre).toUpperCase();
+        // Grande de verdad: el cono es lo único que no tiene números, así que
+        // el nombre puede ocupar. Baja de tamaño con la cantidad de letras
+        // para que uno largo entre igual que uno corto.
+        const tam = texto.length <= 10 ? 34 : texto.length <= 16 ? 26 : 20;
+        const espaciado = texto.length <= 10 ? 5 : texto.length <= 16 ? 3 : 2;
+        const rTexto = (INNER_R - 10) * (texto.length <= 10 ? 0.60 : 0.66);
+        const d = `M ${cx - rTexto} ${cy} A ${rTexto} ${rTexto} 0 0 1 ${cx + rTexto} ${cy}`;
+        return (
+          <svg
+            viewBox={`0 0 ${WHEEL_SIZE} ${WHEEL_SIZE}`}
+            style={{
+              position: 'absolute', inset: 0,
+              width: WHEEL_SIZE, height: WHEEL_SIZE,
+              pointerEvents: 'none', zIndex: 5,
+            }}
+          >
+            <defs>
+              <linearGradient id={`nombre-mesa-${theme}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor={theme === 'lightning' ? '#e8f4ff' : '#fff6c8'} />
+                <stop offset="45%" stopColor={theme === 'lightning' ? '#9fd8ff' : '#ffd84a'} />
+                <stop offset="100%" stopColor={theme === 'lightning' ? '#2a6a9a' : '#a5731a'} />
+              </linearGradient>
+              <filter id="nombre-mesa-brillo" x="-60%" y="-60%" width="220%" height="220%">
+                <feDropShadow dx="0" dy="2" stdDeviation="2.5" floodColor="#000" floodOpacity="0.8" />
+              </filter>
+            </defs>
+            <path id="aro-nombre-mesa" d={d} fill="none" />
+            <text
+              fill={`url(#nombre-mesa-${theme})`}
+              fontFamily="Georgia, serif"
+              fontSize={tam}
+              fontWeight="900"
+              letterSpacing={espaciado}
+              filter="url(#nombre-mesa-brillo)"
+              style={{ paintOrder: 'stroke' }}
+              stroke="rgba(20,10,0,0.85)"
+              strokeWidth={tam * 0.14}
+              strokeLinejoin="round"
+            >
+              <textPath href="#aro-nombre-mesa" startOffset="50%" textAnchor="middle">
+                {texto}
+              </textPath>
+            </text>
+          </svg>
+        );
+      })()}
 
       {/* ═══ Bola ═══ */}
       {(() => {
