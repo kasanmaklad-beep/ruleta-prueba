@@ -1848,7 +1848,18 @@ function AppRoot() {
   // El dueño no entra a jugar, entra a administrar; para las mesas está el
   // botón SALÓN, y /juego es la entrada directa a la mesa (la del enlace, o
   // la de siempre si no dice ninguna).
+  // ¿Este usuario ya aceptó las condiciones que están publicadas hoy? Si no
+  // —cuenta vieja, o texto nuevo— se le pide antes de dejarlo entrar. Vale
+  // para todos, incluido el dueño: es el mismo mecanismo que va a servir el
+  // día que cambie una condición con jugadores adentro.
+  const debeAceptar = (u) => {
+    const vigente = (window.CONDICIONES || {}).VERSION;
+    if (!vigente || !u) return false;
+    return String(u.condiciones_version || '') !== String(vigente);
+  };
+
   const pantallaPara = (u) => {
+    if (debeAceptar(u)) return 'condiciones';
     const ruta = rutaActual();
     if (ruta === '/admin' && u.role === 'admin') return 'admin';
     if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
@@ -1998,6 +2009,16 @@ function AppRoot() {
 
   // Enlace de invitación con una sesión ya abierta: se pregunta en vez de
   // decidir solo, así el invitado no termina jugando en la cuenta de otro.
+  if (status === 'condiciones' && user) {
+    return (
+      <window.CondicionesScreen
+        user={user}
+        onListo={(u) => { setUser(u); setStatus(pantallaPara(u)); }}
+        onLogout={() => { window.Api.logout(); setUser(null); setStatus('login'); }}
+      />
+    );
+  }
+
   if (status === 'invitacion') {
     return <PantallaInvitacion
       codigo={refDelEnlace()}

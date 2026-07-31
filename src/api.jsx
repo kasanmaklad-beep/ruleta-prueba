@@ -170,6 +170,10 @@
     // y las cuentas de prueba la ven).
     // Los números de la casa sin necesidad de sesión (los usa el registro).
     configPublica() { return req('/api/config'); },
+    // Aceptar las condiciones desde adentro (cuentas viejas o texto nuevo).
+    aceptarCondiciones(version) {
+      return POST('/api/condiciones', { acepta_condiciones: true, condiciones_version: version });
+    },
 
     adminEstadoMesa(id, estado) { return POST(`/api/admin/games/${id}/activo`, { estado }); },
 

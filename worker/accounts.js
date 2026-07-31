@@ -112,6 +112,27 @@ export async function register(request, env) {
   return json({ token, user });
 }
 
+// Aceptar las condiciones desde adentro. Es para las cuentas que ya existían
+// antes de que hubiera condiciones, y para cuando cambia el texto: se sube la
+// versión y a todos se les vuelve a pedir al entrar.
+export async function aceptarCondiciones(request, env) {
+  const auth = await requireAuth(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const version = str(body.condiciones_version, 40);
+  const acepta = body.acepta_condiciones === true || body.acepta_condiciones === 1;
+  if (!acepta || !version) {
+    return json({ error: 'Hay que aceptar las condiciones para seguir.' }, 400);
+  }
+
+  await env.DB.prepare(
+    'UPDATE users SET condiciones_version = ?, condiciones_at = ?, mayor_de_edad = 1 WHERE id = ?'
+  ).bind(version, nowSql(), auth.userId).run();
+
+  return json({ user: await getUser(env, auth.userId) });
+}
+
 // ─────────────────────── Alta de socios (solo la casa) ────────────────────
 // El socio no se registra solo: lo da de alta la casa matriz con su ficha
 // completa, su comisión y su código de referencia.

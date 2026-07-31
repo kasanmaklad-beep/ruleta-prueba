@@ -29,7 +29,7 @@ import {
   register, login, me, updateProfile, changePassword,
   adminUsers, adminSetRole, adminSetStatus, adminResetPassword,
   adminDeposit, adminAdjust, adminGetSettings, adminPutSettings,
-  adminCreateCashier, adminSetRefCode,
+  adminCreateCashier, adminSetRefCode, aceptarCondiciones,
 } from './accounts.js';
 
 import {
@@ -118,6 +118,7 @@ async function handleApi(request, env, url) {
   // retirar) y ahí todavía no hay usuario. Sólo salen datos que ya están a la
   // vista de cualquiera que entre al salón.
   if (method === 'GET'  && path === '/api/config')        return configPublica(request, env);
+  if (method === 'POST' && path === '/api/condiciones')   return aceptarCondiciones(request, env);
   if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
   if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
 

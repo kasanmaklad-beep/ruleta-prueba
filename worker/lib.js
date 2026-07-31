@@ -775,7 +775,10 @@ export const USER_FIELDS =
   'first_name, last_name, email, bank, referral_code, created_by, affiliated_at, ' +
   'collect_details, risk_share_pct, ' +
   'payout_method, payout_details, credit_balance, commission_pct, cashier_id, ' +
-  'wagered_total, deposited_total, created_at';
+  'wagered_total, deposited_total, created_at, ' +
+  // Qué versión de las condiciones aceptó. Viaja con el usuario para que la
+  // pantalla sepa, al entrar, si hay que volver a pedírselas.
+  'condiciones_version, condiciones_at, mayor_de_edad';
 
 export async function requireAuth(request, env) {
   const header = request.headers.get('Authorization') || '';
