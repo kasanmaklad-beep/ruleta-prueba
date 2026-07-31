@@ -14,6 +14,7 @@
 import {
   json, readJson, str, toPositiveInt, requireAuth, requireAdmin,
   getSettings, settingNum, ltgPesos, LTG_VALORES, mesaJugable, catalogoMesas,
+  monedaDe, pagosManuales,
 } from './lib.js';
 
 import {
@@ -112,6 +113,11 @@ async function handleApi(request, env, url) {
   // ── Juego ──
   // El catálogo lo pide el salón para dibujar las mesas y el juego para saber
   // cómo armarse. No expone nada sensible, pero pide sesión igual.
+  // Los números de la casa, SIN sesión: la pantalla de registro los necesita
+  // para escribir las condiciones (mínimos, cuánto hay que jugar antes de
+  // retirar) y ahí todavía no hay usuario. Sólo salen datos que ya están a la
+  // vista de cualquiera que entre al salón.
+  if (method === 'GET'  && path === '/api/config')        return configPublica(request, env);
   if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
   if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
 
@@ -410,6 +416,21 @@ async function gameSpin(request, env) {
     winDetails,
     balance: cur.balance,
     held_balance: cur.held_balance,
+  });
+}
+
+// La configuración pública: lo que hace falta para escribir las condiciones
+// antes de que el jugador tenga cuenta.
+async function configPublica(request, env) {
+  const s = await getSettings(env);
+  return json({
+    config: {
+      moneda: monedaDe(s),
+      pagos_manuales: pagosManuales(s),
+      min_topup: settingNum(s, 'min_topup'),
+      min_withdrawal: settingNum(s, 'min_withdrawal'),
+      wager_pct_required: settingNum(s, 'wager_pct_required'),
+    },
   });
 }
 

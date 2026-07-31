@@ -63,6 +63,18 @@ export async function register(request, env) {
   const { perfil, error } = parsePerfil(body);
   if (error) return json({ error }, 400);
 
+  // ── Las condiciones ────────────────────────────────────────────────────
+  // Se exigen en el SERVIDOR y no sólo con una casilla en la pantalla: la
+  // casilla es para que el jugador lea, el freno de acá es el que hace que no
+  // exista una cuenta sin aceptación. Y se guarda QUÉ versión aceptó: sin eso,
+  // "aceptó los términos" no dice nada el día que alguien reclame.
+  const aceptoCondiciones = body.acepta_condiciones === true || body.acepta_condiciones === 1;
+  const mayorDeEdad = body.mayor_de_edad === true || body.mayor_de_edad === 1 || aceptoCondiciones;
+  const versionCondiciones = str(body.condiciones_version, 40);
+  if (!aceptoCondiciones || !versionCondiciones) {
+    return json({ error: 'Para crear la cuenta hay que leer y aceptar las condiciones.' }, 400);
+  }
+
   const tomado = await libreONull(env, username, perfil.doc.documento);
   if (tomado) return json({ error: tomado }, 409);
 
@@ -87,11 +99,13 @@ export async function register(request, env) {
   const res = await env.DB.prepare(
     `INSERT INTO users (username, password_hash, balance, is_admin, role,
                         phone, first_name, last_name, cedula, doc_type, email, bank,
-                        payout_method, payout_details, cashier_id, affiliated_at)
-     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?)`
+                        payout_method, payout_details, cashier_id, affiliated_at,
+                        condiciones_version, condiciones_at, mayor_de_edad)
+     VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?, ?, ?, ?)`
   ).bind(username, password_hash, isAdmin, role, perfil.phone, perfil.firstName,
          perfil.lastName, perfil.doc.documento, perfil.doc.doc_type, perfil.email,
-         perfil.bank, `${perfil.bank} ${perfil.phone}`, cashierId, affiliatedAt).run();
+         perfil.bank, `${perfil.bank} ${perfil.phone}`, cashierId, affiliatedAt,
+         versionCondiciones, nowSql(), mayorDeEdad ? 1 : 0).run();
 
   const user = await getUser(env, res.meta.last_row_id);
   const token = await signJwt({ sub: user.id, username, is_admin: isAdmin, role }, env);

@@ -28,6 +28,17 @@
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    // La casilla de las condiciones y el panel que las muestra enteras.
+    const [acepta, setAcepta] = useState(false);
+    const [verCondiciones, setVerCondiciones] = useState(false);
+    // Los números de las condiciones (mínimos, cuánto hay que jugar antes de
+    // retirar) salen de la configuración real de la casa, no escritos a mano:
+    // si mañana el dueño los cambia en el panel, el texto cambia con ellos.
+    const [cfg, setCfg] = useState(null);
+    React.useEffect(() => {
+      if (!window.Api || !window.Api.configPublica) return;
+      window.Api.configPublica().then((d) => setCfg(d && d.config)).catch(() => {});
+    }, []);
 
     const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
@@ -58,6 +69,10 @@
         if (v('phone').replace(/\D/g, '').length < 7) { setError('Poné tu teléfono: es a donde te vamos a pagar'); return; }
         if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v('email'))) { setError('Poné un correo válido'); return; }
         if (!v('bank')) { setError('Elegí tu banco'); return; }
+        if (!acepta) {
+          setError('Para crear la cuenta hay que leer y aceptar las condiciones.');
+          return;
+        }
       }
 
       setLoading(true);
@@ -75,6 +90,11 @@
               email: v('email'),
               bank: v('bank'),
               ref: v('ref'),
+              // Qué aceptó y en qué versión. El servidor lo exige igual: la
+              // casilla es para que el jugador lea, el freno está allá.
+              acepta_condiciones: true,
+              mayor_de_edad: true,
+              condiciones_version: (window.CONDICIONES || {}).VERSION || '',
             });
         window.Api.setToken(res.token);
         onAuth(res.user);
@@ -92,6 +112,47 @@
     };
     const ayuda = { fontSize: 11, color: '#888', marginTop: -8, marginBottom: 12, lineHeight: 1.4 };
     const registro = mode === 'register';
+
+    // ── Las condiciones enteras ────────────────────────────────────────
+    // Se abren encima de la pantalla y se cierran con un botón grande: en el
+    // teléfono, un texto largo detrás de un enlace que después no se sabe
+    // cerrar es peor que no mostrarlo.
+    const PanelCondiciones = () => {
+      const c = (window.CONDICIONES && window.CONDICIONES.puntos(cfg)) || [];
+      return (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.86)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14,
+        }} onClick={() => setVerCondiciones(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            maxWidth: 520, width: '100%', maxHeight: '86vh', overflowY: 'auto',
+            background: 'linear-gradient(180deg, #1a1410, #100a06)',
+            border: '1px solid #8b6a20', borderRadius: 12, padding: 18,
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 2, color: '#d4a94a' }}>
+              CONDICIONES DE VOLTIO
+            </div>
+            <div style={{ fontSize: 10, color: '#777', letterSpacing: 1, marginBottom: 14 }}>
+              versión {(window.CONDICIONES || {}).VERSION}
+            </div>
+            {c.map((p, i) => (
+              <div key={i} style={{ marginBottom: 13 }}>
+                <div style={{ color: '#ffd84a', fontWeight: 700, fontSize: 13.5, marginBottom: 3 }}>
+                  {p.titulo}
+                </div>
+                <div style={{ color: '#d8cfae', fontSize: 13, lineHeight: 1.65 }}>{p.texto}</div>
+              </div>
+            ))}
+            <button type="button" onClick={() => setVerCondiciones(false)} style={{
+              width: '100%', marginTop: 8, padding: 13, borderRadius: 8,
+              border: '2px solid #d4a94a', background: 'linear-gradient(180deg, #d4a94a, #8b6a20)',
+              color: '#1a1006', fontFamily: 'Georgia, serif', fontWeight: 900,
+              fontSize: 14, letterSpacing: 2, cursor: 'pointer',
+            }}>CERRAR</button>
+          </div>
+        </div>
+      );
+    };
 
     return (
       <div style={{
@@ -195,6 +256,48 @@
               </>
             )}
 
+            {/* ── Antes de crear la cuenta ──────────────────────────────
+                Tres frases, no un reglamento: lo que el jugador NECESITA
+                saber antes de poner plata. Las tres son las que después
+                generan reclamos si se enteran tarde. El texto completo está a
+                un toque, y la casilla no se puede saltar. */}
+            {registro && (
+              <div style={{
+                border: '1px solid #8b6a20', borderRadius: 8, padding: '12px 14px',
+                background: 'rgba(0,0,0,0.35)', marginBottom: 14, fontSize: 12.5,
+                color: '#d8cfae', lineHeight: 1.7,
+              }}>
+                <div style={{ fontSize: 11, letterSpacing: 2, color: '#d4a94a', marginBottom: 6 }}>
+                  ANTES DE EMPEZAR
+                </div>
+                <div>· Es un <b>juego de azar</b>: podés perder lo que apostás.</div>
+                <div>· <b>A la larga gana la casa</b> (5,3% la ruleta · 0,5% el 21).</div>
+                <div>
+                  · Para retirar hay que haber jugado el{' '}
+                  <b>{cfg && cfg.wager_pct_required != null ? cfg.wager_pct_required : 25}%</b>
+                  {' '}de lo que recargaste.
+                </div>
+                <div>· Se recarga y se cobra <b>en efectivo</b> con tu taquillero.</div>
+                <a href="#"
+                   onClick={(e) => { e.preventDefault(); setVerCondiciones(true); }}
+                   style={{ color: '#d4a94a', fontWeight: 700, textDecoration: 'underline',
+                            display: 'inline-block', marginTop: 8 }}>
+                  Leer las condiciones completas
+                </a>
+
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 9, marginTop: 12,
+                  cursor: 'pointer', color: '#fff', fontSize: 13, lineHeight: 1.5,
+                }}>
+                  <input type="checkbox" checked={acepta}
+                         onChange={(e) => { setAcepta(e.target.checked); setError(''); }}
+                         style={{ width: 20, height: 20, flex: 'none', marginTop: 1, accentColor: '#d4a94a' }} />
+                  <span>{(window.CONDICIONES && window.CONDICIONES.declaracion())
+                    || 'Tengo 18 años cumplidos y acepto las condiciones.'}</span>
+                </label>
+              </div>
+            )}
+
             {error && (
               <div style={{
                 background: 'rgba(180,16,26,0.25)', border: '1px solid #b8101a',
@@ -204,18 +307,21 @@
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (registro && !acepta)}
               style={{
                 width: '100%', padding: '13px', borderRadius: 6, border: '2px solid #d4a94a',
                 background: 'linear-gradient(180deg, #d4a94a, #8b6a20)', color: '#1a1006',
                 fontWeight: 900, fontSize: 15, letterSpacing: 2, cursor: loading ? 'wait' : 'pointer',
-                fontFamily: 'Georgia, serif', opacity: loading ? 0.6 : 1,
+                fontFamily: 'Georgia, serif',
+                opacity: (loading || (registro && !acepta)) ? 0.5 : 1,
                 boxShadow: '0 4px 14px rgba(212,169,74,0.4)',
               }}
             >
               {loading ? '...' : (registro ? 'REGISTRARME' : 'ENTRAR')}
             </button>
           </form>
+
+          {verCondiciones && <PanelCondiciones />}
 
           <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: '#aaa' }}>
             {registro ? '¿Ya tenés cuenta? ' : '¿No tenés cuenta? '}

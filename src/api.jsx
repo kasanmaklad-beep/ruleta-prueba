@@ -168,6 +168,9 @@
     adminUpdateGame(id, mesa) { return PUT(`/api/admin/games/${id}`, mesa); },
     // El estado de una mesa: 0 cerrada, 1 abierta, 2 en pruebas (sólo el dueño
     // y las cuentas de prueba la ven).
+    // Los números de la casa sin necesidad de sesión (los usa el registro).
+    configPublica() { return req('/api/config'); },
+
     adminEstadoMesa(id, estado) { return POST(`/api/admin/games/${id}/activo`, { estado }); },
 
     // ── Panel: socios ──
