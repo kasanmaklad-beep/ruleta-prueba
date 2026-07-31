@@ -421,8 +421,12 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
 
   const PALOS = { S: '♠', H: '♥', D: '♦', C: '♣' };
   const ROJOS = { H: 1, D: 1 };
-  const NOMBRE = { gana: 'GANASTE', pierde: 'PERDISTE', empate: 'EMPATE', natural: '¡BLACKJACK!' };
-  const TEXTO_ACCION = { pedir: 'PEDIR', plantarse: 'PLANTARME', doblar: 'DOBLAR', dividir: 'DIVIDIR' };
+  const NOMBRE = () => ({
+    gana: T('GANASTE'), pierde: T('PERDISTE'), empate: T('EMPATE'), natural: T('¡BLACKJACK!'),
+  });
+  const TEXTO_ACCION = () => ({
+    pedir: T('PEDIR'), plantarse: T('PLANTARME'), doblar: T('DOBLAR'), dividir: T('DIVIDIR'),
+  });
 
   function Ficha({ f, texto, onClick, disabled }) {
     return (
@@ -594,11 +598,11 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
         if (cerroSola) {
           const pago = (d.manos || []).reduce((s, h) => s + (h.pago || 0), 0);
           setAviso(pago > 0
-            ? `Tu mano anterior había quedado abierta: se jugó sola y cobraste ${pago}.`
-            : 'Tu mano anterior había quedado abierta y se jugó sola.');
+            ? T('Tu mano anterior había quedado abierta: se jugó sola y cobraste {n}.', { n: pago })
+            : T('Tu mano anterior había quedado abierta y se jugó sola.'));
         }
       } catch (err) {
-        setAviso(err.message || 'No pude abrir la mesa');
+        setAviso(T(err.message) || T('No pude abrir la mesa'));
       } finally {
         setCargando(false);
       }
@@ -635,7 +639,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
         const d = await window.Api.bjJugar(accion, E.ronda, E.version);
         aplicar(d);
       } catch (err) {
-        setAviso(err.message || 'No se pudo jugar');
+        setAviso(T(err.message) || T('No se pudo jugar'));
         // Si el servidor rechazó por versión vieja, lo que corresponde es
         // volver a mirar la mesa, no insistir con lo que teníamos.
         cargar();
@@ -653,17 +657,17 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
         primerDibujo.current = false;
         aplicar(d);
       } catch (err) {
-        setAviso(err.message || 'No se pudo apostar');
+        setAviso(T(err.message) || T('No se pudo apostar'));
       } finally { setOcupado(false); }
     };
 
     const ponerFicha = (v) => {
       if (ocupado || enPaño) return;
       if (montoDe(puestoActivo) + v > maximo) {
-        setAviso(`El máximo por puesto en esta mesa es ${maximo}`);
+        setAviso(T('El máximo por puesto en esta mesa es {n}', { n: maximo }));
         return;
       }
-      if (montoTotal() + v > saldo) { setAviso('No te alcanza el saldo'); return; }
+      if (montoTotal() + v > saldo) { setAviso(T('No te alcanza el saldo')); return; }
       setAviso('');
       Sonido.ficha();
       setPilas((ps) => ps.map((p, i) => (i === puestoActivo ? [...p, v] : p)));
@@ -710,7 +714,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
       if (ficha == null) return;
       const yaHay = (pilas[hasta] || []).reduce((a, b) => a + b, 0);
       if (yaHay + ficha > maximo) {
-        setAviso(`El máximo por puesto en esta mesa es ${maximo}: la ficha se queda donde estaba.`);
+        setAviso(T('El máximo por puesto en esta mesa es {n}: la ficha se queda donde estaba.', { n: maximo }));
         return;
       }
       setAviso('');
@@ -798,7 +802,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
       const previas = apostadoAntes();
       const total = previas.reduce((a, b) => a + b, 0);
       if (repetir && total > saldo) {
-        setAviso('No te alcanza el saldo para repetir la misma apuesta.');
+        setAviso(T('No te alcanza el saldo para repetir la misma apuesta.'));
         return;
       }
       setAviso('');
@@ -824,7 +828,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
         <div className="bj-pantalla" style={{
           minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
           background: '#0a0604', color: '#d4a94a', fontFamily: 'Georgia, serif', letterSpacing: 2,
-        }}>Abriendo la mesa…</div>
+        }}>{T('Abriendo la mesa…')}</div>
       );
     }
 
@@ -861,14 +865,14 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
                 </div>
                 <div className="bj-pie-col">
                   <span className="bj-cuenta">
-                    {h.total}{h.blando ? <span className="bj-nota"> blando</span> : null}
+                    {h.total}{h.blando ? <span className="bj-nota"> {T('blando')}</span> : null}
                   </span>
                   {manos.length > 1 && (
                     <span className="bj-apostado">${h.apuesta}</span>
                   )}
                   {h.resultado && (
                     <div className={'bj-resultado bj-' + h.resultado}>
-                      {NOMBRE[h.resultado]}{h.pago ? ' +' + h.pago : ''}
+                      {NOMBRE()[h.resultado]}{h.pago ? ' +' + h.pago : ''}
                     </div>
                   )}
                 </div>
@@ -889,7 +893,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
                 ))}
               </div>
             ) : editable ? (
-              <div className="bj-rotulo">{p === puestoActivo ? 'ACÁ' : ''}</div>
+              <div className="bj-rotulo">{p === puestoActivo ? T('ACÁ') : ''}</div>
             ) : null}
           </div>
         </div>
@@ -912,10 +916,10 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
         <div className="bj-barra">
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <button className="bj-gris" style={{ padding: '6px 10px', fontSize: 11 }}
-                    onClick={onSalirAlSalon}>← SALÓN</button>
+                    onClick={onSalirAlSalon}>← {T('SALÓN')}</button>
             {onOpenWallet && (
               <button className="bj-gris" style={{ padding: '6px 10px', fontSize: 11 }}
-                      onClick={onOpenWallet}>CAJA</button>
+                      onClick={onOpenWallet}>{T('CAJA')}</button>
             )}
           </span>
           {/* El usuario a la vista: en esta mesa se apuesta plata, y el jugador
@@ -930,7 +934,10 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
               <span className={'bj-sonido' + (mudo ? ' bj-mudo' : '')}
                     onClick={() => { setMudo(Sonido.alternar()); }}
                     title="Sonido">{mudo ? '🔇' : '🔊'}</span>
-              {' '}saldo <span className="bj-saldo">{Number(saldo).toLocaleString('es-VE')}</span>
+              {/* El saldo se escribe como lo escribe toda la casa: con el
+                  símbolo de la moneda configurada, no con el formato de un
+                  país clavado a mano. */}
+              {' '}{T('saldo')} <span className="bj-saldo">{window.UI.plata(saldo)}</span>
             </span>
           </span>
         </div>
@@ -983,7 +990,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
             <div className="bj-fila-crupier">
               <div className="bj-avatar">🎩</div>
               <div>
-                <div className="bj-quien">CRUPIER</div>
+                <div className="bj-quien">{T('CRUPIER')}</div>
                 <div className="bj-cuenta">
                   {enPaño && E.crupier ? (
                     <>{E.crupier.total}{E.crupier.parcial ? <span className="bj-nota"> + ?</span> : null}</>
@@ -999,20 +1006,21 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
             </div>
 
             <div className="bj-letrero">
-              <b>EL BLACKJACK PAGA {(E.mesa && E.mesa.pago_natural) >= 1.5 ? '3 A 2' : '6 A 5'}</b>
-              EL CRUPIER SE PLANTA EN 17 · APUESTA {minimo}–{maximo}
+              <b>{(E.mesa && E.mesa.pago_natural) >= 1.5
+                ? T('EL BLACKJACK PAGA 3 A 2') : T('EL BLACKJACK PAGA 6 A 5')}</b>
+              {T('EL CRUPIER SE PLANTA EN 17 · APUESTA {min}–{max}', { min: minimo, max: maximo })}
               {/* La mesa en pruebas lo dice EN EL PAÑO. El que está probando
                   juega con plata de verdad: tiene que saber en qué mesa está
                   parado sin tener que acordarse. */}
               {E.mesa && E.mesa.en_pruebas && (
-                <span className="bj-en-pruebas">MESA EN PRUEBAS · NO ABIERTA AL PÚBLICO</span>
+                <span className="bj-en-pruebas">{T('MESA EN PRUEBAS · NO ABIERTA AL PÚBLICO')}</span>
               )}
             </div>
             <div className="bj-marca-paño">VOLTIO</div>
             <div className="bj-arco" />
 
             <div className="bj-quien" style={{ marginBottom: 2 }}>
-              {enPaño ? 'TU MANO' : 'TU APUESTA'}
+              {enPaño ? T('TU MANO') : T('TU APUESTA')}
             </div>
 
             <div className={'bj-puestos' + (enPaño ? ' bj-con-cartas' : '')}>
@@ -1036,7 +1044,7 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
                 ((E.acciones) || []).map((a) => (
                   <button key={a} className={a === 'pedir' ? '' : 'bj-gris'}
                           disabled={ocupado} onClick={() => jugar(a)}>
-                    {TEXTO_ACCION[a] || a.toUpperCase()}
+                    {TEXTO_ACCION()[a] || a.toUpperCase()}
                   </button>
                 ))
               ) : mostrandoCierre ? (
@@ -1047,23 +1055,25 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
                    muerta se quedaba puesta para siempre. */
                 <>
                   <button disabled={ocupado} onClick={() => barrer(true)}>
-                    REPETIR {apostadoAntes().reduce((a, b) => a + b, 0)}
+                    {T('REPETIR {n}', { n: apostadoAntes().reduce((a, b) => a + b, 0) })}
                   </button>
                   <button className="bj-gris" disabled={ocupado}
-                          onClick={() => barrer(false)}>OTRA MANO</button>
+                          onClick={() => barrer(false)}>{T('OTRA MANO')}</button>
                 </>
               ) : (
                 <>
                   <button
                     disabled={ocupado || !abiertos.length || flojo !== undefined}
                     onClick={apostar}>
-                    {!abiertos.length ? `PONÉ AL MENOS ${minimo}`
-                      : flojo !== undefined ? `MÍNIMO ${minimo} POR PUESTO`
-                      : `APOSTAR ${montoTotal()}${abiertos.length > 1 ? ' EN ' + abiertos.length : ''}`}
+                    {!abiertos.length ? T('PONÉ AL MENOS {n}', { n: minimo })
+                      : flojo !== undefined ? T('MÍNIMO {n} POR PUESTO', { n: minimo })
+                      : abiertos.length > 1
+                        ? T('APOSTAR {n} EN {p}', { n: montoTotal(), p: abiertos.length })
+                        : T('APOSTAR {n}', { n: montoTotal() })}
                   </button>
                   {!!abiertos.length && (
                     <button className="bj-gris" disabled={ocupado}
-                            onClick={() => setPilas([[], [], []])}>LEVANTAR</button>
+                            onClick={() => setPilas([[], [], []])}>{T('LEVANTAR')}</button>
                   )}
                 </>
               )}

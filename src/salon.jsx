@@ -21,13 +21,20 @@
   function paraLaTarjeta(m) {
     const es21 = m.tipo === 'blackjack';
     const auto = es21 ? [
-      `Blackjack · ${m.mazos} mazos`,
-      `El natural paga ${m.pago_natural >= 1.5 ? '3 a 2' : '6 a 5'}`,
+      T('Blackjack · {n} mazos', { n: m.mazos }),
+      m.pago_natural >= 1.5 ? T('El natural paga 3 a 2') : T('El natural paga 6 a 5'),
     ] : [
-      `Ruleta ${m.doble_cero ? 'americana 0/00' : 'europea, un solo cero'} · ${m.casillas} casillas`,
-      m.rayos ? 'Rayos con premios hasta 500x' : `El pleno paga ${m.pago_pleno} a 1`,
+      m.doble_cero ? T('Ruleta americana 0/00 · {n} casillas', { n: m.casillas })
+                   : T('Ruleta europea, un solo cero · {n} casillas', { n: m.casillas }),
+      m.rayos ? T('Rayos con premios hasta 500x') : T('El pleno paga {n} a 1', { n: m.pago_pleno }),
     ];
-    const detalle = [m.detalle1, m.detalle2].filter(Boolean);
+    // Las dos líneas que escribe el dueño están en español y viven en la base
+    // (games.detalle1/2), así que el diccionario no las puede tocar. En inglés
+    // se prefieren las automáticas —que sí están traducidas— antes que dejar
+    // media tarjeta en español. Cuando el panel tenga los campos en inglés,
+    // esto pasa a elegir el que corresponda.
+    const enEspanol = !window.I18N || window.I18N.get() === 'es';
+    const detalle = enEspanol ? [m.detalle1, m.detalle2].filter(Boolean) : [];
     return {
       id: m.id,
       nombre: (m.label || m.id).toUpperCase(),
@@ -37,7 +44,7 @@
       // como lo que viene, nunca con un título de venta. Y una mesa EN PRUEBAS
       // se anuncia como lo que es: el que la ve es el dueño o una cuenta de
       // prueba, y tiene que saber que está mirando algo que el público no ve.
-      cinta: m.en_pruebas ? 'EN PRUEBAS' : (m.activo ? 'MESA ABIERTA' : 'PRÓXIMAMENTE'),
+      cinta: m.en_pruebas ? T('EN PRUEBAS') : (m.activo ? T('MESA ABIERTA') : T('PRÓXIMAMENTE')),
       enPruebas: !!m.en_pruebas,
       detalle: detalle.length ? detalle : auto,
       // La apuesta más chica que acepta la mesa: en el 21 la pone la ficha de
@@ -95,7 +102,7 @@
         }}>
           <div style={{ fontSize: 10, color: '#888' }}>
             {mesa.apuestaDesde != null && (
-              <>APUESTA DESDE<br /><b style={{ color: '#ddd', fontSize: 12 }}>{fmt(mesa.apuestaDesde)}</b></>
+              <>{T('APUESTA DESDE')}<br /><b style={{ color: '#ddd', fontSize: 12 }}>{fmt(mesa.apuestaDesde)}</b></>
             )}
           </div>
           <button
@@ -110,7 +117,7 @@
               background: apagada ? '#2a2a2a' : 'linear-gradient(180deg, #ffe98a, #d4a017)',
               boxShadow: apagada ? 'none' : '0 0 14px rgba(255,216,74,0.35)',
             }}
-          >{apagada ? 'MUY PRONTO' : 'ENTRAR'}</button>
+          >{apagada ? T('MUY PRONTO') : T('ENTRAR A LA MESA')}</button>
         </div>
       </div>
     );
@@ -159,30 +166,32 @@
               textShadow: '0 0 18px rgba(255,216,74,0.25)',
             }}>⚡ VOLTIO</div>
             <div style={{ fontSize: 8, letterSpacing: 3, color: '#b88a28', marginTop: 3 }}>
-              SALÓN DE JUEGOS
+              {T('SALÓN DE JUEGOS')}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 8, letterSpacing: 2, color: '#999' }}>SALDO</div>
+              <div style={{ fontSize: 8, letterSpacing: 2, color: '#999' }}>{T('SALDO')}</div>
               <div style={{ fontSize: isMobile ? 14 : 16, fontWeight: 900 }}>{fmt(user && user.balance)}</div>
             </div>
             {onOpenWallet && (
               <button onClick={onOpenWallet}
-                style={botoncito('#2a8a2a', 'rgba(42,138,42,0.25)', '#9ff0a0')}>CAJA</button>
+                style={botoncito('#2a8a2a', 'rgba(42,138,42,0.25)', '#9ff0a0')}>{T('CAJA')}</button>
             )}
             {onOpenCashier && (
               <button onClick={onOpenCashier}
-                style={botoncito('#8b6a20', 'rgba(0,0,0,0.4)', '#d4a94a')}>TAQUILLA</button>
+                style={botoncito('#8b6a20', 'rgba(0,0,0,0.4)', '#d4a94a')}>{T('TAQUILLA')}</button>
             )}
             {onOpenAdmin && (
               <button onClick={onOpenAdmin}
-                style={botoncito('#8b6a20', 'rgba(0,0,0,0.4)', '#d4a94a')}>PANEL</button>
+                style={botoncito('#8b6a20', 'rgba(0,0,0,0.4)', '#d4a94a')}>{T('PANEL')}</button>
             )}
             {onLogout && (
               <button onClick={onLogout}
-                style={botoncito('#555', 'rgba(0,0,0,0.4)', '#aaa')}>SALIR</button>
+                style={botoncito('#555', 'rgba(0,0,0,0.4)', '#aaa')}>{T('SALIR')}</button>
             )}
+            {/* El idioma se elige acá, que es la primera pantalla del salón. */}
+            {window.UI && window.UI.Idioma && <window.UI.Idioma chico={isMobile} />}
           </div>
         </div>
 
@@ -195,27 +204,27 @@
               otra. Antes el salón no lo decía en ninguna parte. */}
           <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 11, color: '#999', letterSpacing: 2 }}>
-              BIENVENIDO{nombreDe(user) ? `, ${nombreDe(user).toUpperCase()}` : ''}
+              {T('BIENVENIDO')}{nombreDe(user) ? `, ${nombreDe(user).toUpperCase()}` : ''}
             </div>
             {user && user.username && (
               <div style={{ fontSize: 10, color: '#b88a28', letterSpacing: 1.5, marginTop: 3 }}>
-                entraste como <b style={{ color: '#e8d9a0' }}>{user.username}</b>
+                {T('entraste como')} <b style={{ color: '#e8d9a0' }}>{user.username}</b>
               </div>
             )}
             <div style={{ fontSize: 15, color: '#e8d9a0', letterSpacing: 3, marginTop: 4 }}>
-              — ELEGÍ TU MESA —
+              {T('— ELEGÍ TU MESA —')}
             </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {mesas == null && (
               <div style={{ textAlign: 'center', color: '#8a7a52', fontSize: 12, padding: '24px 0' }}>
-                Abriendo el salón…
+                {T('Abriendo el salón…')}
               </div>
             )}
             {mesas != null && abiertas.length === 0 && (
               <div style={{ textAlign: 'center', color: '#8a7a52', fontSize: 12, padding: '24px 0' }}>
-                No hay mesas abiertas en este momento. Probá de nuevo en un rato.
+                {T('No hay mesas abiertas en este momento. Probá de nuevo en un rato.')}
               </div>
             )}
             {abiertas.map(paraLaTarjeta).map((m) => (
@@ -226,7 +235,7 @@
         </div>
 
         <div style={{ textAlign: 'center', fontSize: 9, color: '#666', letterSpacing: 2, padding: '10px 0 14px' }}>
-          VOLTIO · JUGÁ CON ENERGÍA
+          {T('VOLTIO · JUGÁ CON ENERGÍA')}
         </div>
       </div>
     );

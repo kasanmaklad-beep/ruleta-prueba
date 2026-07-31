@@ -287,7 +287,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
   const [history, setHistory] = useState([]); // últimos resultados
   const [lightningNumbers, setLightningNumbers] = useState(new Map());
   const [winAmount, setWinAmount] = useState(null);
-  const [message, setMessage] = useState('Haz tu apuesta');
+  const [message, setMessage] = useState(T('Haz tu apuesta'));
   const [cameraZoom, setCameraZoom] = useState(false);
   const [lightningBolts, setLightningBolts] = useState([]); // efectos visuales
   const [winDetails, setWinDetails] = useState(null);
@@ -401,7 +401,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
   const placeBet = useCallback((bet) => {
     if (!apuestasAbiertas) return;
     if (bet.amount > balance) {
-      avisar('Saldo insuficiente');
+      avisar(T('Saldo insuficiente'));
       return;
     }
     // Tope por casilla: se frena acá, con la ficha en la mano. Cubrir otras
@@ -503,7 +503,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     setLightningNumbers(new Map());
     setPhase('spinning');
     setCameraZoom(true);
-    setMessage('¡No más apuestas!');
+    setMessage(T('¡No más apuestas!'));
     if (window.Voice) window.Voice.anunciarNoMasApuestas();
     setResultIndex(server.resultIndex);
     setResultNum(resultNum);
@@ -537,11 +537,11 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     const finales = betsRef.current;
     if (!finales || finales.length === 0) {
       setPhase('betting');
-      setMessage('Haz tu apuesta');
+      setMessage(T('Haz tu apuesta'));
       return;
     }
     setLastBets(finales.map(b => ({ ...b })));
-    setMessage('¡No más apuestas!');
+    setMessage(T('¡No más apuestas!'));
     window.Api.spin(finales.map(b => ({ type: b.type, payload: b.payload, amount: b.amount })), ficha.id)
       .then((server) => {
         serverSpinRef.current = server;
@@ -582,7 +582,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
         // estaba sonando y si no, queda sonando para siempre.
         if (window.AudioEngine) { try { window.AudioEngine.stopSpin(); } catch (e) {} }
         setPhase('betting');
-        setMessage(err && err.message ? err.message : 'No se pudo girar');
+        setMessage(err && err.message ? T(err.message) : T('No se pudo girar'));
         window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {});
       });
   }, [runSpinAnimation, ficha.id, pruebaTotal]);
@@ -634,7 +634,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
       const restante = Math.max(0, OPEN_BETS_MS - (Date.now() - t0));
       const seg = Math.ceil(restante / 1000);
       setBetCountdown(seg);
-      setMessage(`⏳ APUESTAS ABIERTAS · ${seg}`);
+      setMessage(T('⏳ APUESTAS ABIERTAS · {seg}', { seg }));
       if (restante <= 0) { clearInterval(iv); cerrarApuestas(); }
     }, 200);
     return () => clearInterval(iv);
@@ -652,12 +652,12 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
       return;
     }
     if (lastBets.length === 0) {
-      setMessage('Debes apostar primero');
+      setMessage(T('Debes apostar primero'));
       return;
     }
     // Repetir apuestas (sin girar) — el jugador decide cuándo girar
     const total = lastBets.reduce((s, b) => s + b.amount, 0);
-    if (total > balance) { setMessage('Saldo insuficiente para repetir'); return; }
+    if (total > balance) { setMessage(T('Saldo insuficiente para repetir')); return; }
     setBalance((b) => b - total);
     setBets(lastBets.map(b => ({ ...b })));
     if (window.AudioEngine) window.AudioEngine.chip();
@@ -693,15 +693,18 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
       if (window.AudioEngine) window.AudioEngine.win(total >= 500 || anyLightning);
       // Si el premio tocó el techo por giro, se avisa para que no parezca un error.
       const tope = server.capped
-        ? ` (tope máximo por giro; el premio completo era $${Number(server.grossWin).toLocaleString()})`
+        ? T(' (tope máximo por giro; el premio completo era {n})',
+            { n: window.UI.plata(server.grossWin) })
         : '';
       setMessage(
-        (anyLightning ? `⚡ ¡LIGHTNING WIN! $${total.toLocaleString()} ⚡` : `¡Ganaste $${total.toLocaleString()}!`) + tope
+        (anyLightning
+          ? T('⚡ ¡LIGHTNING WIN! {n} ⚡', { n: window.UI.plata(total) })
+          : T('¡Ganaste {n}!', { n: window.UI.plata(total) })) + tope
       );
     } else {
       if (window.AudioEngine) window.AudioEngine.lose();
       // El número y el animal ya se ven grandes al lado: el texto no los repite.
-      setMessage('Sin ganancias esta vez');
+      setMessage(T('Sin ganancias esta vez'));
     }
 
     // Siguiente ronda
@@ -713,7 +716,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
       setLightningNumbers(new Map());
       setWinAmount(null);
       setWinDetails(null);
-      setMessage('Haz tu apuesta');
+      setMessage(T('Haz tu apuesta'));
     }, ESPERA_RONDA_MS);
   }, [resultNum, ficha.animales]);
 
@@ -807,11 +810,11 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
         </div>
         <div style={{ display: 'flex', gap: isMobile ? 10 : 24, alignItems: 'center' }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>APUESTA</div>
+            <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>{T('APUESTA')}</div>
             <div style={{ fontSize: isMobile ? 12 : 22, fontWeight: 900, color: '#ffd84a' }}>${totalBet.toLocaleString()}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>SALDO</div>
+            <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>{T('SALDO')}</div>
             <div style={{ fontSize: isMobile ? 14 : 26, fontWeight: 900, color: '#fff' }}>${balance.toLocaleString()}</div>
           </div>
           {/* Sonido del giro */}
@@ -909,7 +912,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.4)', color: '#ffd84a',
                     fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
                     letterSpacing: 1, cursor: 'pointer',
-                  }}>SALÓN</button>
+                  }}>{T('SALÓN')}</button>
                 )}
                 {onOpenWallet && (
                   <button onClick={onOpenWallet} style={{
@@ -917,7 +920,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     border: '1px solid #2a8a2a', background: 'rgba(42,138,42,0.25)', color: '#9ff0a0',
                     fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
                     letterSpacing: 1, cursor: 'pointer',
-                  }}>CAJA</button>
+                  }}>{T('CAJA')}</button>
                 )}
                 {onOpenCashier && (
                   <button onClick={onOpenCashier} style={{
@@ -941,7 +944,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     border: '1px solid #555', background: 'rgba(0,0,0,0.4)', color: '#aaa',
                     fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
                     letterSpacing: 1, cursor: 'pointer',
-                  }}>SALIR</button>
+                  }}>{T('SALIR')}</button>
                 )}
               </div>
             </div>
@@ -1266,7 +1269,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     }} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 34, width: '100%', alignItems: 'stretch' }}>
                       <ActionBtn onClick={clearBets} disabled={!apuestasAbiertas || bets.length === 0} compact>
-                        LIMPIAR
+                        {T('LIMPIAR')}
                       </ActionBtn>
                       <ActionBtn
                         id="spin-btn"
@@ -1276,7 +1279,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                         theme={t.theme}
                         compact
                       >
-                        {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
+                        {bets.length === 0 && lastBets.length > 0 ? `${T('GIRAR')} ↻` : T('GIRAR')}
                       </ActionBtn>
                     </div>
 
@@ -1394,7 +1397,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                 </div>
                 <div style={{ display: 'flex', gap: 28 }}>
                   <ActionBtn onClick={clearBets} disabled={!apuestasAbiertas || bets.length === 0}>
-                    LIMPIAR
+                    {T('LIMPIAR')}
                   </ActionBtn>
                   <ActionBtn
                     id="spin-btn"
@@ -1403,7 +1406,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     primary
                     theme={t.theme}
                   >
-                    {bets.length === 0 && lastBets.length > 0 ? 'GIRAR ↻' : 'GIRAR'}
+                    {bets.length === 0 && lastBets.length > 0 ? `${T('GIRAR')} ↻` : T('GIRAR')}
                   </ActionBtn>
                 </div>
               </div>
@@ -1724,7 +1727,7 @@ function MarcadorPrueba({ total, p, saldo, isMobile }) {
       fontFamily: 'Georgia, serif', overflowX: 'auto',
     }}>
       {caja('GIROS', `${giros}/${total}`, termino ? '#9fd8ff' : '#5ab8ff')}
-      {caja(isMobile ? 'INICIAL' : 'SALDO INICIAL', plata(inicial))}
+      {caja(isMobile ? T('INICIAL') : T('SALDO INICIAL'), plata(inicial))}
       {caja('AHORA', plata(saldo), '#ffd84a')}
       {caja('NETO', `${neto >= 0 ? '+' : '−'}${plata(Math.abs(neto))}`,
         neto >= 0 ? '#7ee08a' : '#ff9a9a')}

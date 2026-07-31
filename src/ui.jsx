@@ -383,9 +383,37 @@
     return f ? f[1] : (METODOS_VIEJOS[m] || m || '—');
   }
 
+  // ── El interruptor de idioma ───────────────────────────────────────────
+  // Dos letras, no una bandera: una bandera dice país y el idioma no es un
+  // país (un venezolano en Miami puede querer inglés, y un gringo acá,
+  // español). El que está puesto va encendido.
+  function Idioma({ chico }) {
+    const actual = window.I18N ? window.I18N.get() : 'es';
+    const boton = (id, texto) => (
+      <button
+        key={id}
+        onClick={() => window.I18N && window.I18N.set(id)}
+        style={{
+          padding: chico ? '3px 7px' : '5px 9px',
+          fontSize: chico ? 9 : 11, fontWeight: 900, letterSpacing: 1,
+          fontFamily: 'Georgia, serif', cursor: 'pointer',
+          border: `1px solid ${actual === id ? GOLD : '#555'}`,
+          background: actual === id ? 'rgba(212,169,74,0.18)' : 'rgba(0,0,0,0.4)',
+          color: actual === id ? GOLD : '#999',
+          borderRadius: 4,
+        }}
+      >{texto}</button>
+    );
+    return (
+      <span style={{ display: 'inline-flex', gap: 4 }}>
+        {boton('es', 'ES')}{boton('en', 'EN')}
+      </span>
+    );
+  }
+
   window.UI = {
     GOLD, BORDER, bs, plata, simbolo, nombreMoneda, setMoneda, enBolivares,
     fecha, styles, paleta, PALETAS, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
-    Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm,
+    Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm, Idioma,
   };
 })();

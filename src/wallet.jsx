@@ -41,12 +41,12 @@
       <div style={{ ...S.page, ...U.paleta('jugador') }}>
         <div style={{ maxWidth: 640, margin: '0 auto' }}>
           <Encabezado
-            titulo="💰 MI BILLETERA"
+            titulo={`💰 ${T('MI BILLETERA')}`}
             rol="jugador"
             subtitulo={user.username}
             acciones={<>
-              <Boton tono="gris" onClick={onExit}>← VOLVER AL JUEGO</Boton>
-              {onLogout && <Boton tono="gris" onClick={onLogout}>SALIR</Boton>}
+              <Boton tono="gris" onClick={onExit}>{T('← VOLVER AL JUEGO')}</Boton>
+              {onLogout && <Boton tono="gris" onClick={onLogout}>{T('SALIR')}</Boton>}
             </>}
           />
 
@@ -55,11 +55,11 @@
               ...S.card, marginBottom: 16, textAlign: 'center',
               background: 'var(--fondo-destacado, linear-gradient(180deg, #2a2008, #140d02))',
             }}>
-              <div style={{ fontSize: 12, color: '#999', letterSpacing: 2 }}>SALDO PARA JUGAR</div>
+              <div style={{ fontSize: 12, color: '#999', letterSpacing: 2 }}>{T('SALDO PARA JUGAR')}</div>
               <div style={{ fontSize: 42, fontWeight: 900, color: '#ffd84a', lineHeight: 1.2 }}>
                 {bs(info.disponible)}
               </div>
-              <div style={{ fontSize: 13, color: '#888' }}>{U.nombreMoneda()}</div>
+              <div style={{ fontSize: 13, color: '#888' }}>{T(U.nombreMoneda())}</div>
               {info.user.held_balance > 0 && (
                 <div style={{
                   marginTop: 10, fontSize: 13, color: '#ffa04a',
@@ -73,9 +73,9 @@
 
           <Pestanas
             tabs={[
-              { id: 'recargar', label: 'RECARGAR' },
-              { id: 'retirar', label: 'RETIRAR' },
-              { id: 'movimientos', label: 'MIS MOVIMIENTOS', badge: pendientes },
+              { id: 'recargar', label: T('RECARGAR') },
+              { id: 'retirar', label: T('RETIRAR') },
+              { id: 'movimientos', label: T('MIS MOVIMIENTOS'), badge: pendientes },
             ]}
             activa={tab}
             onChange={setTab}
@@ -83,7 +83,7 @@
 
           <Aviso msg={msg} onClose={() => setMsg(null)} />
 
-          {!info && <div style={{ color: '#888' }}>Cargando…</div>}
+          {!info && <div style={{ color: '#888' }}>{T('Cargando…')}</div>}
 
           {info && tab === 'recargar' && (
             info.pagos_manuales
@@ -108,14 +108,13 @@
     const socio = info.socio;
     return (
       <div style={S.card}>
-        <div style={S.titulo}>CÓMO RECARGAR</div>
+        <div style={S.titulo}>{T('CÓMO RECARGAR')}</div>
         <div style={{ fontSize: 15, lineHeight: 1.8, color: '#d8cfae' }}>
-          Las recargas son <b>en efectivo</b>.{' '}
+          {T('Las recargas son')} <b>{T('en efectivo')}</b>.{' '}
           {socio
-            ? <>Hablá con tu taquillero <b style={{ color: U.GOLD }}>{socio.nombre}</b>, entregale la
-               plata y él te carga el saldo al instante.</>
-            : <>Hablá con el taquillero que te registró: le entregás la plata y él te carga el
-               saldo al instante.</>}
+            ? <>{T('Hablá con tu taquillero')} <b style={{ color: U.GOLD }}>{socio.nombre}</b>
+               {T(', entregale la plata y él te carga el saldo al instante.')}</>
+            : <>{T('Hablá con el taquillero que te registró: le entregás la plata y él te carga el saldo al instante.')}</>}
         </div>
         {socio && socio.datos && (
           <div style={{
@@ -126,8 +125,7 @@
           }}>{socio.datos}</div>
         )}
         <div style={{ marginTop: 12, fontSize: 13, color: '#888', lineHeight: 1.7 }}>
-          Cuando te cargue, el saldo aparece acá solo. Si no aparece en el momento, mostrale
-          esta pantalla: cada carga queda anotada con su nombre y la hora.
+          {T('Cuando te cargue, el saldo aparece acá solo. Si no aparece en el momento, mostrale esta pantalla: cada carga queda anotada con su nombre y la hora.')}
         </div>
       </div>
     );
@@ -294,7 +292,7 @@
             background: 'linear-gradient(180deg, #2a1010, #140606)',
           }}>
             <div style={{ color: '#ff9a9a', fontWeight: 900, marginBottom: 8 }}>
-              Todavía no podés retirar
+              {T('Todavía no podés retirar')}
             </div>
             <div style={{ color: '#ddd', fontSize: 15, lineHeight: 1.6 }}>
               Para retirar hay que jugar al menos el {info.limites.wager_pct_required}% de lo que recargaste.
@@ -305,14 +303,14 @@
         )}
 
         <div style={S.card}>
-          <div style={S.titulo}>PEDIR UN RETIRO</div>
+          <div style={S.titulo}>{T('PEDIR UN RETIRO')}</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Campo label={`CUÁNTO QUERÉS RETIRAR (${U.simbolo()})`}>
+            <Campo label={T('CUÁNTO QUERÉS RETIRAR ({s})', { s: U.simbolo() })}>
               <input style={S.input} type="number" inputMode="numeric" min="0" step={mult}
                      placeholder={String(info.limites.min_withdrawal)}
                      value={monto} onChange={(e) => setMonto(e.target.value)} />
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                Disponible: {plata(info.disponible)} · Mínimo: {plata(info.limites.min_withdrawal)}
+                {T('Disponible: {d} · Mínimo: {m}', { d: plata(info.disponible), m: plata(info.limites.min_withdrawal) })}
                 {mult > 1 && ` · En múltiplos de ${bs(mult)}`}
               </div>
             </Campo>
@@ -370,12 +368,12 @@
 
             {m > info.disponible && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
-                Solo tenés {plata(info.disponible)} disponibles.
+                {T('Solo tenés {n} disponibles.', { n: plata(info.disponible) })}
               </div>
             )}
             {m > 0 && m < info.limites.min_withdrawal && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
-                El retiro mínimo es {plata(info.limites.min_withdrawal)}.
+                {T('El retiro mínimo es {n}.', { n: plata(info.limites.min_withdrawal) })}
               </div>
             )}
             {m > 0 && !multiploOk && (
@@ -385,7 +383,7 @@
             )}
 
             <Boton tono="verde" disabled={!listo || enviando} onClick={enviar}>
-              {enviando ? 'ENVIANDO...' : 'PEDIR RETIRO'}
+              {enviando ? T('ENVIANDO...') : T('PEDIR RETIRO')}
             </Boton>
             <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
               {info.socio
