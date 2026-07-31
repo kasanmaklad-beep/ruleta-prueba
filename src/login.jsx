@@ -6,6 +6,10 @@
 // retiro hay que saber a quién se le está pagando y a dónde.
 (function () {
   const { useState } = React;
+  // Si el diccionario no cargó (una copia vieja guardada en el teléfono),
+  // T() sigue existiendo y devuelve el español: pantalla en español antes que
+  // pantalla en blanco.
+  const T = window.T || ((s) => s);
 
   const BANCOS = (window.UI && window.UI.BANCOS) || ['Otro'];
   const DOCS = (window.UI && window.UI.DOCS) || [['V', 'V — Cédula', '12345678']];
@@ -19,10 +23,10 @@
     return (
       <>
         <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 2, color: '#d4a94a' }}>
-          CONDICIONES DE VOLTIO
+          {T('CONDICIONES DE VOLTIO')}
         </div>
         <div style={{ fontSize: 10, color: '#777', letterSpacing: 1, marginBottom: 14 }}>
-          versión {(window.CONDICIONES || {}).VERSION}
+          {T('versión')} {(window.CONDICIONES || {}).VERSION}
         </div>
         {c.map((p, i) => (
           <div key={i} style={{ marginBottom: 13 }}>
@@ -58,7 +62,7 @@
         const r = await window.Api.aceptarCondiciones((window.CONDICIONES || {}).VERSION);
         onListo(r.user);
       } catch (err) {
-        setError(err.message || 'No se pudo guardar');
+        setError(T(err.message) || T('No se pudo guardar'));
         setEnviando(false);
       }
     };
@@ -76,8 +80,7 @@
             maxHeight: '70vh', overflowY: 'auto',
           }}>
             <div style={{ fontSize: 12, color: '#bba876', marginBottom: 12, lineHeight: 1.6 }}>
-              Hola{user && user.username ? ` ${user.username}` : ''}: pusimos por escrito las
-              condiciones de la casa. Leelas y aceptalas para seguir jugando.
+              {T('Hola')}{user && user.username ? ` ${user.username}` : ''}{T(': pusimos por escrito las condiciones de la casa. Leelas y aceptalas para seguir jugando.')}
             </div>
             <PanelCondicionesTexto cfg={cfg} />
           </div>
@@ -110,13 +113,13 @@
               cursor: (!acepta || enviando) ? 'default' : 'pointer',
               opacity: (!acepta || enviando) ? 0.5 : 1,
             }}
-          >{enviando ? 'GUARDANDO...' : 'ACEPTAR Y SEGUIR'}</button>
+          >{enviando ? T('GUARDANDO...') : T('ACEPTAR Y SEGUIR')}</button>
 
           {onLogout && (
             <div style={{ textAlign: 'center', marginTop: 14 }}>
               <a href="#" onClick={(e) => { e.preventDefault(); onLogout(); }}
                  style={{ color: '#999', fontSize: 12.5, textDecoration: 'underline' }}>
-                Salir sin aceptar
+                {T('Salir sin aceptar')}
               </a>
             </div>
           )}
@@ -173,18 +176,18 @@
 
       const u = v('username').toLowerCase();
       const password = v('password');
-      if (u.length < 3) { setError('El usuario debe tener al menos 3 caracteres'); return; }
-      if (password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+      if (u.length < 3) { setError(T('El usuario debe tener al menos 3 caracteres')); return; }
+      if (password.length < 6) { setError(T('La contraseña debe tener al menos 6 caracteres')); return; }
 
       if (mode === 'register') {
-        if (v('first_name').length < 2) { setError('Poné tu nombre'); return; }
-        if (v('last_name').length < 2) { setError('Poné tu apellido'); return; }
-        if (v('cedula').length < 4) { setError('Poné el número de tu documento'); return; }
-        if (v('phone').replace(/\D/g, '').length < 7) { setError('Poné tu teléfono: es a donde te vamos a pagar'); return; }
-        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v('email'))) { setError('Poné un correo válido'); return; }
-        if (!v('bank')) { setError('Elegí tu banco'); return; }
+        if (v('first_name').length < 2) { setError(T('Poné tu nombre')); return; }
+        if (v('last_name').length < 2) { setError(T('Poné tu apellido')); return; }
+        if (v('cedula').length < 4) { setError(T('Poné el número de tu documento')); return; }
+        if (v('phone').replace(/\D/g, '').length < 7) { setError(T('Poné tu teléfono: es a donde te vamos a pagar')); return; }
+        if (!/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(v('email'))) { setError(T('Poné un correo válido')); return; }
+        if (!pagosEnEfectivo && !v('bank')) { setError(T('Elegí tu banco')); return; }
         if (!acepta) {
-          setError('Para crear la cuenta hay que leer y aceptar las condiciones.');
+          setError(T('Para crear la cuenta hay que leer y aceptar las condiciones.'));
           return;
         }
       }
@@ -213,11 +216,14 @@
         window.Api.setToken(res.token);
         onAuth(res.user);
       } catch (err) {
-        setError(err.message || 'Error inesperado');
+        setError(T(err.message) || T('Error inesperado'));
       } finally {
         setLoading(false);
       }
     };
+
+    // Con la casa en efectivo no hay banco que pedir (ver el formulario).
+    const pagosEnEfectivo = !cfg || cfg.pagos_manuales !== false;
 
     const inputStyle = {
       width: '100%', padding: '12px 14px', marginBottom: 12, borderRadius: 6,
@@ -248,7 +254,7 @@
               border: '2px solid #d4a94a', background: 'linear-gradient(180deg, #d4a94a, #8b6a20)',
               color: '#1a1006', fontFamily: 'Georgia, serif', fontWeight: 900,
               fontSize: 14, letterSpacing: 2, cursor: 'pointer',
-            }}>CERRAR</button>
+            }}>{T('CERRAR')}</button>
           </div>
         </div>
       );
@@ -275,19 +281,24 @@
               textShadow: '0 0 18px rgba(255,216,74,0.2)',
             }}>⚡ VOLTIO</div>
             <div style={{ fontSize: 9, letterSpacing: 4, color: '#b88a28', marginTop: 4 }}>
-              SALÓN DE JUEGOS
+              {T('SALÓN DE JUEGOS')}
             </div>
             <div style={{ fontSize: 11, letterSpacing: 2, color: '#888', marginTop: 8 }}>
-              {registro ? 'Creá tu cuenta' : 'Ingresá para jugar'}
+              {registro ? T('Creá tu cuenta') : T('Ingresá para jugar')}
+            </div>
+            {/* El idioma se elige ANTES de entrar: es la primera pantalla, y
+                el que no lee español tiene que poder cambiarlo acá mismo. */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 10 }}>
+              {window.UI && window.UI.Idioma && <window.UI.Idioma />}
             </div>
           </div>
 
           <form onSubmit={submit}>
             {registro && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <input style={inputStyle} type="text" name="first_name" placeholder="Nombre"
+                <input style={inputStyle} type="text" name="first_name" placeholder={T('Nombre')}
                        value={f.first_name} onChange={set('first_name')} />
-                <input style={inputStyle} type="text" name="last_name" placeholder="Apellido"
+                <input style={inputStyle} type="text" name="last_name" placeholder={T('Apellido')}
                        value={f.last_name} onChange={set('last_name')} />
               </div>
             )}
@@ -300,10 +311,10 @@
                   </select>
                   <input style={inputStyle} type="text" name="cedula"
                          inputMode={f.doc_type === 'P' ? 'text' : 'numeric'}
-                         placeholder={`Número (ej: ${ejemploDoc(f.doc_type)})`}
+                         placeholder={T('Número (ej: {n})', { n: ejemploDoc(f.doc_type) })}
                          value={f.cedula} onChange={set('cedula')} />
                 </div>
-                <div style={ayuda}>Un documento, una cuenta. Solo el número: el tipo va aparte.</div>
+                <div style={ayuda}>{T('Un documento, una cuenta. Solo el número: el tipo va aparte.')}</div>
               </>
             )}
 
@@ -311,7 +322,7 @@
               style={inputStyle}
               type="text"
               name="username"
-              placeholder="Usuario"
+              placeholder={T('Usuario')}
               value={f.username}
               autoCapitalize="none"
               autoCorrect="off"
@@ -322,7 +333,7 @@
               style={inputStyle}
               type="password"
               name="password"
-              placeholder="Contraseña"
+              placeholder={T('Contraseña')}
               value={f.password}
               autoComplete={registro ? 'new-password' : 'current-password'}
               onChange={set('password')}
@@ -332,26 +343,35 @@
               <>
                 <input style={inputStyle} type="tel" inputMode="tel" name="phone"
                        autoComplete="tel"
-                       placeholder="Teléfono (ej: 04141234567)"
+                       placeholder={T('Teléfono (ej: 04141234567)')}
                        value={f.phone} onChange={set('phone')} />
-                <select style={{ ...inputStyle, color: f.bank ? '#fff' : '#888' }}
-                        name="bank" value={f.bank} onChange={set('bank')}>
-                  <option value="">Tu banco…</option>
-                  {BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
-                </select>
-                <div style={ayuda}>
-                  A este banco y teléfono te mandamos el Pago Móvil cuando retires.
-                </div>
+                {/* El banco se pide SÓLO si la casa paga por banco. Con los
+                    pagos en efectivo no se usa para nada, y pedir datos que no
+                    se van a usar es la forma más rápida de que alguien
+                    abandone el registro (y encima es un dato sensible que
+                    después hay que cuidar). */}
+                {!pagosEnEfectivo && (
+                  <>
+                    <select style={{ ...inputStyle, color: f.bank ? '#fff' : '#888' }}
+                            name="bank" value={f.bank} onChange={set('bank')}>
+                      <option value="">{T('Tu banco...')}</option>
+                      {BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                    <div style={ayuda}>
+                      {T('A este banco y teléfono te mandamos el Pago Móvil cuando retires.')}
+                    </div>
+                  </>
+                )}
                 <input style={inputStyle} type="email" inputMode="email" name="email"
                        autoComplete="email"
-                       placeholder="Correo electrónico"
+                       placeholder={T('Correo electrónico')}
                        value={f.email} onChange={set('email')} />
                 <input style={{ ...inputStyle, textTransform: 'uppercase' }} type="text" name="ref"
-                       placeholder="Código de tu socio (opcional)"
+                       placeholder={T('Código de tu socio (opcional)')}
                        value={f.ref}
                        onChange={(e) => setF((p) => ({ ...p, ref: e.target.value.toUpperCase() }))} />
                 <div style={ayuda}>
-                  Si alguien te invitó, poné acá su código. Si entraste por su enlace, ya viene puesto.
+                  {T('Si alguien te invitó, poné acá su código. Si entraste por su enlace, ya viene puesto.')}
                 </div>
               </>
             )}
@@ -368,20 +388,20 @@
                 color: '#d8cfae', lineHeight: 1.7,
               }}>
                 <div style={{ fontSize: 11, letterSpacing: 2, color: '#d4a94a', marginBottom: 6 }}>
-                  ANTES DE EMPEZAR
+                  {T('ANTES DE EMPEZAR')}
                 </div>
-                <div>· Es un <b>juego de azar</b>: podés perder lo que apostás.</div>
+                <div>· {T('Es un')} <b>{T('juego de azar')}</b>: {T('podés perder lo que apostás.')}</div>
                 <div>
-                  · Para retirar hay que haber jugado el{' '}
+                  · {T('Para retirar hay que haber jugado el')}{' '}
                   <b>{cfg && cfg.wager_pct_required != null ? cfg.wager_pct_required : 25}%</b>
-                  {' '}de lo que recargaste.
+                  {' '}{T('de lo que recargaste.')}
                 </div>
-                <div>· Se recarga y se cobra <b>en efectivo</b> con tu taquillero.</div>
+                <div>· {T('Se recarga y se cobra')} <b>{T('en efectivo')}</b> {T('con tu taquillero.')}</div>
                 <a href="#"
                    onClick={(e) => { e.preventDefault(); setVerCondiciones(true); }}
                    style={{ color: '#d4a94a', fontWeight: 700, textDecoration: 'underline',
                             display: 'inline-block', marginTop: 8 }}>
-                  Leer las condiciones completas
+                  {T('Leer las condiciones completas')}
                 </a>
 
                 <label style={{
@@ -416,20 +436,20 @@
                 boxShadow: '0 4px 14px rgba(212,169,74,0.4)',
               }}
             >
-              {loading ? '...' : (registro ? 'REGISTRARME' : 'ENTRAR')}
+              {loading ? '...' : (registro ? T('REGISTRARME') : T('ENTRAR'))}
             </button>
           </form>
 
           {verCondiciones && <PanelCondiciones />}
 
           <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: '#aaa' }}>
-            {registro ? '¿Ya tenés cuenta? ' : '¿No tenés cuenta? '}
+            {registro ? T('¿Ya tenés cuenta? ') : T('¿No tenés cuenta? ')}
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); setError(''); setMode(registro ? 'login' : 'register'); }}
               style={{ color: '#d4a94a', fontWeight: 700, textDecoration: 'none' }}
             >
-              {registro ? 'Iniciá sesión' : 'Registrate'}
+              {registro ? T('Iniciá sesión') : T('Registrate')}
             </a>
           </div>
         </div>

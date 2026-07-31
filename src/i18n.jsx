@@ -46,6 +46,90 @@
       'Usuario o contraseña incorrectos': 'Wrong username or password',
       'Las contraseñas no coinciden': 'The passwords do not match',
 
+      'REGISTRARME': 'CREATE ACCOUNT',
+      'Creá tu cuenta': 'Create your account',
+      'Ingresá para jugar': 'Sign in to play',
+      'Registrate': 'Sign up',
+      'Iniciá sesión': 'Sign in',
+      '¿Ya tenés cuenta? ': 'Already have an account? ',
+      '¿No tenés cuenta? ': "Don't have an account? ",
+      'Teléfono (ej: 04141234567)': 'Phone (e.g. 04141234567)',
+      'Correo electrónico': 'Email address',
+      'Código de tu socio (opcional)': "Your teller's code (optional)",
+      'Un documento, una cuenta. Solo el número: el tipo va aparte.':
+        'One ID, one account. Just the number — the type goes in the box next to it.',
+      'Si alguien te invitó, poné acá su código. Si entraste por su enlace, ya viene puesto.':
+        'If someone invited you, put their code here. If you came through their link, it is already filled in.',
+      'A este banco y teléfono te mandamos el Pago Móvil cuando retires.':
+        'We use this bank and phone to pay you when you withdraw.',
+      'Tu banco...': 'Your bank...',
+      'Error inesperado': 'Something went wrong',
+      'No se pudo guardar': 'Could not be saved',
+      'El usuario debe tener al menos 3 caracteres': 'The username needs at least 3 characters',
+      'La contraseña debe tener al menos 6 caracteres': 'The password needs at least 6 characters',
+      'Poné tu nombre': 'Enter your first name',
+      'Poné tu apellido': 'Enter your last name',
+      'Poné el número de tu documento': 'Enter your ID number',
+      'Poné tu teléfono: es a donde te vamos a pagar': 'Enter your phone — that is where we pay you',
+      'Poné un correo válido': 'Enter a valid email address',
+      'Elegí tu banco': 'Choose your bank',
+      'Número (ej: {n})': 'Number (e.g. {n})',
+      'Cédula': 'National ID',
+      'Extranjero': 'Foreign ID',
+      'RIF': 'Tax ID',
+      'Gubernamental': 'Government',
+      'Pasaporte': 'Passport',
+
+      // ── Las condiciones ──────────────────────────────────────────────
+      'ANTES DE EMPEZAR': 'BEFORE YOU START',
+      'Es un': 'This is a',
+      'juego de azar': 'game of chance',
+      'podés perder lo que apostás.': 'you can lose what you bet.',
+      'Para retirar hay que haber jugado el': 'To withdraw you must have wagered',
+      'de lo que recargaste.': 'of what you deposited.',
+      'Se recarga y se cobra': 'You deposit and collect',
+      'con tu taquillero.': 'with your teller.',
+      'Leer las condiciones completas': 'Read the full terms',
+      'CONDICIONES DE VOLTIO': 'VOLTIO TERMS',
+      'versión': 'version',
+      'CERRAR': 'CLOSE',
+      'ACEPTAR Y SEGUIR': 'ACCEPT AND CONTINUE',
+      'GUARDANDO...': 'SAVING...',
+      'Salir sin aceptar': 'Leave without accepting',
+      'Hola': 'Hello',
+      ': pusimos por escrito las condiciones de la casa. Leelas y aceptalas para seguir jugando.':
+        ': we have put the house terms in writing. Read them and accept to keep playing.',
+      'Para crear la cuenta hay que leer y aceptar las condiciones.':
+        'To create your account you must read and accept the terms.',
+      'Hay que aceptar las condiciones para seguir.': 'You must accept the terms to continue.',
+      'Tengo 18 años cumplidos, entiendo que es un juego de azar en el que puedo perder mi dinero, y acepto las condiciones de VOLTIO.':
+        'I am 18 or older, I understand this is a game of chance in which I can lose my money, '
+        + 'and I accept the VOLTIO terms.',
+      'Esto es un juego de azar': 'This is a game of chance',
+      'Podés perder el dinero que apostás. No es una inversión ni una forma de ganarse la vida: jugá sólo lo que puedas perder sin que te cambie el mes.':
+        'You can lose the money you bet. This is not an investment or a way to make a living: '
+        + 'only play what you can afford to lose.',
+      'Para retirar hay que jugar': 'You have to play before you can withdraw',
+      'Antes de pedir un retiro tenés que haber apostado al menos el {n}% de lo que recargaste. Si recargás y no jugás, no se puede retirar: la casa no es una casa de cambio.':
+        'Before requesting a withdrawal you must have wagered at least {n}% of what you '
+        + 'deposited. If you deposit and do not play, you cannot withdraw: the house is not a '
+        + 'currency exchange.',
+      'La plata entra y sale en efectivo': 'Money comes in and goes out in cash',
+      'Recargás y cobrás en la mano de tu taquillero. La recarga mínima es {min} y el retiro mínimo {ret}. VOLTIO NO te va a pedir nunca datos de tu banco ni claves por la aplicación: si alguien te los pide, no es de la casa.':
+        'You deposit and collect in person with your teller. The minimum deposit is {min} and '
+        + 'the minimum withdrawal is {ret}. VOLTIO will NEVER ask for your bank details or '
+        + 'passwords through the app: if someone asks, they are not from the house.',
+      'El resultado lo decide el servidor y queda anotado':
+        'The result is decided by the server and recorded',
+      'El número de la ruleta y las cartas del blackjack se sortean en el servidor de la casa, no en tu teléfono, y cada jugada queda registrada con su fecha y su monto. Si dudás de una jugada, se puede revisar.':
+        'The roulette number and the blackjack cards are drawn on the house server, not on your '
+        + 'phone, and every round is recorded with its date and amount. If you have doubts about '
+        + 'a round, it can be reviewed.',
+      'Tenés que ser mayor de 18 años': 'You must be 18 or older',
+      'Al crear tu cuenta declarás que tenés 18 años cumplidos. Una cuenta de un menor de edad se cierra y lo jugado no se paga.':
+        'By creating your account you declare that you are 18 or older. An account belonging to '
+        + 'a minor is closed and its play is not paid out.',
+
       // ── El salón ─────────────────────────────────────────────────────
       'SALÓN DE JUEGOS': 'GAME ROOM',
       'SALDO': 'BALANCE',
@@ -177,12 +261,17 @@
 
   const GUARDADO = 'voltio_idioma';
 
+  // La v1 sale para público de habla inglesa, así que el idioma de arranque
+  // es el INGLÉS y no el del teléfono: un venezolano con el teléfono en
+  // español también vería español, y no es lo que la casa quiere mostrar
+  // primero. El que prefiera español lo cambia con el interruptor y queda
+  // guardado para siempre en ese teléfono.
+  const IDIOMA_DE_ARRANQUE = 'en';
+
   function idiomaInicial() {
     const guardado = localStorage.getItem(GUARDADO);
     if (guardado === 'es' || guardado === 'en') return guardado;
-    // Sin elección previa manda el idioma del teléfono. Un inglés que entra
-    // por primera vez tiene que ver inglés sin tener que buscar el botón.
-    return String(navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es';
+    return IDIOMA_DE_ARRANQUE;
   }
 
   let IDIOMA = idiomaInicial();

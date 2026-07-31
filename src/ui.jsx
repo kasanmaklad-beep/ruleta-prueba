@@ -327,13 +327,17 @@
 
   // Tipos de documento. Debe coincidir con DOC_TYPES en worker/lib.js.
   // La cédula va primera y es la opción por defecto: es la de casi todos.
-  const DOCS = [
-    ['V', 'V — Cédula', '12345678'],
-    ['E', 'E — Extranjero', '84123456'],
-    ['J', 'J — RIF', '401234567'],
-    ['G', 'G — Gubernamental', '200012345'],
-    ['P', 'P — Pasaporte', 'AB123456'],
+  // Los tipos de documento son de Venezuela: la LETRA no se traduce (es la que
+  // va en el documento), la palabra que la explica sí.
+  const T_ = () => window.T || ((x) => x);
+  const DOCS_BASE = [
+    ['V', 'Cédula', '12345678'],
+    ['E', 'Extranjero', '84123456'],
+    ['J', 'RIF', '401234567'],
+    ['G', 'Gubernamental', '200012345'],
+    ['P', 'Pasaporte', 'AB123456'],
   ];
+  const DOCS = DOCS_BASE.map(([id, palabra, ej]) => [id, `${id} — ${T_()(palabra)}`, ej]);
   function ejemploDoc(tipo) {
     const d = DOCS.find((x) => x[0] === tipo);
     return d ? d[2] : '12345678';
