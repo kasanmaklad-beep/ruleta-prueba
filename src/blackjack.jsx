@@ -100,6 +100,12 @@
     border:1px solid var(--borde); display:grid; place-items:center; font-size:19px;
   }
 .bj-quien{font-size:10px; letter-spacing:2.5px; color:var(--tenue)}
+/* La mano del crupier: sus cartas y, al lado derecho, lo que lleva. */
+.bj-mano-crupier{display:flex; align-items:center; gap:14px}
+.bj-cuenta-crupier{
+    font-size:30px; padding:9px 20px; min-width:70px; margin-top:0; flex:none;
+    border-color:rgba(255,216,74,.5);
+  }
 /* La cuenta de la mano. Es EL número de esta pantalla: el jugador lo mira
      antes de cada decisión, muchas veces con el teléfono en la mano y a
      distancia de brazo. Va grande, con su propio aro, y es lo que más pesa
@@ -211,6 +217,26 @@ button{
 button:active{transform:translateY(2px); box-shadow:0 1px 0 #6d5410}
 button[disabled]{opacity:.35; cursor:not-allowed; box-shadow:none; transform:none}
 button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0; border-color:#2a2a2a; box-shadow:0 3px 0 #222}
+/* Un color por acción (ver COLOR_ACCION). Mismo relieve que el dorado: cambia
+   el color, no la forma, así los cuatro siguen siendo la misma botonera. */
+button.bj-rojo{
+    background:linear-gradient(180deg,#e2565a,#a3131b); color:#fff5f2;
+    border-color:#7a0d12; box-shadow:0 3px 0 #6a0b10, 0 5px 12px rgba(0,0,0,.45);
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
+  }
+button.bj-rojo:active{box-shadow:0 1px 0 #6a0b10}
+button.bj-azul{
+    background:linear-gradient(180deg,#63b8f0,#1f6ea8); color:#f2fbff;
+    border-color:#164e77; box-shadow:0 3px 0 #12405f, 0 5px 12px rgba(0,0,0,.45);
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
+  }
+button.bj-azul:active{box-shadow:0 1px 0 #12405f}
+button.bj-violeta{
+    background:linear-gradient(180deg,#b489e8,#6a35b0); color:#f8f2ff;
+    border-color:#4d2380; box-shadow:0 3px 0 #401d6b, 0 5px 12px rgba(0,0,0,.45);
+    text-shadow:0 1px 2px rgba(0,0,0,.5);
+  }
+button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
 .bj-barra{
     width:100%; max-width:520px; display:flex; justify-content:space-between; align-items:center;
     margin-top:12px; font-size:11px; color:var(--tenue); letter-spacing:1px;
@@ -433,6 +459,18 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
   const TEXTO_ACCION = () => ({
     pedir: T('PEDIR'), plantarse: T('PLANTARME'), doblar: T('DOBLAR'), dividir: T('DIVIDIR'),
   });
+
+  // Un color por acción. En una mesa con cuatro botones iguales el jugador los
+  // lee cada vez; con color los agarra sin leer, que es lo que pasa cuando se
+  // juega rápido y de memoria. Los tonos son los de las fichas de la mesa, así
+  // que no entra una paleta nueva:
+  //   PEDIR      dorado  — la de la casa, la que más se toca
+  //   PLANTARME  rojo    — la que corta la mano
+  //   DOBLAR     azul    — pone más plata
+  //   DIVIDIR    violeta — abre otra mano
+  const COLOR_ACCION = {
+    pedir: '', plantarse: 'bj-rojo', doblar: 'bj-azul', dividir: 'bj-violeta',
+  };
 
   function Ficha({ f, texto, onClick, disabled }) {
     return (
@@ -995,20 +1033,24 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
 
             <div className="bj-fila-crupier">
               <div className="bj-avatar">🎩</div>
-              <div>
-                <div className="bj-quien">{T('CRUPIER')}</div>
-                <div className="bj-cuenta">
-                  {enPaño && E.crupier ? (
-                    <>{E.crupier.total}{E.crupier.parcial ? <span className="bj-nota"> + ?</span> : null}</>
-                  ) : '—'}
-                </div>
-              </div>
+              <div className="bj-quien">{T('CRUPIER')}</div>
             </div>
 
-            <div className="bj-cartas">
-              {(enPaño ? ((E.crupier && E.crupier.cartas) || []) : []).map((c, i) => (
-                <Carta key={'c' + i} carta={c} nueva={esNueva('c' + i)} />
-              ))}
+            {/* Las cartas del crupier y SU CUENTA al lado, a la derecha: es
+                donde la mira el jugador —al lado de lo que está contando— y no
+                arriba, separada de las cartas. Va más grande que la del
+                jugador porque es la que manda la decisión de pedir o plantarse. */}
+            <div className="bj-mano-crupier">
+              <div className="bj-cartas">
+                {(enPaño ? ((E.crupier && E.crupier.cartas) || []) : []).map((c, i) => (
+                  <Carta key={'c' + i} carta={c} nueva={esNueva('c' + i)} />
+                ))}
+              </div>
+              <div className="bj-cuenta bj-cuenta-crupier">
+                {enPaño && E.crupier ? (
+                  <>{E.crupier.total}{E.crupier.parcial ? <span className="bj-nota"> + ?</span> : null}</>
+                ) : '—'}
+              </div>
             </div>
 
             <div className="bj-letrero">
@@ -1047,8 +1089,12 @@ button.bj-gris{background:linear-gradient(180deg,#5c5c5c,#3a3a3a); color:#e8dcc0
 
             <div className="bj-botones">
               {jugando ? (
+                // Ojo: PEDIR va con clase VACÍA —el botón dorado es el estilo
+                // base—, así que no sirve `COLOR_ACCION[a] || …`: un vacío es
+                // falso y lo pintaba de gris.
                 ((E.acciones) || []).map((a) => (
-                  <button key={a} className={a === 'pedir' ? '' : 'bj-gris'}
+                  <button key={a}
+                          className={a in COLOR_ACCION ? COLOR_ACCION[a] : 'bj-gris'}
                           disabled={ocupado} onClick={() => jugar(a)}>
                     {TEXTO_ACCION()[a] || a.toUpperCase()}
                   </button>
