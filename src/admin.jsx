@@ -6,7 +6,7 @@
 (function () {
   const { useState, useEffect, useCallback, useRef } = React;
   const U = window.UI;
-  const { bs, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Pestanas,
+  const { bs, plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Pestanas,
           Tabla, Estado, Confirmar, Campo, nombreMetodo, METODOS } = U;
 
   // ═════════════════════════════ Raíz ═════════════════════════════════════
@@ -74,7 +74,7 @@
                 )}
                 {pend.recargas_pendientes > 0 && pend.retiros_pendientes > 0 && ' y '}
                 {pend.retiros_pendientes > 0 && (
-                  <b>{pend.retiros_pendientes} retiro{pend.retiros_pendientes > 1 ? 's' : ''} por {bs(pend.retiros_pendientes_monto)} Bs</b>
+                  <b>{pend.retiros_pendientes} retiro{pend.retiros_pendientes > 1 ? 's' : ''} por {plata(pend.retiros_pendientes_monto)}</b>
                 )}
                 {' '}esperando tu respuesta.
               </span>
@@ -328,7 +328,7 @@
           : await window.Api.adminAdjust(username.trim().toLowerCase(), amt, note.trim());
         setMsg({
           kind: 'ok',
-          text: `${modo === 'cargar' ? 'Cargaste' : 'Ajustaste'} ${bs(amt)} Bs a ${res.user.username}. Saldo nuevo: ${bs(res.user.balance)} Bs.`,
+          text: `${modo === 'cargar' ? 'Cargaste' : 'Ajustaste'} ${plata(amt)} a ${res.user.username}. Saldo nuevo: ${plata(res.user.balance)}.`,
         });
         setAmount(''); setNote('');
         onHecho();
@@ -356,7 +356,7 @@
             <input style={S.input} placeholder="nombre de usuario" value={username}
                    onChange={(e) => setUsername(e.target.value)} />
           </Campo>
-          <Campo label={modo === 'cargar' ? 'MONTO (Bs)' : 'MONTO (+ suma / − resta)'}>
+          <Campo label={modo === 'cargar' ? `MONTO (${U.simbolo()})` : 'MONTO (+ suma / − resta)'}>
             <input style={S.input} type="number" placeholder={modo === 'cargar' ? '500' : '-100'}
                    value={amount} onChange={(e) => setAmount(e.target.value)} />
           </Campo>
@@ -412,7 +412,7 @@
             <input style={S.input} type="number" min="1" max="100" value={comision}
                    onChange={(e) => setComision(e.target.value)} />
             <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-              Con {comision || 0}% te paga {bs(Math.round(10000 * ((Number(comision) || 0) / 100)))} Bs
+              Con {comision || 0}% te paga {plata(Math.round(10000 * ((Number(comision) || 0) / 100)))}
               por cada 10.000 de fichas. Lo típico es 20.
             </div>
           </Campo>
@@ -711,7 +711,7 @@
         );
         setMsg({
           kind: 'ok',
-          text: `Le vendiste ${bs(cupo)} de cupo a ${res.cashier.username}. Su comisión fue ${bs(res.comision)} Bs. Cupo total: ${bs(res.cashier.credit_balance)} Bs.`,
+          text: `Le vendiste ${bs(cupo)} de cupo a ${res.cashier.username}. Su comisión fue ${plata(res.comision)}. Cupo total: ${plata(res.cashier.credit_balance)}.`,
         });
         setAmount(''); setPagado('');
         cargar(); recargarResumen();
@@ -746,11 +746,11 @@
                 ))}
               </select>
             </Campo>
-            <Campo label="CUPO QUE RECIBE (Bs)">
+            <Campo label={`CUPO QUE RECIBE (${U.simbolo()})`}>
               <input style={S.input} type="number" min="1" placeholder="10000" value={amount}
                      onChange={(e) => setAmount(e.target.value)} />
             </Campo>
-            <Campo label="LO QUE TE PAGÓ (Bs)">
+            <Campo label={`LO QUE TE PAGÓ (${U.simbolo()})`}>
               <input style={S.input} type="number" min="0"
                      placeholder={sugerido != null ? String(sugerido) : 'automático'}
                      value={pagado} onChange={(e) => setPagado(e.target.value)} />
@@ -763,8 +763,8 @@
           {elegido && cupo > 0 && (
             <div style={{ marginTop: 12, fontSize: 14, color: '#ddd' }}>
               {elegido.username} recibe <b style={{ color: '#ffd84a' }}>{bs(cupo)}</b> de cupo,
-              te paga <b style={{ color: '#7ee08a' }}>{bs(cobra)}</b> Bs
-              y su comisión es <b style={{ color: U.GOLD }}>{bs(cupo - cobra)}</b> Bs.
+              te paga <b style={{ color: '#7ee08a' }}>{plata(cobra)}</b>
+              y su comisión es <b style={{ color: U.GOLD }}>{plata(cupo - cobra)}</b>.
             </div>
           )}
         </div>
@@ -772,7 +772,7 @@
         <Confirmar
           abierto={confirmar}
           titulo="Confirmar venta de cupo"
-          texto={`¿Ya recibiste los ${bs(cobra)} Bs de ${username}? Al confirmar le quedan ${bs(cupo)} Bs de cupo para cargar a sus jugadores.`}
+          texto={`¿Ya recibiste los ${plata(cobra)} de ${username}? Al confirmar le quedan ${plata(cupo)} de cupo para cargar a sus jugadores.`}
           onSi={vender}
           onNo={() => setConfirmar(false)}
           textoSi="SÍ, YA COBRÉ"
@@ -866,7 +866,7 @@
       try {
         if (tipo === 'aprobar') {
           const res = await window.Api.adminApproveTopup(item.id, Number(monto), nota.trim() || undefined);
-          setMsg({ kind: 'ok', text: `Recarga aprobada. ${item.username} quedó con ${bs(res.user.balance)} Bs.` });
+          setMsg({ kind: 'ok', text: `Recarga aprobada. ${item.username} quedó con ${plata(res.user.balance)}.` });
         } else {
           if (!nota.trim()) { setMsg({ kind: 'err', text: 'Poné el motivo del rechazo' }); setEnviando(false); return; }
           await window.Api.adminRejectTopup(item.id, nota.trim());
@@ -953,7 +953,7 @@
                 {accion.item.currency === 'USD' && ` Reportó $${accion.item.amount_fx} a tasa ${accion.item.rate}.`}
               </div>
               {accion.tipo === 'aprobar' ? (
-                <Campo label="MONTO A ACREDITAR (Bs)">
+                <Campo label={`MONTO A ACREDITAR (${U.simbolo()})`}>
                   <input style={S.input} type="number" value={monto} onChange={(e) => setMonto(e.target.value)} />
                   <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
                     Si en el banco llegó otra cifra, corregila acá.
@@ -1025,13 +1025,13 @@
           setMsg({
             kind: 'ok',
             text: quienPaga === 'cashier'
-              ? `Retiro pagado. Le repusimos ${bs(item.amount)} Bs de cupo a ${socio}.`
-              : `Retiro de ${bs(item.amount)} Bs marcado como pagado.`,
+              ? `Retiro pagado. Le repusimos ${plata(item.amount)} de cupo a ${socio}.`
+              : `Retiro de ${plata(item.amount)} marcado como pagado.`,
           });
         } else {
           if (!nota.trim()) { setMsg({ kind: 'err', text: 'Poné el motivo del rechazo' }); setEnviando(false); return; }
           await window.Api.adminRejectWithdrawal(item.id, nota.trim());
-          setMsg({ kind: 'ok', text: `Retiro rechazado. Le devolvimos ${bs(item.amount)} Bs a ${item.username}.` });
+          setMsg({ kind: 'ok', text: `Retiro rechazado. Le devolvimos ${plata(item.amount)} a ${item.username}.` });
         }
         setAccion(null);
         cargar(); recargarResumen();
@@ -1045,7 +1045,7 @@
       <div style={S.card}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ ...S.titulo, marginBottom: 0, flex: 1 }}>
-            RETIROS ({items.length}){total > 0 && ` — ${bs(total)} Bs por pagar`}
+            RETIROS ({items.length}){total > 0 && ` — ${plata(total)} por pagar`}
           </div>
           <select style={{ ...S.input, width: 180 }} value={estado} onChange={(e) => setEstado(e.target.value)}>
             <option value="pending">Esperando aprobación</option>
@@ -1127,7 +1127,7 @@
                 fontSize: 15, color: '#ddd', marginBottom: 16, lineHeight: 1.6,
                 background: 'rgba(0,0,0,0.35)', padding: 12, borderRadius: 6,
               }}>
-                <div><b style={{ color: '#ffd84a', fontSize: 20 }}>{bs(accion.item.amount)} Bs</b></div>
+                <div><b style={{ color: '#ffd84a', fontSize: 20 }}>{plata(accion.item.amount)}</b></div>
                 <div>{nombreMetodo(accion.item.method)} a <b style={{ fontFamily: 'monospace' }}>{accion.item.destination}</b></div>
                 {(accion.item.first_name || accion.item.last_name) && (
                   <div style={{ fontSize: 14, color: '#ddd' }}>
@@ -1156,7 +1156,7 @@
                         ))}
                       </select>
                       <div style={{ fontSize: 11, color: '#888', marginTop: 4 }}>
-                        Le vamos a sumar {bs(accion.item.amount)} Bs de cupo por la plata que puso.
+                        Le vamos a sumar {plata(accion.item.amount)} de cupo por la plata que puso.
                       </div>
                     </Campo>
                   )}
@@ -1434,17 +1434,17 @@
   // ═════════════════════════════ Configuración ════════════════════════════
 
   const CAMPOS_CONFIG = [
-    { key: 'max_bet_casilla', label: 'Apuesta máxima por casilla (Bs)', tipo: 'number',
+    { key: 'max_bet_casilla', label: `Apuesta máxima por casilla (${U.simbolo()})`, tipo: 'number',
       ayuda: 'Lo máximo que entra en CADA posición del paño: el rojo, una docena, una línea. Puede cubrir varias casillas sin límite de total, porque eso no agrega riesgo: las que pierden pagan parte de la que gana. Lo que no puede es cargar una sola por encima de este número.' },
-    { key: 'max_bet_pleno', label: 'Apuesta máxima por pleno (Bs)', tipo: 'number',
+    { key: 'max_bet_pleno', label: `Apuesta máxima por pleno (${U.simbolo()})`, tipo: 'number',
       ayuda: 'El pleno (un número solo) lleva su propio tope, más bajo: paga 29 a 1, y si sale Lightning hasta 500 veces. Con 100 acá, el peor golpe posible paga 50.000 — que es justo el techo de premio por giro.' },
-    { key: 'max_win_per_spin', label: 'Premio máximo por giro (Bs)', tipo: 'number',
+    { key: 'max_win_per_spin', label: `Premio máximo por giro (${U.simbolo()})`, tipo: 'number',
       ayuda: 'El candado importante: los números Lightning pagan hasta 500x. Con este techo, un solo golpe de suerte no te vacía la caja.' },
-    { key: 'monto_multiplo', label: 'Los montos van en múltiplos de (Bs)', tipo: 'number',
+    { key: 'monto_multiplo', label: `Los montos van en múltiplos de (${U.simbolo()})`, tipo: 'number',
       ayuda: 'Recargas, retiros, cargas de taquilla y cupo se manejan en cifras redondas de este tamaño. Con 100, nadie puede pedir 1.350: pide 1.300 o 1.400. Cuando el jugador paga en dólares, la conversión se redondea para arriba y la diferencia la pone la casa. Poné 1 para desactivarlo.' },
-    { key: 'min_topup', label: 'Recarga mínima (Bs)', tipo: 'number',
+    { key: 'min_topup', label: `Recarga mínima (${U.simbolo()})`, tipo: 'number',
       ayuda: 'Por debajo de esto no se puede pedir una recarga.' },
-    { key: 'min_withdrawal', label: 'Retiro mínimo (Bs)', tipo: 'number',
+    { key: 'min_withdrawal', label: `Retiro mínimo (${U.simbolo()})`, tipo: 'number',
       ayuda: 'Evita pagar comisiones bancarias por montos ridículos.' },
     { key: 'wager_pct_required', label: 'Hay que jugar el (%) de lo recargado', tipo: 'number',
       ayuda: 'Para poder retirar. Con 50%, quien recargó 1.000 tiene que haber apostado 500. Poné 0 para desactivarlo.' },
@@ -1455,7 +1455,7 @@
     { key: 'bank_transferencia', label: 'Datos de tu cuenta bancaria', tipo: 'text' },
     { key: 'bank_p2p', label: 'Tus datos P2P (divisas)', tipo: 'text',
       ayuda: 'Para quien te paga en divisas por P2P (Binance u otro). El monto que se registra igual es en bolívares.' },
-    { key: 'cupo_alert', label: 'Avisar fichas bajas del socio (Bs)', tipo: 'number',
+    { key: 'cupo_alert', label: `Avisar fichas bajas del socio (${U.simbolo()})`, tipo: 'number',
       ayuda: 'Cuando las fichas de un socio bajan de este número, le sale un aviso en su taquilla y a vos en las alertas.' },
   ];
 
@@ -2055,7 +2055,7 @@
             background: 'rgba(180,16,26,0.2)', border: '1px solid #b8101a', color: '#ff9a9a',
           }}>
             Con estos pesos la casa <b>pierde {Math.abs(v)}%</b> de todo lo que le apuesten a un número.
-            Cada 100 Bs apostados a plenos devuelve {Math.round(100 * (1 + Math.abs(v) / 100))}.
+            Cada {plata(100)} apostados a plenos devuelve {plata(Math.round(100 * (1 + Math.abs(v) / 100)))}.
           </div>
         )}
 

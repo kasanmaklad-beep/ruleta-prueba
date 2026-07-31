@@ -10,7 +10,7 @@ import {
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
   normalizeNombre, normalizeDocumento, normalizeEmail,
   normalizeRefCode, refCodeDeId,
-  LTG_VALORES, infoRayos,
+  LTG_VALORES, infoRayos, monedaDe, pagosManuales,
 } from './lib.js';
 
 // ─────────────────────── Ficha de datos personales ────────────────────────
@@ -223,6 +223,10 @@ export async function me(request, env) {
       min_withdrawal: settingNum(s, 'min_withdrawal'),
       wager_pct_required: settingNum(s, 'wager_pct_required'),
       rate_usd: settingNum(s, 'rate_usd'),
+      // Con qué moneda se lee todo y si la plata entra y sale a mano. Van acá
+      // para que la pantalla no tenga que adivinarlo ni pedirlo aparte.
+      moneda: monedaDe(s),
+      pagos_manuales: pagosManuales(s),
     },
   });
 }

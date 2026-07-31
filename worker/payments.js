@@ -12,13 +12,15 @@
 //  · Jugadores directos: mismo circuito de siempre, con la casa.
 //
 //  Esta versión maneja SOLO bolívares. El método P2P existe para quien paga
-//  en divisas por fuera: lo que se registra es el monto acordado en Bs.
+//  en divisas por fuera: lo que se registra es el monto acordado en la moneda
+//  de la casa (ver DEFAULT_SETTINGS.moneda).
 // ════════════════════════════════════════════════════════════════════════
 
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAuth, requireAdmin, requireCashier, getSettings, settingNum,
   validMethod, nowSql, checkMultiplo, normalizeDocumento,
+  pagosManuales, plata,
 } from './lib.js';
 import { getUser } from './accounts.js';
 
@@ -52,11 +54,16 @@ export async function walletInfo(request, env) {
   const requerido = Math.ceil((user.deposited_total || 0) * settingNum(s, 'wager_pct_required') / 100);
   const jugado = user.wagered_total || 0;
 
+  const manual = pagosManuales(s);
+
   return json({
     user,
     socio,
+    // Con la casa en modo manual el teléfono del jugador no necesita —ni debe
+    // recibir— los datos bancarios de nadie: la plata se mueve en la mano.
+    pagos_manuales: manual,
     disponible: (user.balance || 0) - (user.held_balance || 0),
-    cuentas: socio ? null : {
+    cuentas: (socio || manual) ? null : {
       pago_movil: s.bank_pago_movil,
       transferencia: s.bank_transferencia,
       p2p: s.bank_p2p,
@@ -78,17 +85,27 @@ export async function createTopup(request, env) {
   if (auth.error) return auth.response;
 
   const body = await readJson(request);
+  const s = await getSettings(env);
+
+  // Con la casa en modo manual el jugador no reporta pagos por la app: la
+  // plata entra en la mano del taquillero. Se frena acá y no sólo en la
+  // pantalla — si no, bastaría con llamar a la API a mano para meter una
+  // recarga inventada esperando aprobación.
+  if (pagosManuales(s)) {
+    return json({
+      error: 'Las recargas son en efectivo: hablá con tu taquillero y él te carga el saldo.',
+    }, 400);
+  }
+
   const method = validMethod(body.method);
   const reference = str(body.reference, 120);
   if (!method) return json({ error: 'Elegí cómo pagaste' }, 400);
   if (!reference) return json({ error: 'Poné el número de referencia del pago' }, 400);
-
-  const s = await getSettings(env);
   const amount = toPositiveInt(body.amount);
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
 
   const min = settingNum(s, 'min_topup');
-  if (amount < min) return json({ error: `La recarga mínima es ${min} Bs` }, 400);
+  if (amount < min) return json({ error: `La recarga mínima es ${plata(min, s)}` }, 400);
 
   const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
   if (multErr) return json({ error: multErr }, 400);
@@ -126,17 +143,21 @@ export async function createWithdrawal(request, env) {
   if (auth.error) return auth.response;
 
   const body = await readJson(request);
+  const s = await getSettings(env);
+  const manual = pagosManuales(s);
+
   const amount = toPositiveInt(body.amount);
-  const method = validMethod(body.method);
-  const destination = str(body.destination, 200);
+  // En efectivo el destino es la taquilla, no una cuenta: el pedido queda
+  // igual anotado (quién pidió cuánto y cuándo), que es lo que hace falta para
+  // cuadrar la caja después.
+  const method = manual ? 'efectivo' : validMethod(body.method);
+  const destination = manual ? 'Efectivo en taquilla' : str(body.destination, 200);
 
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
   if (!method) return json({ error: 'Elegí cómo querés cobrar' }, 400);
   if (!destination) return json({ error: 'Poné a dónde te mandamos la plata (teléfono, cuenta o usuario P2P)' }, 400);
-
-  const s = await getSettings(env);
   const min = settingNum(s, 'min_withdrawal');
-  if (amount < min) return json({ error: `El retiro mínimo es ${min} Bs` }, 400);
+  if (amount < min) return json({ error: `El retiro mínimo es ${plata(min, s)}` }, 400);
 
   const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
   if (multErr) return json({ error: multErr }, 400);
@@ -144,7 +165,7 @@ export async function createWithdrawal(request, env) {
   const user = await getUser(env, auth.userId);
   const disponible = (user.balance || 0) - (user.held_balance || 0);
   if (amount > disponible) {
-    return json({ error: `Solo tenés ${disponible} Bs disponibles` }, 400);
+    return json({ error: `Solo tenés ${plata(disponible, s)} disponibles` }, 400);
   }
 
   // Regla anti casa-de-cambio: hay que haber jugado parte de lo recargado.
@@ -153,7 +174,8 @@ export async function createWithdrawal(request, env) {
   const jugado = user.wagered_total || 0;
   if (jugado < requerido) {
     return json({
-      error: `Para retirar tenés que haber jugado al menos ${requerido} Bs (llevás ${jugado}). Te faltan ${requerido - jugado}.`,
+      error: `Para retirar tenés que haber jugado al menos ${plata(requerido, s)} (llevás ${plata(jugado, s)}). `
+        + `Te faltan ${plata(requerido - jugado, s)}.`,
     }, 400);
   }
 

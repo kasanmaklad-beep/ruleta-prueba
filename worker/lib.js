@@ -22,6 +22,17 @@ export async function readJson(request) {
 // Valores por defecto: si falta una fila en `settings`, el sistema igual
 // funciona con estos números (deben coincidir con migrations/002).
 export const DEFAULT_SETTINGS = {
+  // ── La moneda de la casa ───────────────────────────────────────────────
+  // 'USD' = dólares (la v1: efectivo y P2P a mano) · 'VES' = bolívares.
+  // No convierte nada: los saldos son enteros y esto dice cómo se LEEN y con
+  // qué símbolo se muestran. Cambiar la moneda con saldos cargados no los
+  // reconvierte — es una decisión de arranque, no una perilla del día a día.
+  moneda: 'USD',
+  // ── Cómo entra y sale la plata ─────────────────────────────────────────
+  // '1' = a mano: el jugador no manda pagos digitales por la app; recarga y
+  // cobra en efectivo con su taquillero. Los datos bancarios se ocultan.
+  // '0' = el circuito digital de siempre (Pago Móvil, transferencia, P2P).
+  pagos_manuales: '1',
   rate_usd: '40',
   // Tope POR CASILLA del paño (no por mesa): el riesgo lo da cuánto puede
   // cobrar una sola posición, no la suma de las apuestas.
@@ -67,6 +78,7 @@ export const NUMERIC_SETTINGS = {
   cupo_alert:         { min: 0,    max: 1e12, integer: true },
   ltg_min:            { min: 0,    max: 20,   integer: true },
   ltg_max:            { min: 1,    max: 20,   integer: true },
+  pagos_manuales:     { min: 0,    max: 1,    integer: true },
 };
 
 // ── Las ruedas ────────────────────────────────────────────────────────────
@@ -711,7 +723,29 @@ export function normalizeEmail(v) {
 
 // Esta versión trabaja SOLO en bolívares. El P2P es para quien paga en
 // divisas por fuera: el monto que se registra igual es el acordado en Bs.
-export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'p2p'];
+// 'efectivo' es el método de la v1: el jugador paga y cobra en la mano del
+// taquillero, y en la app queda sólo el registro.
+export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'p2p', 'efectivo'];
+
+// ¿La casa está en modo manual? (ver DEFAULT_SETTINGS.pagos_manuales)
+export function pagosManuales(settings) {
+  return String(settings.pagos_manuales ?? DEFAULT_SETTINGS.pagos_manuales) === '1';
+}
+
+// La moneda configurada, para los mensajes del servidor.
+export function monedaDe(settings) {
+  return String(settings.moneda || DEFAULT_SETTINGS.moneda).toUpperCase() === 'VES' ? 'VES' : 'USD';
+}
+
+// Un monto escrito como lo lee la gente: "$1,250" o "1.250 Bs". El símbolo va
+// adelante en dólares y atrás en bolívares, que es como se escribe en cada uno.
+export function plata(n, settings) {
+  const v = Math.round(Number(n) || 0);
+  if (monedaDe(settings || {}) === 'VES') {
+    return `${v.toLocaleString('es-VE', { maximumFractionDigits: 0 })} Bs`;
+  }
+  return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+}
 
 export function validMethod(v) {
   const s = String(v || '');

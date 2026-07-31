@@ -60,10 +60,29 @@
   };
   const paleta = (rol) => PALETAS[rol] || PALETAS.jugador;
 
-  // Bolívares con separador de miles. Los montos son siempre enteros.
+  // ── La moneda de la casa ───────────────────────────────────────────────
+  // La define el servidor (ajuste `moneda`) y llega con /api/me. Acá vive el
+  // "cómo se escribe": en dólares el símbolo va adelante y los miles con coma
+  // ($1,250); en bolívares va atrás y con punto (1.250 Bs). Los montos son
+  // SIEMPRE enteros: no hay centavos en ninguna de las dos.
+  let MONEDA = 'USD';
+  const setMoneda = (m) => { MONEDA = String(m || 'USD').toUpperCase() === 'VES' ? 'VES' : 'USD'; };
+  const enBolivares = () => MONEDA === 'VES';
+  // El símbolo suelto, para las etiquetas de los formularios: "MONTO ($)".
+  const simbolo = () => (enBolivares() ? 'Bs' : '$');
+  // El nombre largo, para debajo del saldo grande.
+  const nombreMoneda = () => (enBolivares() ? 'bolívares' : 'dólares');
+
+  // Sólo los dígitos, sin símbolo: para las columnas de una tabla, donde el
+  // encabezado ya dice de qué se está hablando.
   function bs(n) {
     const v = Number(n || 0);
-    return v.toLocaleString('es-VE', { maximumFractionDigits: 0 });
+    return v.toLocaleString(enBolivares() ? 'es-VE' : 'en-US', { maximumFractionDigits: 0 });
+  }
+
+  // El monto completo, como lo lee la gente. Es lo que va en las frases.
+  function plata(n) {
+    return enBolivares() ? `${plata(n)}` : `$${bs(n)}`;
   }
 
   // Fecha corta legible: "23/07 14:35" a partir de "2026-07-23 18:35:00" (UTC).
@@ -365,7 +384,8 @@
   }
 
   window.UI = {
-    GOLD, BORDER, bs, fecha, styles, paleta, PALETAS, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
+    GOLD, BORDER, bs, plata, simbolo, nombreMoneda, setMoneda, enBolivares,
+    fecha, styles, paleta, PALETAS, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
     Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm,
   };
 })();

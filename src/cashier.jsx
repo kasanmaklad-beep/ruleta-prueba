@@ -7,7 +7,7 @@
 (function () {
   const { useState, useEffect, useCallback } = React;
   const U = window.UI;
-  const { bs, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Estado,
+  const { bs, plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Estado,
           Confirmar, Campo, nombreMetodo } = U;
 
   function CashierPanel({ user, onExit, onLogout }) {
@@ -59,8 +59,8 @@
         const res = await window.Api.cashierLoad(username.trim().toLowerCase(), monto, note.trim() || undefined);
         setMsg({
           kind: 'ok',
-          text: `Listo: ${res.player.username} quedó con ${bs(res.player.balance)} Bs.` +
-                (esDueno ? '' : ` Te quedan ${bs(res.credit_balance)} Bs de cupo.`),
+          text: `Listo: ${res.player.username} quedó con ${plata(res.player.balance)}.` +
+                (esDueno ? '' : ` Te quedan ${plata(res.credit_balance)} de cupo.`),
         });
         setUsername(''); setAmount(''); setNote('');
         cargar();
@@ -75,14 +75,14 @@
         const { tipo, item } = accion;
         if (tipo === 'ap-rec') {
           const res = await window.Api.cashierApproveTopup(item.id);
-          setMsg({ kind: 'ok', text: `Recarga acreditada: ${item.username} quedó con ${bs(res.player.balance)} Bs. Te quedan ${bs(res.credit_balance)} de cupo.` });
+          setMsg({ kind: 'ok', text: `Recarga acreditada: ${item.username} quedó con ${plata(res.player.balance)}. Te quedan ${bs(res.credit_balance)} de cupo.` });
         } else if (tipo === 'rej-rec') {
           if (!nota.trim()) { setMsg({ kind: 'err', text: 'Poné el motivo del rechazo' }); setEnviando(false); return; }
           await window.Api.cashierRejectTopup(item.id, nota.trim());
           setMsg({ kind: 'ok', text: 'Recarga rechazada. El jugador va a ver el motivo.' });
         } else if (tipo === 'pago-ret') {
           const res = await window.Api.cashierPayWithdrawal(item.id, nota.trim() || undefined);
-          setMsg({ kind: 'ok', text: `Retiro pagado. Esas fichas volvieron a tu cupo: tenés ${bs(res.credit_balance)} Bs para revender.` });
+          setMsg({ kind: 'ok', text: `Retiro pagado. Esas fichas volvieron a tu cupo: tenés ${plata(res.credit_balance)} para revender.` });
         } else if (tipo === 'rej-ret') {
           if (!nota.trim()) { setMsg({ kind: 'err', text: 'Poné el motivo del rechazo' }); setEnviando(false); return; }
           await window.Api.cashierRejectWithdrawal(item.id, nota.trim());
@@ -126,7 +126,7 @@
                   padding: '12px 16px', borderRadius: 8, fontSize: 15,
                   background: 'rgba(180,16,26,0.18)', border: '1px solid #b8101a', color: '#ffc9c9',
                 }}>
-                  ⚠️ Te quedan <b>{bs(cupo)}</b> Bs de fichas. Comprale a la casa antes de quedarte
+                  ⚠️ Te quedan <b>{plata(cupo)}</b> de fichas. Comprale a la casa antes de quedarte
                   sin poder vender.
                 </div>
               )}
@@ -153,7 +153,7 @@
                       color={data.pendientes.recargas > 0 ? '#ffd84a' : undefined} />
                 <Dato titulo="Retiros por pagar" valor={bs(data.pendientes.retiros)} chico
                       color={data.pendientes.retiros > 0 ? '#ff9a9a' : undefined}
-                      detalle={data.pendientes.retiros > 0 ? `${bs(data.pendientes.retiros_monto)} Bs` : undefined} />
+                      detalle={data.pendientes.retiros > 0 ? `${plata(data.pendientes.retiros_monto)}` : undefined} />
                 <Dato titulo="Vendido hoy" valor={bs(data.hoy.total)} color="#7ee08a" chico />
                 <Dato titulo="Tus afiliados" valor={bs(data.players.length)} chico />
               </div>
@@ -244,7 +244,7 @@
                            autoCapitalize="none" autoCorrect="off"
                            onChange={(e) => setUsername(e.target.value)} />
                   </Campo>
-                  <Campo label="MONTO (Bs)">
+                  <Campo label={`MONTO (${U.simbolo()})`}>
                     <input style={S.input} type="number" min="1" inputMode="numeric" placeholder="500"
                            value={amount} onChange={(e) => setAmount(e.target.value)} />
                   </Campo>
@@ -267,7 +267,7 @@
               <Confirmar
                 abierto={confirmar}
                 titulo="Confirmar carga"
-                texto={`¿Cargarle ${bs(monto)} Bs a "${username.trim().toLowerCase()}"? Verificá que ya recibiste esa plata: esto no se puede deshacer solo.`}
+                texto={`¿Cargarle ${plata(monto)} a "${username.trim().toLowerCase()}"? Verificá que ya recibiste esa plata: esto no se puede deshacer solo.`}
                 onSi={cargarSaldo}
                 onNo={() => setConfirmar(false)}
                 textoSi="SÍ, CARGAR"
@@ -347,7 +347,7 @@
                   fontSize: 15, color: '#ddd', marginBottom: 14, lineHeight: 1.6,
                   background: 'rgba(0,0,0,0.35)', padding: 12, borderRadius: 6,
                 }}>
-                  <b style={{ color: '#ffd84a', fontSize: 20 }}>{bs(accion.item.amount)} Bs</b>
+                  <b style={{ color: '#ffd84a', fontSize: 20 }}>{plata(accion.item.amount)}</b>
                   {accion.tipo === 'ap-rec' || accion.tipo === 'rej-rec' ? (
                     <div style={{ fontSize: 13 }}>
                       {nombreMetodo(accion.item.method)} · ref{' '}

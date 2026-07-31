@@ -1865,7 +1865,12 @@ function AppRoot() {
       .then((d) => {
         const u = d.user;
         setUser(u);
-        if (d.config) setConfig(d.config);
+        if (d.config) {
+          setConfig(d.config);
+          // El formateador de plata tiene que saber la moneda ANTES de que se
+          // dibuje el primer monto, si no el jugador ve el símbolo cambiar.
+          if (window.UI && window.UI.setMoneda) window.UI.setMoneda(d.config.moneda);
+        }
         // Llegó por un enlace de invitación pero ya hay una sesión abierta:
         // hay que preguntar, porque si no el código se pierde en silencio y el
         // invitado termina metido en la cuenta de otro.

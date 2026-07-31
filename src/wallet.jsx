@@ -6,7 +6,7 @@
 (function () {
   const { useState, useEffect, useCallback } = React;
   const U = window.UI;
-  const { bs, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Pestanas,
+  const { bs, plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Pestanas,
           Tabla, Estado, Campo, METODOS, DOCS, ejemploDoc, nombreMetodo } = U;
 
   function WalletPanel({ user, onExit, onLogout, onBalance }) {
@@ -59,13 +59,13 @@
               <div style={{ fontSize: 42, fontWeight: 900, color: '#ffd84a', lineHeight: 1.2 }}>
                 {bs(info.disponible)}
               </div>
-              <div style={{ fontSize: 13, color: '#888' }}>bolívares</div>
+              <div style={{ fontSize: 13, color: '#888' }}>{U.nombreMoneda()}</div>
               {info.user.held_balance > 0 && (
                 <div style={{
                   marginTop: 10, fontSize: 13, color: '#ffa04a',
                   background: 'rgba(255,160,74,0.12)', padding: '8px 12px', borderRadius: 6,
                 }}>
-                  Tenés {bs(info.user.held_balance)} Bs retenidos por un retiro que está en revisión.
+                  Tenés {plata(info.user.held_balance)} retenidos por un retiro que está en revisión.
                 </div>
               )}
             </div>
@@ -86,7 +86,9 @@
           {!info && <div style={{ color: '#888' }}>Cargando…</div>}
 
           {info && tab === 'recargar' && (
-            <FormRecarga info={info} setMsg={setMsg} onHecho={() => { cargar(); setTab('movimientos'); }} />
+            info.pagos_manuales
+              ? <RecargaEnEfectivo info={info} />
+              : <FormRecarga info={info} setMsg={setMsg} onHecho={() => { cargar(); setTab('movimientos'); }} />
           )}
           {info && tab === 'retirar' && (
             <FormRetiro info={info} setMsg={setMsg} onHecho={() => { cargar(); setTab('movimientos'); }} />
@@ -98,6 +100,38 @@
   }
 
   // ─────────────────────────── Recargar ───────────────────────────────────
+
+  // Con la casa en modo manual no hay formulario de recarga: la plata entra en
+  // efectivo por la taquilla. Se dice quién la carga y cómo ubicarlo, que es
+  // lo único que el jugador necesita saber en esta pantalla.
+  function RecargaEnEfectivo({ info }) {
+    const socio = info.socio;
+    return (
+      <div style={S.card}>
+        <div style={S.titulo}>CÓMO RECARGAR</div>
+        <div style={{ fontSize: 15, lineHeight: 1.8, color: '#d8cfae' }}>
+          Las recargas son <b>en efectivo</b>.{' '}
+          {socio
+            ? <>Hablá con tu taquillero <b style={{ color: U.GOLD }}>{socio.nombre}</b>, entregale la
+               plata y él te carga el saldo al instante.</>
+            : <>Hablá con el taquillero que te registró: le entregás la plata y él te carga el
+               saldo al instante.</>}
+        </div>
+        {socio && socio.datos && (
+          <div style={{
+            marginTop: 12, background: 'rgba(0,0,0,0.45)',
+            border: '1px dashed var(--borde, #8b6a20)', borderRadius: 8,
+            padding: 12, fontSize: 15, color: '#7ee08a',
+            fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}>{socio.datos}</div>
+        )}
+        <div style={{ marginTop: 12, fontSize: 13, color: '#888', lineHeight: 1.7 }}>
+          Cuando te cargue, el saldo aparece acá solo. Si no aparece en el momento, mostrale
+          esta pantalla: cada carga queda anotada con su nombre y la hora.
+        </div>
+      </div>
+    );
+  }
 
   function FormRecarga({ info, setMsg, onHecho }) {
     const [metodo, setMetodo] = useState('pago_movil');
@@ -118,8 +152,8 @@
         setMsg({
           kind: 'ok',
           text: info.socio
-            ? `Listo. Tu recarga de ${bs(enBs)} Bs le llegó a tu socio ${info.socio.nombre}: apenas confirme el pago te acredita el saldo.`
-            : `Listo. Tu recarga de ${bs(enBs)} Bs quedó esperando revisión. Apenas verifiquemos la transferencia te acreditamos el saldo.`,
+            ? `Listo. Tu recarga de ${plata(enBs)} le llegó a tu socio ${info.socio.nombre}: apenas confirme el pago te acredita el saldo.`
+            : `Listo. Tu recarga de ${plata(enBs)} quedó esperando revisión. Apenas verifiquemos la transferencia te acreditamos el saldo.`,
         });
         setMonto(''); setReferencia('');
         onHecho();
@@ -192,7 +226,7 @@
             </Campo>
             {enBs > 0 && enBs < info.limites.min_topup && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
-                La recarga mínima es {bs(info.limites.min_topup)} Bs.
+                La recarga mínima es {plata(info.limites.min_topup)}.
               </div>
             )}
             <Boton tono="verde" disabled={!listo || enviando} onClick={enviar}>
@@ -238,7 +272,7 @@
         });
         setMsg({
           kind: 'ok',
-          text: `Pedido de retiro por ${bs(m)} Bs enviado. Ese saldo te queda retenido hasta que lo revisemos y te paguemos.`,
+          text: `Pedido de retiro por ${plata(m)} enviado. Ese saldo te queda retenido hasta que lo revisemos y te paguemos.`,
         });
         setMonto('');
         onHecho();
@@ -246,8 +280,10 @@
       finally { setEnviando(false); }
     };
 
+    // En efectivo no hay "a dónde te lo mandamos": se cobra en la taquilla.
+    const manual = !!info.pagos_manuales;
     const listo = m >= info.limites.min_withdrawal && m <= info.disponible
-      && destino.trim() && (yaTieneDoc || cedula.trim().length >= 4)
+      && (manual || destino.trim()) && (yaTieneDoc || cedula.trim().length >= 4)
       && faltaJugar === 0 && multiploOk;
 
     return (
@@ -262,8 +298,8 @@
             </div>
             <div style={{ color: '#ddd', fontSize: 15, lineHeight: 1.6 }}>
               Para retirar hay que jugar al menos el {info.limites.wager_pct_required}% de lo que recargaste.
-              Llevás apostado <b>{bs(info.juego.jugado)}</b> de <b>{bs(info.juego.requerido)}</b> Bs.
-              Te faltan <b style={{ color: '#ffd84a' }}>{bs(faltaJugar)}</b> Bs de apuestas.
+              Llevás apostado <b>{plata(info.juego.jugado)}</b> de <b>{plata(info.juego.requerido)}</b>.
+              Te faltan <b style={{ color: '#ffd84a' }}>{plata(faltaJugar)}</b> de apuestas.
             </div>
           </div>
         )}
@@ -271,27 +307,40 @@
         <div style={S.card}>
           <div style={S.titulo}>PEDIR UN RETIRO</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <Campo label="CUÁNTO QUERÉS RETIRAR (Bs)">
+            <Campo label={`CUÁNTO QUERÉS RETIRAR (${U.simbolo()})`}>
               <input style={S.input} type="number" inputMode="numeric" min="0" step={mult}
                      placeholder={String(info.limites.min_withdrawal)}
                      value={monto} onChange={(e) => setMonto(e.target.value)} />
               <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                Disponible: {bs(info.disponible)} Bs · Mínimo: {bs(info.limites.min_withdrawal)} Bs
+                Disponible: {plata(info.disponible)} · Mínimo: {plata(info.limites.min_withdrawal)}
                 {mult > 1 && ` · En múltiplos de ${bs(mult)}`}
               </div>
             </Campo>
 
-            <Campo label="CÓMO QUERÉS COBRAR">
-              <select style={S.input} value={metodo} onChange={(e) => setMetodo(e.target.value)}>
-                {METODOS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-              </select>
-            </Campo>
+            {manual ? (
+              <div style={{
+                background: 'rgba(0,0,0,0.35)', border: '1px solid var(--linea, #3a2a10)',
+                borderRadius: 6, padding: '10px 12px', fontSize: 14, color: '#d8cfae', lineHeight: 1.7,
+              }}>
+                Cobrás <b>en efectivo</b>
+                {info.socio ? <> con tu taquillero <b style={{ color: U.GOLD }}>{info.socio.nombre}</b></> : ' en la taquilla'}.
+                Pedilo acá y pasá a buscarlo: el pedido queda anotado con tu nombre, el monto y la hora.
+              </div>
+            ) : (
+              <>
+                <Campo label="CÓMO QUERÉS COBRAR">
+                  <select style={S.input} value={metodo} onChange={(e) => setMetodo(e.target.value)}>
+                    {METODOS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+                  </select>
+                </Campo>
 
-            <Campo label="A DÓNDE TE LO MANDAMOS">
-              <input style={S.input}
-                     placeholder={metodo === 'pago_movil' ? 'banco y teléfono' : metodo === 'zelle' ? 'tu correo de Zelle' : 'número de cuenta o usuario'}
-                     value={destino} onChange={(e) => setDestino(e.target.value)} />
-            </Campo>
+                <Campo label="A DÓNDE TE LO MANDAMOS">
+                  <input style={S.input}
+                         placeholder={metodo === 'pago_movil' ? 'banco y teléfono' : metodo === 'zelle' ? 'tu correo de Zelle' : 'número de cuenta o usuario'}
+                         value={destino} onChange={(e) => setDestino(e.target.value)} />
+                </Campo>
+              </>
+            )}
 
             {yaTieneDoc ? (
               <div style={{
@@ -321,12 +370,12 @@
 
             {m > info.disponible && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
-                Solo tenés {bs(info.disponible)} Bs disponibles.
+                Solo tenés {plata(info.disponible)} disponibles.
               </div>
             )}
             {m > 0 && m < info.limites.min_withdrawal && (
               <div style={{ color: '#ff9a9a', fontSize: 14 }}>
-                El retiro mínimo es {bs(info.limites.min_withdrawal)} Bs.
+                El retiro mínimo es {plata(info.limites.min_withdrawal)}.
               </div>
             )}
             {m > 0 && !multiploOk && (
