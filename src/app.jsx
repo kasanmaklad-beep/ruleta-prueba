@@ -1116,6 +1116,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
               }}>
                 <RouletteWheel
                   orden={ficha.orden}
+                  nombre={ficha.label}
                   spinning={phase === 'spinning'}
                   freeSpin={phase === 'openbets'}
                   resultIndex={phase === 'spinning' || phase === 'result' ? resultIndex : null}

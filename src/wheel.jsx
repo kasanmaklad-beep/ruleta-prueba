@@ -48,6 +48,7 @@ function RouletteWheel({
   zoomed = false,
   bolaPx = 14,        // tamaño de la bola; se agranda si la rueda va achicada
   freeSpin = false,   // gira sin resultado (apuestas abiertas, como en el casino)
+  nombre = '',        // el nombre de la mesa, grabado en el cono del centro
 }) {
   // Sin ficha de mesa se dibuja la americana: es lo que había antes de que la
   // rueda fuera configurable, así que una pantalla vieja no cambia en nada.
@@ -609,6 +610,49 @@ function RouletteWheel({
               />
             );
           })}
+          {/* ═══ El nombre de la mesa, grabado en el cono ═══
+              Es lo que tiene cualquier ruleta de verdad: el nombre de la casa
+              (o de la mesa) en el cono del centro. Va DENTRO del grupo que
+              gira, como en una mesa física: el cono es parte del cilindro y
+              gira con él.
+
+              Curvado sobre un arco y no derecho: derecho, un nombre largo se
+              choca con los radios del cono; curvado sigue la forma de la pieza
+              y entra completo. El tamaño baja con la cantidad de letras para
+              que "EUROPEA CATATUMBO" entre igual que "CATATUMBO". */}
+          {nombre && (() => {
+            const cx = WHEEL_SIZE / 2;
+            const cy = WHEEL_SIZE / 2;
+            const texto = String(nombre).toUpperCase();
+            const rTexto = (INNER_R - 10) * 0.66;
+            // De 15px para nombres cortos a 10px para los largos.
+            const tam = texto.length <= 10 ? 15 : texto.length <= 16 ? 12.5 : 10.5;
+            const espaciado = texto.length <= 10 ? 3.5 : 2;
+            // El arco arranca a la izquierda y sube por arriba: así el texto se
+            // lee de izquierda a derecha, como en una etiqueta.
+            const d = `M ${cx - rTexto} ${cy} A ${rTexto} ${rTexto} 0 0 1 ${cx + rTexto} ${cy}`;
+            return (
+              <>
+                <path id="aro-nombre-mesa" d={d} fill="none" />
+                <text
+                  fill={th.accent}
+                  fontFamily="Georgia, serif"
+                  fontSize={tam}
+                  fontWeight="700"
+                  letterSpacing={espaciado}
+                  opacity="0.92"
+                  style={{ paintOrder: 'stroke', pointerEvents: 'none' }}
+                  stroke="rgba(0,0,0,0.55)"
+                  strokeWidth="2.2"
+                >
+                  <textPath href="#aro-nombre-mesa" startOffset="50%" textAnchor="middle">
+                    {texto}
+                  </textPath>
+                </text>
+              </>
+            );
+          })()}
+
           {/* Corona central */}
           <circle cx={WHEEL_SIZE / 2} cy={WHEEL_SIZE / 2} r={22} fill={th.accent} opacity="0.9" />
           <circle cx={WHEEL_SIZE / 2} cy={WHEEL_SIZE / 2} r={8} fill="#1a1006" />
