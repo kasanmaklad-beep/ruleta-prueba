@@ -194,7 +194,9 @@
   // ya lo dice, pero el color solo no alcanza: hay gente que no lo distingue,
   // y a pleno sol en la calle un azul oscuro y un verde oscuro son lo mismo.
   // Escrito no falla.
-  const NOMBRE_ROL = { dueno: 'DUEÑO', socio: 'SOCIO', jugador: 'JUGADOR' };
+  // La casa matriz, los socios que venden fichas, y el jugador. La cinta dice
+  // el rol; el panel del dueño se llama PANEL MATRIZ.
+  const NOMBRE_ROL = { dueno: 'MATRIZ', socio: 'SOCIO', jugador: 'JUGADOR' };
 
   function Encabezado({ titulo, subtitulo, acciones, rol }) {
     return (

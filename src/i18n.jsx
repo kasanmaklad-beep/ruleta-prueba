@@ -225,7 +225,7 @@
       // ── La billetera ─────────────────────────────────────────────────
       'MI BILLETERA': 'MY WALLET',
       'JUGADOR': 'PLAYER',
-      'DUEÑO': 'OWNER',
+      'MATRIZ': 'HEAD OFFICE',
       'SOCIO': 'PARTNER',
       'SALDO PARA JUGAR': 'BALANCE TO PLAY',
       'dólares': 'dollars',

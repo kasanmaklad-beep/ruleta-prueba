@@ -49,7 +49,7 @@
       <div style={{ ...S.page, ...U.paleta('dueno') }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <Encabezado
-            titulo="⚙ PANEL DEL DUEÑO"
+            titulo="⚙ PANEL MATRIZ"
             rol="dueno"
             subtitulo={`Sesión: ${user.username}`}
             acciones={<>

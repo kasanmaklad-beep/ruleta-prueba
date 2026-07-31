@@ -17,7 +17,10 @@ import {
 // La usan el registro del jugador y el alta de socios desde el panel, para
 // que a nadie le falten datos según por dónde haya entrado.
 // Devuelve { perfil } o { error }.
-function parsePerfil(body) {
+// `pideBanco` es falso cuando la casa paga en efectivo: ahí el banco no se
+// usa para nada y la pantalla ni lo muestra, así que exigirlo acá dejaría el
+// registro trabado con un error de un campo que el jugador no ve.
+function parsePerfil(body, { pideBanco = true } = {}) {
   const firstName = normalizeNombre(body.first_name);
   const lastName = normalizeNombre(body.last_name);
   const doc = normalizeDocumento(body.doc_type, body.cedula);
@@ -30,7 +33,7 @@ function parsePerfil(body) {
   if (!doc) return { error: 'El documento no es válido para el tipo que elegiste' };
   if (!phone) return { error: 'Poné un teléfono válido: es a donde se paga' };
   if (!email) return { error: 'Poné un correo válido' };
-  if (!bank) return { error: 'Elegí el banco' };
+  if (pideBanco && !bank) return { error: 'Elegí el banco' };
 
   return { perfil: { firstName, lastName, doc, phone, email, bank } };
 }
@@ -60,7 +63,7 @@ export async function register(request, env) {
   if (uErr) return json({ error: uErr }, 400);
   if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
 
-  const { perfil, error } = parsePerfil(body);
+  const { perfil, error } = parsePerfil(body, { pideBanco: !pagosManuales(settings) });
   if (error) return json({ error }, 400);
 
   // ── Las condiciones ────────────────────────────────────────────────────
