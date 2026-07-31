@@ -7,9 +7,12 @@
 //  que el jugador NECESITA saber antes de poner plata, que es distinto de
 //  todo lo que se le podría contar:
 //
-//    · que puede perder,           · que la casa gana a la larga y cuánto,
-//    · cuánto hay que jugar antes de retirar,
-//    · cómo entra y sale la plata, · quién decide el resultado.
+//    · que puede perder,            · cuánto hay que jugar antes de retirar,
+//    · cómo entra y sale la plata,  · quién decide el resultado,
+//    · la edad mínima.
+//
+//  Lo que paga cada apuesta NO va acá: va en la pantalla de reglas, que se
+//  consulta jugando. Acá va sólo lo que hay que saber ANTES de poner plata.
 //
 //  LA VERSIÓN IMPORTA. Se guarda junto con la aceptación de cada jugador
 //  (migración 014). Si cambia algo de fondo —la regla de retiro, los
@@ -35,13 +38,6 @@
         titulo: T('Esto es un juego de azar'),
         texto: T('Podés perder el dinero que apostás. No es una inversión ni una forma de '
           + 'ganarse la vida: jugá sólo lo que puedas perder sin que te cambie el mes.'),
-      },
-      {
-        titulo: T('A la larga gana la casa'),
-        texto: T('Cada mesa está armada para dejarle a la casa una parte de lo apostado: '
-          + 'alrededor del 5,3% en la ruleta y del 0,5% en el blackjack. En una noche '
-          + 'podés ganar; con el tiempo, ese porcentaje se cumple. Es matemática del '
-          + 'juego, no una decisión que se tome después de ver tus apuestas.'),
       },
       {
         titulo: T('Para retirar hay que jugar'),

@@ -271,7 +271,6 @@
                   ANTES DE EMPEZAR
                 </div>
                 <div>· Es un <b>juego de azar</b>: podés perder lo que apostás.</div>
-                <div>· <b>A la larga gana la casa</b> (5,3% la ruleta · 0,5% el 21).</div>
                 <div>
                   · Para retirar hay que haber jugado el{' '}
                   <b>{cfg && cfg.wager_pct_required != null ? cfg.wager_pct_required : 25}%</b>
