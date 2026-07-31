@@ -102,7 +102,11 @@
 .bj-quien{font-size:10px; letter-spacing:2.5px; color:var(--tenue)}
 /* La mano del crupier: sus cartas y, al lado derecho, lo que lleva. */
 .bj-mano-crupier{display:flex; align-items:center; gap:14px}
-.bj-cuenta-crupier{
+/* Va con DOS clases (.bj-mano-crupier .bj-cuenta) y no con una sola: la regla
+   general de .bj-cuenta está escrita más abajo en esta misma hoja, y entre dos
+   reglas que pesan igual gana la última. Con dos clases pesa más y no depende
+   del orden. */
+.bj-mano-crupier .bj-cuenta{
     font-size:30px; padding:9px 20px; min-width:70px; margin-top:0; flex:none;
     border-color:rgba(255,216,74,.5);
   }
