@@ -19,3 +19,8 @@ ruleta-prueba.zip
 # Cloudflare / secrets locales
 .dev.vars
 .wrangler/
+
+# Enlace local para el banco de pruebas del 21 (maquetas/banco-21.html):
+# las láminas de las figuras se piden como /cartas/... y el servidor de
+# maquetas tiene la raíz acá, no en public/. No se despliega.
+cartas

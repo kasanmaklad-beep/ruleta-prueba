@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Banco de pruebas — Mesa de 21</title>
+<!-- Las láminas de las figuras (K, Q, J) las pide la carta por ruta relativa,
+     así que el banco tiene que mirar desde public/ como mira el juego. -->
+<base href="/public/">
+<!--
+  ════════════════════════════════════════════════════════════════════════
+   BANCO DE PRUEBAS DE LA MESA DE 21 — no es el juego, es un espejo.
+
+   Carga la pantalla DE VERDAD (public/blackjack.js, compilada de
+   src/blackjack.jsx) y le pone un servidor de mentira en lugar de la API.
+   Sirve para mirar y ajustar el aspecto de la mesa sin tener que entrar con
+   cuenta y sin tocar plata real.
+
+   Lo único falso acá es `window.Api`: las cartas, las manos y el saldo son
+   inventados. Todo lo que se ve dibujado —el paño, los puestos, las cartas,
+   el arco, el letrero— es el código real. Si algo se ve mal acá, se ve mal
+   en el juego.
+
+   Con ?estado= se elige qué momento de la mano mirar:
+     apostando (por defecto) · jugando · cerrada
+  ════════════════════════════════════════════════════════════════════════
+-->
+</head>
+<body>
+<div id="root"></div>
+
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<!-- Los archivos del juego se piden SIEMPRE frescos. Sin esto el navegador
+     se queda con el `blackjack.js` de la compilación anterior y uno mira un
+     cambio que ya está hecho creyendo que no funcionó. -->
+<script>
+  (function () {
+    var v = '?v=' + Date.now();
+    ['i18n.js', 'ui.js', 'blackjack.js'].forEach(function (f) {
+      document.write('<scr' + 'ipt src="' + f + v + '"></scr' + 'ipt>');
+    });
+  })();
+</script>
+
+<script>
+  const MESA = {
+    id: 'blackjack', puestos: 3, apuesta_min: 10, apuesta_max: 500,
+    pago_natural: 1.5, en_pruebas: 0,
+  };
+
+  const ESTADOS = {
+    apostando: {
+      estado: 'apostando', ronda: null, version: 0, balance: 1250,
+      mesa: MESA, manos: [], crupier: null, acciones: [],
+    },
+    jugando: {
+      estado: 'jugando', ronda: 9001, version: 3, balance: 1150, mano_activa: 0,
+      mesa: MESA,
+      crupier: { cartas: ['KH', { tapada: true }], total: 10, parcial: true },
+      manos: [
+        { indice: 0, puesto: 0, cartas: ['9S', '7D'], total: 16, blando: false,
+          apuesta: 50, estado: 'jugando' },
+        { indice: 1, puesto: 1, cartas: ['AC', '6H'], total: 17, blando: true,
+          apuesta: 100, estado: 'jugando' },
+      ],
+      acciones: ['pedir', 'plantarse', 'doblar', 'dividir'],
+    },
+    cerrada: {
+      estado: 'cerrada', ronda: 9001, version: 7, balance: 1420,
+      mesa: MESA,
+      crupier: { cartas: ['KH', '8S'], total: 18, parcial: false },
+      manos: [
+        { indice: 0, puesto: 0, cartas: ['AS', 'JD'], total: 21, blando: false,
+          apuesta: 50, estado: 'cerrada', resultado: 'natural', pago: 125 },
+        { indice: 1, puesto: 1, cartas: ['9S', '7D', '5C'], total: 21, blando: false,
+          apuesta: 100, estado: 'cerrada', resultado: 'gana', pago: 200 },
+        { indice: 2, puesto: 2, cartas: ['TD', '6H', 'QS'], total: 26, blando: false,
+          apuesta: 20, estado: 'cerrada', resultado: 'pierde', pago: 0 },
+      ],
+      acciones: [],
+    },
+  };
+
+  // El caso que rompe: una mano larga. El dueño vio que con cinco cartas
+  // desaparecía la cuenta de puntos.
+  ESTADOS.cinco = {
+    estado: 'jugando', ronda: 9002, version: 5, balance: 900, mano_activa: 0,
+    mesa: MESA,
+    crupier: { cartas: ['9D', { tapada: true }], total: 9, parcial: true },
+    manos: [
+      { indice: 0, puesto: 0, cartas: ['2S', '3D', '4C', '5H', '6S'], total: 20,
+        blando: false, apuesta: 50, estado: 'jugando' },
+      { indice: 1, puesto: 1, cartas: ['TD', '7H'], total: 17, blando: false,
+        apuesta: 30, estado: 'jugando' },
+      { indice: 2, puesto: 2, cartas: ['8C', '9S'], total: 17, blando: false,
+        apuesta: 20, estado: 'jugando' },
+    ],
+    acciones: ['pedir', 'plantarse'],
+  };
+
+  // Lo normal: se juega UN puesto. Los otros dos tienen que cederle el ancho.
+  ESTADOS.cinco1 = {
+    estado: 'jugando', ronda: 9003, version: 5, balance: 900, mano_activa: 0,
+    mesa: MESA,
+    crupier: { cartas: ['9D', { tapada: true }], total: 9, parcial: true },
+    manos: [
+      { indice: 0, puesto: 1, cartas: ['2S', '3D', '4C', '5H', '6S'], total: 20,
+        blando: false, apuesta: 50, estado: 'jugando' },
+    ],
+    acciones: ['pedir', 'plantarse'],
+  };
+
+  // El caso que reportó el dueño: al CRUPIER le salieron cinco cartas y su
+  // cuenta desapareció. Su número va al lado de las cartas, no debajo.
+  ESTADOS.crupier5 = {
+    estado: 'cerrada', ronda: 9004, version: 9, balance: 980,
+    mesa: MESA,
+    crupier: { cartas: ['2H', '3S', '4D', '5C', '7H'], total: 21, parcial: false },
+    manos: [
+      { indice: 0, puesto: 1, cartas: ['TD', '9S'], total: 19, blando: false,
+        apuesta: 50, estado: 'cerrada', resultado: 'pierde', pago: 0 },
+    ],
+    acciones: [],
+  };
+
+  const cual = new URLSearchParams(location.search).get('estado') || 'apostando';
+  let ESTADO = JSON.parse(JSON.stringify(ESTADOS[cual] || ESTADOS.apostando));
+
+  // El servidor de mentira. Devuelve siempre el mismo momento de la mano:
+  // acá no se juega, se mira.
+  window.Api = {
+    bjRonda: async () => ESTADO,
+    bjApostar: async () => ESTADOS.jugando,
+    bjJugar: async () => ESTADOS.cerrada,
+  };
+
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(React.createElement(window.BlackjackScreen, {
+    user: { username: 'maqueta', balance: 1250 },
+    mesa: MESA,
+    onSalirAlSalon: () => {},
+    onOpenWallet: () => {},
+    onLogout: () => {},
+  }));
+</script>
+</body>
+</html>

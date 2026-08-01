@@ -64,29 +64,40 @@
       linear-gradient(180deg,#155843 0%, var(--paño) 55%, #06251c 100%);
     box-shadow:inset 0 2px 10px rgba(0,0,0,.55);
   }
-/* La marca estampada en el fieltro, en la banda del arco — que es donde va
-     en las mesas de verdad y es la única franja que nunca tapan las cartas.
-     Va HUNDIDA, no escrita encima: el logo de una mesa está serigrafiado y
-     casi no se ve, se nota cuando la luz le pega. De ahí el relieve (una luz
-     arriba, una sombra abajo) y lo bajo de la opacidad: no compite con nada. */
-  .bj-marca-paño{
-    text-align:center; margin:0 0 3px; pointer-events:none;
-    font-size:23px; letter-spacing:11px; font-weight:700; font-family:Georgia,serif;
-    color:rgba(255,236,190,.13);
-    text-shadow:0 1px 0 rgba(255,255,255,.07), 0 -1px 1px rgba(0,0,0,.35);
+/* ── LA BANDA DEL CENTRO ────────────────────────────────────────────────
+     Un solo dibujo: las reglas siguiendo la curva, el arco doble y la marca
+     en su medallón. Va de canto a canto del paño (por eso los márgenes
+     negativos, que compensan el relleno) y no recibe toques: es fieltro
+     pintado, no un control. */
+  .bj-banda{
+    display:block; width:calc(100% + 26px); margin:2px -13px 4px;
+    pointer-events:none; overflow:visible;
   }
-/* El arco que separa la zona del crupier de la del jugador. Curva hacia
-     ABAJO, abrazando el lado del jugador, que es el de acá: la mesa está
-     como en el casino — el crupier enfrente, arriba, y uno de este lado. */
-  .bj-arco{
-    height:19px; margin:0 -13px 3px; pointer-events:none;
-    border-bottom:2px solid rgba(255,238,200,.32);
-    border-radius:0 0 50% 50% / 0 0 100% 100%;
-    box-shadow:0 5px 0 -3px rgba(255,216,74,.14);
+/* El renglón de arriba: la regla que decide cuánto cobra el jugador con un
+     natural. Es la que más pesa de las dos, y por eso va en oro. */
+  .bj-regla{
+    font-family:Georgia,serif; font-size:13px; font-weight:700; letter-spacing:2.6px;
+    fill:rgba(255,216,74,.62);
   }
-/* La leyenda impresa en el paño: las reglas de la casa. No es adorno —
-     son las dos que el jugador tiene que saber antes de sentarse, y salen
-     de la ficha de la mesa, no escritas a mano. */
+/* El de abajo: cómo juega la casa y entre qué montos se apuesta. */
+  .bj-casa{
+    font-family:Georgia,serif; font-size:9px; letter-spacing:1.5px;
+    fill:rgba(255,236,190,.42);
+  }
+.bj-arco-grueso{fill:none; stroke:rgba(255,238,200,.32); stroke-width:2}
+.bj-arco-fino{fill:none; stroke:rgba(255,216,74,.14); stroke-width:1}
+/* El medallón está POR ENCIMA del arco a propósito: lo interrumpe, como una
+     chapa remachada sobre la línea pintada. El relleno oscuro es lo que corta
+     el arco por debajo. */
+  .bj-medallon{fill:rgba(5,30,22,.88); stroke:rgba(255,216,74,.28); stroke-width:1}
+/* La marca, hundida en el fieltro: casi no se ve, se nota cuando la luz le
+     pega. Si compite con las cartas, está mal. */
+  .bj-marca{
+    font-family:Georgia,serif; font-size:9.5px; font-weight:700; letter-spacing:3.5px;
+    fill:rgba(255,236,190,.32);
+  }
+/* La leyenda suelta del paño. Hoy la usa sólo el cartel de MESA EN PRUEBAS:
+     las reglas de la casa se mudaron a la banda de arriba. */
   .bj-letrero{
     text-align:center; margin:0 0 8px; line-height:1.75;
     color:rgba(255,236,190,.42); letter-spacing:1.6px; font-size:9px;
@@ -110,6 +121,22 @@
     font-size:30px; padding:9px 20px; min-width:70px; margin-top:0; flex:none;
     border-color:rgba(255,216,74,.5);
   }
+/* Cuánto se encima cada carta del crupier según cuántas lleve. La cuenta mide
+   112 px y el hueco entre las dos cosas 14, así que a las cartas les quedan
+   183 de los 309 del paño: el paso es (183 − 74) ÷ (n − 1) y el margen es ese
+   paso menos los 74 de la carta. Sin esto, a partir de la tercera carta la
+   fila empieza a empujar la cuenta hacia afuera y el paño la recorta.
+   Mientras el crupier tiene su carta tapada son siempre dos: ahí no toca nada. */
+  .bj-mano-crupier .bj-cartas[data-n="3"] .bj-carta + .bj-carta{margin-left:-20px}
+.bj-mano-crupier .bj-cartas[data-n="4"] .bj-carta + .bj-carta{margin-left:-38px}
+.bj-mano-crupier .bj-cartas[data-n="5"] .bj-carta + .bj-carta{margin-left:-47px}
+.bj-mano-crupier .bj-cartas[data-n="6"] .bj-carta + .bj-carta{margin-left:-52px}
+.bj-mano-crupier .bj-cartas[data-n="7"] .bj-carta + .bj-carta{margin-left:-56px}
+.bj-mano-crupier .bj-cartas[data-n="8"] .bj-carta + .bj-carta{margin-left:-58px}
+/* Red de seguridad para una mano imposiblemente larga: que la cuenta se
+   achique antes que desaparecer. Nunca por debajo de lo legible. */
+  .bj-mano-crupier{min-width:0}
+.bj-mano-crupier .bj-cartas{min-width:0; flex-shrink:1}
 /* La cuenta de la mano. Es EL número de esta pantalla: el jugador lo mira
      antes de cada decisión, muchas veces con el teléfono en la mano y a
      distancia de brazo. Va grande, con su propio aro, y es lo que más pesa
@@ -267,6 +294,11 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
     border:1px solid #0c0805; border-radius:8px;
     box-shadow:inset 0 2px 7px rgba(0,0,0,.75), 0 3px 8px rgba(0,0,0,.5);
   }
+/* En un teléfono de pantalla corta el fichero de la casa se va. Es lo único
+   de la mesa que no hace nada —es el adorno que le da cuerpo al lado del
+   crupier— y son 44 px que en esas pantallas hacen la diferencia entre ver
+   los botones o tener que deslizar justo cuando hay que decidir. */
+  @media (max-height: 720px){ .bj-fichero{display:none} }
 .bj-tubo{
     width:29px; height:25px; border-radius:3px;
     background:repeating-linear-gradient(180deg,
@@ -310,6 +342,51 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
 .bj-col .bj-cartas{min-height:74px; margin:0; padding:0; justify-content:center}
 .bj-col .bj-carta{width:48px; height:70px; border-radius:6px; margin-left:-22px; box-shadow:0 3px 8px rgba(0,0,0,.5)}
 .bj-col .bj-carta:first-child{margin-left:0}
+/* ── Que una mano larga no se lleve puesta a la de al lado ────────────────
+   Los puestos que nadie está jugando le ceden el ancho a los que sí. Con una
+   sola mano sobre el paño —lo normal— las cartas pasan de 99 px de lugar a
+   229, y una mano de cinco entra entera y grande.
+   APOSTANDO no se encogen: ahí los tres círculos son la forma de elegir dónde
+   va la ficha, y achicarlos sería sacarle al jugador el lugar donde toca. */
+  .bj-puestos.bj-con-cartas .bj-col.bj-vacia{flex:0 0 auto; width:30px; padding:4px 0; opacity:.22}
+.bj-puestos.bj-con-cartas .bj-col.bj-vacia .bj-cartas{min-height:0}
+.bj-puestos.bj-con-cartas .bj-col.bj-vacia .bj-circulo{
+    width:26px; height:26px; border-width:1px; box-shadow:none;
+  }
+/* Cuánto se encima cada carta sobre la anterior. Sale de una cuenta, no del
+   ojo: (ancho de la columna − 48 de carta) ÷ (n − 1) es el paso con el que la
+   mano entra justa, y el margen es ese paso menos el ancho de la carta.
+   Va con el signo + (carta que sigue a otra carta) y no con :not(:first-child)
+   para no pisar la regla de la primera, que no lleva margen.
+   Con UN solo puesto en juego sobra lugar hasta ocho cartas: no hace falta
+   ninguna regla. */
+  .bj-puestos[data-juego="2"] .bj-cartas[data-n="5"] .bj-carta + .bj-carta{margin-left:-27px}
+.bj-puestos[data-juego="2"] .bj-cartas[data-n="6"] .bj-carta + .bj-carta{margin-left:-31px}
+.bj-puestos[data-juego="2"] .bj-cartas[data-n="7"] .bj-carta + .bj-carta{margin-left:-34px}
+.bj-puestos[data-juego="2"] .bj-cartas[data-n="8"] .bj-carta + .bj-carta{margin-left:-36px}
+.bj-puestos[data-juego="3"] .bj-cartas[data-n="4"] .bj-carta + .bj-carta{margin-left:-32px}
+.bj-puestos[data-juego="3"] .bj-cartas[data-n="5"] .bj-carta + .bj-carta{margin-left:-36px}
+.bj-puestos[data-juego="3"] .bj-cartas[data-n="6"] .bj-carta + .bj-carta{margin-left:-38px}
+.bj-puestos[data-juego="3"] .bj-cartas[data-n="7"] .bj-carta + .bj-carta{margin-left:-40px}
+.bj-puestos[data-juego="3"] .bj-cartas[data-n="8"] .bj-carta + .bj-carta{margin-left:-41px}
+/* ── Tus cartas crecen cuando hay lugar ──────────────────────────────────
+   Jugando UN solo puesto —lo que hace casi siempre el que se sienta— la mano
+   tiene los 229 px del paño en vez de 99, así que las cartas pueden ser de
+   verdad y no miniaturas. Con dos o tres puestos se quedan chicas porque no
+   entrarían: el ancho manda.
+   Nunca llegan a las del crupier (74 × 104) y está bien: son tres manos
+   posibles contra una sola de él. */
+  .bj-puestos[data-juego="1"] .bj-col .bj-carta{width:60px; height:86px; border-radius:7px}
+.bj-puestos[data-juego="1"] .bj-col .bj-carta .bj-idx .bj-v{font-size:13.5px}
+.bj-puestos[data-juego="1"] .bj-col .bj-carta .bj-idx .bj-p{font-size:10px}
+.bj-puestos[data-juego="1"] .bj-col .bj-carta .bj-palo{font-size:31px}
+.bj-puestos[data-juego="1"] .bj-col .bj-carta .bj-palo.bj-as{font-size:40px}
+.bj-puestos[data-juego="1"] .bj-col .bj-cartas{min-height:90px}
+/* Con la carta más grande, una mano de seis o más vuelve a no entrar: mismo
+   remedio, medido sobre los 229 px que tiene un puesto solo. */
+  .bj-puestos[data-juego="1"] .bj-cartas[data-n="6"] .bj-carta + .bj-carta{margin-left:-26px}
+.bj-puestos[data-juego="1"] .bj-cartas[data-n="7"] .bj-carta + .bj-carta{margin-left:-32px}
+.bj-puestos[data-juego="1"] .bj-cartas[data-n="8"] .bj-carta + .bj-carta{margin-left:-36px}
 .bj-col .bj-carta .bj-idx{left:4px; top:3px}
 .bj-col .bj-carta .bj-idx.bj-abajo{right:4px; bottom:3px}
 .bj-col .bj-carta .bj-idx .bj-v{font-size:11px}
@@ -317,12 +394,22 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
 .bj-col .bj-carta .bj-palo{font-size:25px}
 .bj-col .bj-carta .bj-palo.bj-as{font-size:32px}
 .bj-col .bj-carta.bj-tapada::after{inset:4px}
-.bj-pie-col{min-height:30px; display:flex; flex-direction:column; align-items:center; gap:1px}
-.bj-col .bj-cuenta{font-size:15px; padding:4px 10px; min-width:36px; border-radius:16px; margin-top:0}
+/* La cuenta va SIEMPRE por encima de las cartas: es el número que el jugador
+   mira para decidir si pide o se planta, y una carta de otro puesto no se lo
+   puede tapar nunca. */
+  .bj-pie-col{min-height:30px; display:flex; flex-direction:column; align-items:center; gap:1px;
+    position:relative; z-index:3}
+/* Tu cuenta iba en 15 px contra los 30 de la del crupier. Es el número con el
+   que decidís pedir o plantarte: no puede ser la mitad de chico que el de
+   enfrente. A 19 sigue entrando en la columna más angosta (tres puestos). */
+  .bj-col .bj-cuenta{font-size:19px; padding:5px 11px; min-width:40px; border-radius:16px; margin-top:0}
 .bj-col .bj-cuenta .bj-nota{font-size:8px}
 .bj-col .bj-resultado{font-size:8.5px; letter-spacing:.5px}
-.bj-circulo{
-    width:58px; height:58px; border-radius:50%; position:relative; flex:none;
+/* El círculo donde caen las fichas. Creció de 58 a 68: es el blanco al que se
+   apunta con el dedo para apostar, y de ancho sobra lugar en los tres casos
+   (tres círculos de 68 son 204 de los 309 del paño). */
+  .bj-circulo{
+    width:68px; height:68px; border-radius:50%; position:relative; flex:none;
     border:2px solid rgba(255,236,190,.22);
     box-shadow:
       inset 0 0 0 5px rgba(0,0,0,.14),
@@ -580,6 +667,66 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
   }
 
   // ══════════════════════════════════════════════════════════════════════
+  //  LA BANDA DEL CENTRO — la franja que separa al crupier del jugador.
+  //
+  //  En una mesa de verdad esta franja no es adorno: es donde están impresas
+  //  las reglas de la casa, SIGUIENDO la curva del arco, y donde va la marca
+  //  del salón. Antes eran tres cosas rectas apiladas —dos renglones, la
+  //  palabra VOLTIO y una línea curva— y se leía como una lista, no como una
+  //  mesa. Ahora es una sola pieza dibujada.
+  //
+  //  Va en SVG y no en HTML por una razón concreta: en HTML el texto no puede
+  //  seguir una curva. El dibujo se escala solo con el ancho del paño.
+  //
+  //  Lo que dice sale SIEMPRE de la ficha de la mesa, nunca escrito a mano: si
+  //  el dueño cambia el pago del natural o los topes, cambia el paño. Y no
+  //  dice nada que la mesa no haga: no hay línea de seguro porque esta mesa no
+  //  ofrece seguro — el crupier mira su carta tapada del lado del servidor
+  //  (ver worker/blackjack.js).
+  // ══════════════════════════════════════════════════════════════════════
+  function BandaCentral({ pagoNatural, minimo, maximo }) {
+    const regla = pagoNatural >= 1.5
+      ? T('EL BLACKJACK PAGA 3 A 2')
+      : T('EL BLACKJACK PAGA 6 A 5');
+    const casa = T('EL CRUPIER SE PLANTA EN 17 · APUESTA {min}–{max}',
+      { min: minimo, max: maximo });
+
+    return (
+      <svg className="bj-banda" viewBox="0 0 340 86"
+           preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <defs>
+          {/* Las dos curvas por las que camina el texto. No se dibujan nunca:
+              son el renglón, no una línea. */}
+          <path id="bj-curva-regla" d="M 14,18 Q 170,44 326,18" fill="none" />
+          <path id="bj-curva-casa" d="M 16,38 Q 170,63 324,38" fill="none" />
+        </defs>
+
+        <text className="bj-regla">
+          <textPath href="#bj-curva-regla" startOffset="50%" textAnchor="middle">
+            {regla}
+          </textPath>
+        </text>
+        <text className="bj-casa">
+          <textPath href="#bj-curva-casa" startOffset="50%" textAnchor="middle">
+            {casa}
+          </textPath>
+        </text>
+
+        {/* El arco doble abrazando el lado del jugador: el grueso marca el
+            límite y el fino le hace de filete, como el pintado de una mesa. */}
+        <path className="bj-arco-grueso" d="M 0,56 Q 170,86 340,56" />
+        <path className="bj-arco-fino" d="M 0,62 Q 170,92 340,62" />
+
+        {/* La marca en medallón, montada sobre el arco: ahí es donde una mesa
+            lleva el nombre de la casa. Va hundida en el fieltro, no escrita
+            encima: casi no se ve, se nota cuando la luz le pega. */}
+        <ellipse className="bj-medallon" cx="170" cy="74" rx="38" ry="11" />
+        <text className="bj-marca" x="170" y="77.5" textAnchor="middle">VOLTIO</text>
+      </svg>
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   //  La pantalla
   // ══════════════════════════════════════════════════════════════════════
   function BlackjackScreen({ user, mesa, onSalirAlSalon, onOpenWallet, onLogout }) {
@@ -620,6 +767,14 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
                             && ((E.manos || []).length > 0);
     // Con la mano a la vista no se pone una ficha nueva: primero se barre.
     const enPaño = jugando || mostrandoCierre;
+    // Cuántos puestos tienen cartas de verdad. Manda el ancho: los puestos que
+    // nadie está jugando le ceden su lugar a los que sí, y una mano larga
+    // necesita saber cuánto espacio le tocó para saber cuánto encimar las
+    // cartas. Con la mesa vacía (apostando) son los tres, que es cuando el
+    // jugador tiene que poder elegir dónde poner la ficha.
+    const puestosEnJuego = enPaño
+      ? new Set(((E && E.manos) || []).map((h) => h.puesto)).size || 1
+      : puestos;
     const saldo = E && E.balance != null ? E.balance : (user ? user.balance : 0);
 
     const montoDe = (p) => (pilas[p] || []).reduce((s, v) => s + v, 0);
@@ -906,7 +1061,12 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
               <div key={h.indice}
                    className={'bj-mano' + (manos.length > 1 ? ' bj-partida' : '')
                      + (manos.length > 1 && suTurno ? ' bj-activa' : '')}>
-                <div className="bj-cartas">
+                {/* `data-n` es cuántas cartas tiene la mano. Lo lee la hoja de
+                    estilos para encimarlas más cuanto más larga sea: una mano
+                    de cinco con las medidas sueltas mide 162 px y la columna
+                    tiene 99, así que se salía del paño y se acostaba encima
+                    del puesto de al lado, tapándole la cuenta. */}
+                <div className="bj-cartas" data-n={h.cartas.length}>
                   {h.cartas.map((c, i) => (
                     <Carta key={`m${h.indice}-${i}`} carta={c} nueva={esNueva(`m${h.indice}-${i}`)} />
                   ))}
@@ -1045,7 +1205,14 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
                 arriba, separada de las cartas. Va más grande que la del
                 jugador porque es la que manda la decisión de pedir o plantarse. */}
             <div className="bj-mano-crupier">
-              <div className="bj-cartas">
+              {/* `data-n` otra vez: al crupier su cuenta le va AL LADO de las
+                  cartas, así que una mano larga no le tapa el número — se lo
+                  empuja afuera del paño y el paño lo recorta. Con cinco cartas
+                  la fila mide 318 px en un paño de 309: la cuenta quedaba 122
+                  px afuera y el jugador se quedaba sin saber qué llevaba el
+                  crupier justo cuando más importa. */}
+              <div className="bj-cartas"
+                   data-n={enPaño && E.crupier ? ((E.crupier.cartas || []).length) : 0}>
                 {(enPaño ? ((E.crupier && E.crupier.cartas) || []) : []).map((c, i) => (
                   <Carta key={'c' + i} carta={c} nueva={esNueva('c' + i)} />
                 ))}
@@ -1057,25 +1224,30 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
               </div>
             </div>
 
-            <div className="bj-letrero">
-              <b>{(E.mesa && E.mesa.pago_natural) >= 1.5
-                ? T('EL BLACKJACK PAGA 3 A 2') : T('EL BLACKJACK PAGA 6 A 5')}</b>
-              {T('EL CRUPIER SE PLANTA EN 17 · APUESTA {min}–{max}', { min: minimo, max: maximo })}
-              {/* La mesa en pruebas lo dice EN EL PAÑO. El que está probando
-                  juega con plata de verdad: tiene que saber en qué mesa está
-                  parado sin tener que acordarse. */}
-              {E.mesa && E.mesa.en_pruebas && (
+            <BandaCentral
+              pagoNatural={(E.mesa && E.mesa.pago_natural) || 1.5}
+              minimo={minimo} maximo={maximo} />
+
+            {/* La mesa en pruebas lo dice EN EL PAÑO. El que está probando
+                juega con plata de verdad: tiene que saber en qué mesa está
+                parado sin tener que acordarse. Va fuera de la banda porque no
+                es una regla de la casa: es un cartel temporal. */}
+            {/* Los DOS signos de admiración no sobran. `en_pruebas` es 0 o 1,
+                y un 0 en React no desaparece: se dibuja. La mesa abierta venía
+                escribiendo un "0" pegado al final del letrero, así que el tope
+                de apuesta se leía "10–5000" en vez de "10–500". */}
+            {!!(E.mesa && E.mesa.en_pruebas) && (
+              <div className="bj-letrero">
                 <span className="bj-en-pruebas">{T('MESA EN PRUEBAS · NO ABIERTA AL PÚBLICO')}</span>
-              )}
-            </div>
-            <div className="bj-marca-paño">VOLTIO</div>
-            <div className="bj-arco" />
+              </div>
+            )}
 
             <div className="bj-quien" style={{ marginBottom: 2 }}>
               {enPaño ? T('TU MANO') : T('TU APUESTA')}
             </div>
 
-            <div className={'bj-puestos' + (enPaño ? ' bj-con-cartas' : '')}>
+            <div className={'bj-puestos' + (enPaño ? ' bj-con-cartas' : '')}
+                 data-juego={puestosEnJuego}>
               {Array.from({ length: puestos }, (_, p) => Columna(p))}
             </div>
 
