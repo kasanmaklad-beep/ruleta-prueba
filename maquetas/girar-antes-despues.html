@@ -1,0 +1,96 @@
+<meta charset="utf-8">
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:#0d0d0f; color:#e8e2d4; font-family:Georgia, serif; padding:24px; }
+  h1 { font-size:20px; font-weight:400; letter-spacing:1px; margin:0 0 4px; }
+  .sub { font-size:13px; color:#8a8578; margin:0 0 28px; font-family:system-ui, sans-serif; }
+  .fila { display:flex; gap:36px; align-items:flex-start; flex-wrap:wrap; }
+  .titulo { font-family:system-ui, sans-serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:#8a8578; margin-bottom:10px; }
+  .telefono { width:375px; height:430px; display:flex; gap:2px; background:#000; border:1px solid #333; border-radius:10px; overflow:hidden; }
+  .columna { display:flex; flex-direction:column; gap:19px; align-items:center; padding:8px 4px;
+             background:linear-gradient(180deg,#2a1a08,#1a0d02); border:1px solid #8b6a20; border-left:none;
+             border-radius:0 6px 6px 0; flex-shrink:0; }
+  .ficha { width:44px; height:44px; border-radius:50%; flex-shrink:0;
+           background:radial-gradient(circle at 35% 30%, #6a6a72, #33333a);
+           border:3px dashed #b9b9c4; display:flex; align-items:center; justify-content:center;
+           font-size:11px; font-weight:900; color:#fff; }
+  .sep { width:100%; height:1px; background:#8b6a20; margin:18px 0; opacity:.5; }
+  .botones { display:flex; flex-direction:column; gap:34px; width:100%; align-items:stretch; }
+  button { border-radius:5px; font-family:Georgia, serif; font-weight:900; cursor:pointer; }
+  .limpiar { padding:13px 3px; min-height:42px; font-size:8px; letter-spacing:0; color:#fff;
+             border:1px solid #f0737d;
+             background:linear-gradient(180deg,#e04b57 0%,#b52633 55%,#7d1119 100%);
+             box-shadow:0 5px 0 #5a0d13, 0 9px 10px rgba(0,0,0,.6), 0 0 16px rgba(224,75,87,.55),
+                        inset 0 2px 0 rgba(255,255,255,.5), inset 0 -4px 8px rgba(0,0,0,.4); }
+  .girar-viejo { padding:13px 3px; min-height:42px; font-size:8px; letter-spacing:0; color:#1a1006;
+             border:2px solid #d4a94a;
+             background:linear-gradient(180deg,#f0cf72 0%,#d4a94a 45%,#8b6a20 100%);
+             text-shadow:0 1px 0 rgba(255,255,255,.45);
+             box-shadow:0 5px 0 #6b5010, 0 10px 12px rgba(0,0,0,.65), 0 0 26px #d4a94aaa,
+                        inset 0 2px 0 rgba(255,255,255,.8), inset 0 -4px 8px rgba(0,0,0,.35); }
+  .girar-nuevo { padding:18px 0; min-height:70px; font-size:11px; letter-spacing:0; white-space:nowrap; color:#06240f;
+             border:2px solid #2fbf5a;
+             background:linear-gradient(180deg,#7ef09a 0%,#2fbf5a 45%,#14713a 100%);
+             text-shadow:0 1px 0 rgba(255,255,255,.45);
+             box-shadow:0 5px 0 #0e6b32, 0 10px 12px rgba(0,0,0,.65), 0 0 26px #2fbf5aaa,
+                        inset 0 2px 0 rgba(255,255,255,.8), inset 0 -4px 8px rgba(0,0,0,.35); }
+  button:active { transform:translateY(4px); }
+  .pano { flex:1; background:
+            repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 1px, transparent 1px 46px),
+            repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 60px),
+            linear-gradient(160deg,#0f4d2a,#0a3a1f);
+          display:flex; align-items:center; justify-content:center; color:#3f9668;
+          font-family:system-ui, sans-serif; font-size:11px; letter-spacing:2px; }
+  .medida { font-family:system-ui, sans-serif; font-size:12px; color:#8a8578; margin-top:10px; line-height:1.6; }
+  .medida b { color:#e8e2d4; font-weight:500; }
+</style>
+
+<h1>El botón GIRAR en un teléfono de 375 px</h1>
+<p class="sub">Dibujados con los valores exactos del código. El paño va simplificado — lo que importa es cuánto ancho le queda.</p>
+
+<div class="fila">
+  <div>
+    <div class="titulo">Antes</div>
+    <div class="telefono">
+      <div class="columna" style="width:56px">
+        <div class="ficha">1</div><div class="ficha">5</div><div class="ficha">25</div>
+        <div class="sep"></div>
+        <div class="botones">
+          <button class="limpiar">LIMPIAR</button>
+          <button class="girar-viejo">GIRAR</button>
+        </div>
+      </div>
+      <div class="pano">PAÑO — 317 px</div>
+    </div>
+    <p class="medida">Botón <b>47 × 42 px</b>, letra de <b>8 px</b><br>Columna 56 px · paño 317 px</p>
+  </div>
+
+  <div>
+    <div class="titulo">Ahora</div>
+    <div class="telefono">
+      <div class="columna" style="width:76px">
+        <div class="ficha">1</div><div class="ficha">5</div><div class="ficha">25</div>
+        <div class="sep"></div>
+        <div class="botones">
+          <button class="limpiar">LIMPIAR</button>
+          <button class="girar-nuevo" id="medir">GIRAR</button>
+        </div>
+      </div>
+      <div class="pano">PAÑO — 297 px</div>
+    </div>
+    <p class="medida">Botón <b>67 × 70 px</b>, letra de <b>11 px</b><br>Columna 76 px · paño 297 px (−6%)</p>
+  </div>
+
+  <div>
+    <div class="titulo">Repitiendo apuestas</div>
+    <div class="telefono" style="width:100px">
+      <div class="columna" style="width:76px">
+        <div class="sep"></div>
+        <div class="botones">
+          <button class="girar-nuevo" id="medir2">GIRAR ↻</button>
+        </div>
+      </div>
+    </div>
+    <p class="medida">El texto más largo que muestra,<br>en un solo renglón</p>
+  </div>
+</div>

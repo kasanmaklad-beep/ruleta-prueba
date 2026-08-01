@@ -1208,7 +1208,13 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
               // Móvil: fichas verticales a la izquierda + paño rotado 90° a la derecha
               // FULL SCREEN: usa el 100% del ancho/alto con escalado NO-UNIFORME
               // (estiramos x e y por separado para llenar exacto, sin huecos laterales)
-              const CHIP_COL_W = 56; // ancho de la columna de fichas
+              // Ancho de la columna de fichas. Manda el botón GIRAR, no las
+              // fichas: es lo único que necesita ancho, y cada píxel que se le
+              // da acá se le quita al paño. 76 deja el botón en ~67 px —el
+              // doble largo que los 47 de antes— y le cuesta al paño un 6% de
+              // su ancho. En 88 el botón llegaba a 79 px pero el paño perdía
+              // el 10%, y la mesa es lo que el jugador mira.
+              const CHIP_COL_W = 76;
               const GAP = 2;
               // Espacio disponible horizontal: ancho total - columna fichas - gap
               const availableForTableWidth = vw - CHIP_COL_W - GAP;
@@ -1248,7 +1254,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     borderLeft: 'none',
                     alignSelf: 'stretch',
                     flexShrink: 0,
-                    width: 56,
+                    width: CHIP_COL_W,
                     // El paño puede ser más alto que la pantalla; acotamos la columna
                     // para que el letrero de abajo quede siempre visible.
                     maxHeight: 'calc(100vh - 78px)',
@@ -1522,11 +1528,21 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
 }
 
 function ActionBtn({ children, onClick, disabled, primary, theme, id, compact }) {
-  const accent = theme === 'lightning' ? '#5ab8ff' : '#d4a94a';
+  // GIRAR va en VERDE en todas las mesas, no en el color del tema. Es el botón
+  // que se toca en cada jugada y tiene pegado al de LIMPIAR, que es rojo:
+  // tocar el equivocado le borra las apuestas al jugador. El verde es el que
+  // menos se confunde con el rojo, y el tema (dorado/azul) sigue mandando en
+  // todo el resto del salón.
+  const accent = primary ? '#2fbf5a' : (theme === 'lightning' ? '#5ab8ff' : '#d4a94a');
   // Canto inferior sólido: da el volumen de tecla física
   const canto = primary
-    ? (theme === 'lightning' ? '#1d3f6b' : '#6b5010')
+    ? '#0e6b32'
     : '#5a0d13';   // canto del rojo de LIMPIAR
+  // GIRAR en el teléfono va más grande que los demás botones: quedaba en
+  // 48×42, justo en el mínimo que se puede tocar con el dedo, y con la letra
+  // más chica de toda la app. LIMPIAR se queda como estaba a propósito — que
+  // el importante se vea más grande es parte de que no se confundan.
+  const girarMovil = compact && primary;
   const alturaCanto = compact ? 5 : 6;
   // Al presionar el botón "se hunde" contra su canto
   const press = (e) => {
@@ -1545,21 +1561,28 @@ function ActionBtn({ children, onClick, disabled, primary, theme, id, compact })
       disabled={disabled}
       style={{
         flex: compact ? 1 : 'none',
-        padding: compact ? '13px 3px' : '16px 24px',
-        minHeight: compact ? 42 : 52,
+        padding: girarMovil ? '18px 0' : (compact ? '13px 3px' : '16px 24px'),
+        minHeight: girarMovil ? 70 : (compact ? 42 : 52),
         borderRadius: 5,
-        // GIRAR: dorado encendido. LIMPIAR: metal claro con filo dorado
+        // GIRAR: verde encendido. LIMPIAR: metal claro con filo dorado
         // (antes era gris casi invisible sobre el fondo oscuro).
         border: primary ? `2px solid ${accent}` : '1px solid #f0737d',
         background: primary
-          ? `linear-gradient(180deg, ${theme === 'lightning' ? '#8fd0ff' : '#f0cf72'} 0%, ${accent} 45%, ${theme === 'lightning' ? '#2a5a9a' : '#8b6a20'} 100%)`
-          // LIMPIAR en rojo encendido: se distingue del dorado de GIRAR
+          ? `linear-gradient(180deg, #7ef09a 0%, ${accent} 45%, #14713a 100%)`
+          // LIMPIAR en rojo encendido: se distingue del verde de GIRAR
           : 'linear-gradient(180deg, #e04b57 0%, #b52633 55%, #7d1119 100%)',
-        color: primary ? '#1a1006' : '#ffffff',
+        color: primary ? '#06240f' : '#ffffff',
         fontFamily: 'Georgia, serif',
         fontWeight: 900,
-        fontSize: compact ? 8 : 13,
-        letterSpacing: compact ? 0 : 2,
+        // 11 px, sin separación entre letras y sin relleno a los costados.
+        // Medido en el navegador, no calculado: con la columna en 76 el botón
+        // queda de 67 y adentro de los bordes le caben 63 px de texto.
+        // "GIRAR ↻" —el modo repetir apuestas, el texto más largo que muestra—
+        // ocupa 61 px a 11 px de letra y 67 a 12 px: a 12 se partía en dos
+        // renglones. El nowrap es el seguro para que nunca se parta.
+        fontSize: girarMovil ? 11 : (compact ? 8 : 13),
+        letterSpacing: girarMovil ? 0 : (compact ? 0 : 2),
+        whiteSpace: girarMovil ? 'nowrap' : 'normal',
         textShadow: primary
           ? '0 1px 0 rgba(255,255,255,0.45)'
           : '0 0 8px rgba(255,255,255,0.7), 0 1px 2px rgba(0,0,0,0.85)',
