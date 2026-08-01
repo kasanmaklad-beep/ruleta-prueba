@@ -842,8 +842,16 @@ export async function bjPedir(request, env) {
   mano.cartas.push(c);
   ronda.repartidas.push(c);
 
-  const pasado = valorMano(mano.cartas).total > 21;
-  mano.estado = pasado ? 'pasada' : 'jugando';
+  // Con 21 la mano se planta SOLA y el turno pasa al puesto siguiente. No es
+  // una comodidad: con 21 no existe ninguna jugada mejor que plantarse —pedir
+  // otra carta sólo puede pasarte— así que hacer que el jugador toque
+  // PLANTARSE no le da a elegir nada, le cobra un toque y deja la mesa
+  // esperando. Lo pidieron los probadores y es lo que hace un crupier de
+  // verdad: te ve el 21 y sigue.
+  const total = valorMano(mano.cartas).total;
+  const pasado = total > 21;
+  const cerrada = pasado || total === 21;
+  mano.estado = pasado ? 'pasada' : (total === 21 ? 'plantada' : 'jugando');
 
   await env.DB.batch([
     env.DB.prepare('UPDATE bj_manos SET cartas = ?, estado = ? WHERE id = ?')
@@ -852,7 +860,7 @@ export async function bjPedir(request, env) {
       .bind(JSON.stringify(ronda.repartidas), ronda.id),
   ]);
 
-  if (pasado) await avanzar(env, ronda, mesa);
+  if (cerrada) await avanzar(env, ronda, mesa);
   return respuesta(env, ronda.id, auth.userId, mesa);
 }
 

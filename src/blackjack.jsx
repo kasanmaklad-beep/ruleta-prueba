@@ -53,6 +53,14 @@
   }
 .bj-paño{
     border-radius:14px 14px 40px 40px; padding:14px 13px 12px; position:relative; overflow:hidden;
+    /* La mesa no se encoge cuando no hay cartas. Antes, apostando, el paño
+       medía 538 px y dejaba 188 de pantalla negra debajo: parecía una mesa
+       chiquita en el medio del teléfono. Ahora ocupa lo que hay, y el sobrante
+       queda como fieltro vacío en el medio —que es lo que tiene una mesa de
+       verdad esperando la próxima mano— y no como un agujero abajo.
+       Es un MÍNIMO: cuando la mano es larga el paño crece solo y esto no
+       estorba. */
+    display:flex; flex-direction:column; min-height:calc(100vh - 190px);
     background:
       /* el pozo de luz que cae sobre la mesa */
       radial-gradient(ellipse 130% 70% at 50% 2%, rgba(255,255,255,.13), transparent 62%),
@@ -111,8 +119,18 @@
     border:1px solid var(--borde); display:grid; place-items:center; font-size:19px;
   }
 .bj-quien{font-size:10px; letter-spacing:2.5px; color:var(--tenue)}
+/* El rótulo TU MANO / TU APUESTA y todo lo que va debajo se pegan al fondo del
+   paño. Así el fieltro que sobra queda en el MEDIO de la mesa, entre el arco y
+   tus cartas, y no en un hueco debajo de los botones. */
+  .bj-paño > .bj-quien{margin-top:auto}
 /* La mano del crupier: sus cartas y, al lado derecho, lo que lleva. */
-.bj-mano-crupier{display:flex; align-items:center; gap:14px}
+/* La mano del crupier: sus cartas y DEBAJO su cuenta.
+   Estuvo al lado y estaba mal: el número competía por el ancho con las cartas,
+   así que una mano larga lo empujaba fuera del paño y el paño lo recortaba —
+   desaparecía justo cuando más se lo mira. Debajo no compite con nada y no
+   puede irse a ninguna parte. Además queda igual que la del jugador, que
+   siempre estuvo abajo: la mesa se lee de una sola manera. */
+  .bj-mano-crupier{display:flex; flex-direction:column; align-items:center; gap:5px}
 /* Va con DOS clases (.bj-mano-crupier .bj-cuenta) y no con una sola: la regla
    general de .bj-cuenta está escrita más abajo en esta misma hoja, y entre dos
    reglas que pesan igual gana la última. Con dos clases pesa más y no depende
@@ -121,22 +139,23 @@
     font-size:30px; padding:9px 20px; min-width:70px; margin-top:0; flex:none;
     border-color:rgba(255,216,74,.5);
   }
-/* Cuánto se encima cada carta del crupier según cuántas lleve. La cuenta mide
-   112 px y el hueco entre las dos cosas 14, así que a las cartas les quedan
-   183 de los 309 del paño: el paso es (183 − 74) ÷ (n − 1) y el margen es ese
-   paso menos los 74 de la carta. Sin esto, a partir de la tercera carta la
-   fila empieza a empujar la cuenta hacia afuera y el paño la recorta.
-   Mientras el crupier tiene su carta tapada son siempre dos: ahí no toca nada. */
-  .bj-mano-crupier .bj-cartas[data-n="3"] .bj-carta + .bj-carta{margin-left:-20px}
-.bj-mano-crupier .bj-cartas[data-n="4"] .bj-carta + .bj-carta{margin-left:-38px}
-.bj-mano-crupier .bj-cartas[data-n="5"] .bj-carta + .bj-carta{margin-left:-47px}
-.bj-mano-crupier .bj-cartas[data-n="6"] .bj-carta + .bj-carta{margin-left:-52px}
-.bj-mano-crupier .bj-cartas[data-n="7"] .bj-carta + .bj-carta{margin-left:-56px}
-.bj-mano-crupier .bj-cartas[data-n="8"] .bj-carta + .bj-carta{margin-left:-58px}
-/* Red de seguridad para una mano imposiblemente larga: que la cuenta se
-   achique antes que desaparecer. Nunca por debajo de lo legible. */
-  .bj-mano-crupier{min-width:0}
-.bj-mano-crupier .bj-cartas{min-width:0; flex-shrink:1}
+/* Cuánto se encima cada carta del crupier. Con la cuenta debajo, las cartas
+   tienen los 309 px del paño enteros para ellas y no 183: hasta cinco cartas
+   entran abiertas, sin encimarse más de lo que ya vienen. De seis en adelante
+   el paso es (309 − 74) ÷ (n − 1) y el margen ese paso menos los 74 de la
+   carta. Con dos cartas —el 95% de las manos— no toca nada. */
+  .bj-mano-crupier .bj-cartas[data-n="5"] .bj-carta + .bj-carta{margin-left:-22px}
+.bj-mano-crupier .bj-cartas[data-n="6"] .bj-carta + .bj-carta{margin-left:-30px}
+.bj-mano-crupier .bj-cartas[data-n="7"] .bj-carta + .bj-carta{margin-left:-37px}
+.bj-mano-crupier .bj-cartas[data-n="8"] .bj-carta + .bj-carta{margin-left:-42px}
+.bj-mano-crupier .bj-cartas[data-n="9"] .bj-carta + .bj-carta{margin-left:-46px}
+.bj-mano-crupier{min-width:0}
+.bj-mano-crupier .bj-cartas{min-width:0}
+/* Sin cartas repartidas no se guarda el lugar de una carta. Antes daba igual
+   —la cuenta iba al costado— pero ahora que va debajo, ese hueco reservado
+   abría un vacío de 106 px entre el crupier y su cuenta, con la mesa esperando
+   que el jugador apueste. */
+  .bj-mano-crupier .bj-cartas[data-n="0"]{min-height:0; margin:0}
 /* La cuenta de la mano. Es EL número de esta pantalla: el jugador lo mira
      antes de cada decisión, muchas veces con el teléfono en la mano y a
      distancia de brazo. Va grande, con su propio aro, y es lo que más pesa
@@ -239,6 +258,27 @@
 /* Los tres botones tienen que entrar en UNA fila: si DOBLAR se va a un
      segundo renglón, en un teléfono queda debajo del borde y no se ve. */
   .bj-botones{display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin-top:10px}
+/* Todos los botones de la mesa van de canto recto: es una mesa de fieltro y
+   madera, no una aplicación de teléfono. */
+  .bj-botones button{border-radius:4px}
+/* Los CUATRO de jugada son cuadrados iguales, como las teclas de una botonera:
+   el dedo apunta mucho mejor a cuatro blancos del mismo tamaño que a cuatro de
+   anchos distintos, y son los que se tocan en cada mano.
+   Los de apostar y recoger NO se cuadran a propósito: dicen cosas como
+   "APOSTAR 170 EN 2" o "PONÉ AL MENOS 10", y esas palabras no entran en un
+   cuadrado sin partirse en cuatro renglones. Cantos rectos sí, forma no. */
+  .bj-botones.bj-jugada{gap:6px; flex-wrap:nowrap}
+/* 72 es el cuadrado más grande que entra: cuatro de 72 con tres huecos de 6
+   son 306 de los 309 que tiene el paño. Con 76 el cuarto botón se caía al
+   renglón de abajo.
+   La letra va en 10 y sin separación entre letras porque la palabra más larga
+   que muestran es PLANTARME, y a 11 con separación no entraba: se salía del
+   cuadrado (es una sola palabra, no tiene por dónde partirse). */
+  .bj-botones.bj-jugada button{
+    width:72px; height:72px; padding:2px 1px; font-size:10px; letter-spacing:0;
+    line-height:1.25; white-space:normal; display:flex; align-items:center;
+    justify-content:center; text-align:center; flex:none;
+  }
 button{
     font-family:Georgia,serif; font-size:11.5px; letter-spacing:1.2px; font-weight:700;
     padding:11px 11px; border-radius:8px; cursor:pointer; color:#1a1206;
@@ -298,7 +338,16 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
    de la mesa que no hace nada —es el adorno que le da cuerpo al lado del
    crupier— y son 44 px que en esas pantallas hacen la diferencia entre ver
    los botones o tener que deslizar justo cuando hay que decidir. */
-  @media (max-height: 720px){ .bj-fichero{display:none} }
+  @media (max-height: 720px){
+    .bj-fichero{display:none}
+    /* La mesa entera baja una talla. No es que sobre nada: es que en 667 px de
+       alto hay que elegir, y se elige que los botones queden a la vista antes
+       que el tamaño de las cosas. */
+    .bj-avatar{width:30px; height:30px; font-size:15px}
+    .bj-mano-crupier .bj-cuenta{font-size:24px; padding:6px 16px; min-width:58px}
+    .bj-botones.bj-jugada button{width:64px; height:64px; font-size:9.5px}
+    .bj-mesa{margin-top:6px}
+  }
 .bj-tubo{
     width:29px; height:25px; border-radius:3px;
     background:repeating-linear-gradient(180deg,
@@ -1263,7 +1312,7 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
               </div>
             )}
 
-            <div className="bj-botones">
+            <div className={'bj-botones' + (jugando ? ' bj-jugada' : '')}>
               {jugando ? (
                 // Ojo: PEDIR va con clase VACÍA —el botón dorado es el estilo
                 // base—, así que no sirve `COLOR_ACCION[a] || …`: un vacío es
