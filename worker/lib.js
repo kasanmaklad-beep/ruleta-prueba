@@ -791,12 +791,33 @@ export async function requireAuth(request, env) {
   // Releer siempre de la base: el rol o el bloqueo pueden haber cambiado
   // después de emitido el token.
   const row = await env.DB.prepare(
-    'SELECT id, username, role, status, credit_balance FROM users WHERE id = ?'
+    'SELECT id, username, role, status, credit_balance, sesion FROM users WHERE id = ?'
   ).bind(payload.sub).first();
 
   if (!row) return { error: true, response: json({ error: 'Usuario no encontrado' }, 401) };
   if (row.status === 'blocked') {
     return { error: true, response: json({ error: 'Tu cuenta está bloqueada. Contactá al administrador.' }, 403) };
+  }
+
+  // ── UNA SOLA SESIÓN POR CUENTA ─────────────────────────────────────────
+  // La marca del pase tiene que ser la misma que la guardada en la cuenta.
+  // Si no lo es, alguien entró después con este usuario y este aparato ya no
+  // manda. El 401 lleva `sesion_tomada` para que la pantalla sepa que no es
+  // un pase vencido —eso se arregla volviendo a entrar— sino que lo echaron,
+  // que es otra cosa y merece otro mensaje.
+  //
+  // Cuenta sin marca guardada (NULL) = sesión de antes de esta función: se
+  // acepta. Deja de aceptarse sola la primera vez que su dueño vuelve a
+  // entrar, y así nadie se quedó afuera en medio de una mano el día que se
+  // publicó esto.
+  if (row.sesion && payload.sid !== row.sesion) {
+    return {
+      error: true,
+      response: json({
+        error: 'Entraste desde otro teléfono. Esta cuenta se usa en un aparato a la vez.',
+        sesion_tomada: true,
+      }, 401),
+    };
   }
 
   return {
@@ -853,6 +874,22 @@ async function deriveBits(password, salt, iterations) {
     { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' }, key, 256
   );
   return new Uint8Array(bits);
+}
+
+// Abre una sesión nueva para una cuenta y devuelve su marca.
+//
+// Cada vez que alguien entra se genera una marca al azar y se GUARDA en la
+// cuenta, pisando la anterior. Como el pase que se entrega lleva esa marca
+// adentro y requireAuth compara las dos, pisar la marca vieja es lo que echa
+// al aparato anterior: su pase sigue siendo válido y sin vencer, pero ya no
+// coincide con la cuenta.
+//
+// Se usa también al cambiar la clave: cambiar la contraseña tiene que sacar a
+// cualquiera que estuviera adentro con la anterior, o no sirve de nada.
+export async function abrirSesion(env, userId) {
+  const sid = crypto.randomUUID();
+  await env.DB.prepare('UPDATE users SET sesion = ? WHERE id = ?').bind(sid, userId).run();
+  return sid;
 }
 
 export async function signJwt(payload, env) {

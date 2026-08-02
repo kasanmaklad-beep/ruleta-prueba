@@ -128,7 +128,11 @@
     );
   }
 
-  function LoginScreen({ onAuth }) {
+  // `aviso` es el motivo por el que la pantalla de entrada aparece sin que el
+  // jugador la haya pedido. Hoy pasa por una sola razón: entró con esta misma
+  // cuenta desde otro aparato y a este lo sacaron. Sin el motivo escrito, el
+  // jugador ve la entrada de la nada en medio de una mano y cree que se rompió.
+  function LoginScreen({ onAuth, aviso }) {
     const [mode, setMode] = useState(() =>
       new URLSearchParams(window.location.search).get('ref') ? 'register' : 'login');
     // El código de socio puede venir en el enlace que reparte el socio:
@@ -143,7 +147,7 @@
       doc_type: 'V', cedula: '', phone: '', email: '', bank: '',
       ref: refDeLaUrl.toUpperCase(),
     });
-    const [error, setError] = useState('');
+    const [error, setError] = useState(aviso || '');
     const [loading, setLoading] = useState(false);
     // La casilla de las condiciones y el panel que las muestra enteras.
     const [acepta, setAcepta] = useState(false);

@@ -43,6 +43,21 @@
     try { data = await res.json(); } catch (e) { /* sin cuerpo */ }
 
     if (!res.ok) {
+      // Lo echaron: alguien entró con esta misma cuenta desde otro aparato.
+      // No es un pase vencido ni una clave mal escrita, así que no alcanza con
+      // devolver el error y que cada pantalla haga lo que quiera: hay que
+      // soltar el pase acá mismo —si no, el juego sigue intentando con uno que
+      // ya no vale— y avisarle a la aplicación para que lo lleve a la entrada
+      // con el motivo escrito. Se avisa por evento y no llamando a nadie
+      // porque este archivo no conoce las pantallas ni tiene que conocerlas.
+      if (res.status === 401 && data && data.sesion_tomada) {
+        setToken(null);
+        try {
+          window.dispatchEvent(new CustomEvent('voltio:sesion-tomada', {
+            detail: { mensaje: data.error },
+          }));
+        } catch (e) { /* navegador viejo: al menos el pase ya se soltó */ }
+      }
       const err = new Error((data && data.error) || ('HTTP ' + res.status));
       err.status = res.status;
       err.data = data;
@@ -78,8 +93,13 @@
     },
     me() { return req('/api/me'); },
     updateProfile(data) { return PUT('/api/me', data); },
-    changePassword(current_password, new_password) {
-      return POST('/api/me/password', { current_password, new_password });
+    // Cambiar la clave saca de la cuenta a cualquier otro aparato, así que el
+    // servidor devuelve un pase nuevo para ESTE: hay que guardarlo o el que
+    // acaba de cambiar la clave se echa a sí mismo en el movimiento siguiente.
+    async changePassword(current_password, new_password) {
+      const d = await POST('/api/me/password', { current_password, new_password });
+      if (d && d.token) setToken(d.token);
+      return d;
     },
 
     // ── Juego ──

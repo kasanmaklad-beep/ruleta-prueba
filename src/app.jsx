@@ -1848,6 +1848,8 @@ function PantallaInvitacion({ codigo, user, onRegistrarme, onSeguir }) {
 function AppRoot() {
   const [status, setStatus] = useState('loading'); // loading | login | game | admin | taquilla | billetera
   const [user, setUser] = useState(null);
+  // Por qué apareció la pantalla de entrada sin que el jugador la pidiera.
+  const [avisoSesion, setAvisoSesion] = useState('');
   // Límites vigentes (topes, mínimos). Vienen con /api/me.
   const [config, setConfig] = useState(null);
   // Catálogo de mesas del salón (/api/games) y cuál se está jugando.
@@ -1902,6 +1904,22 @@ function AppRoot() {
     window.history.pushState({}, '', ruta);
     setStatus(pantalla);
   };
+
+  // Lo echaron de la cuenta: entraron con el mismo usuario desde otro aparato.
+  // Puede pasar en cualquier momento y desde cualquier pantalla —en medio de un
+  // giro, contando una mano— así que se escucha una sola vez acá arriba y no en
+  // cada pantalla. El pase ya lo soltó api.jsx; acá se lo lleva a la entrada
+  // con el motivo escrito, que es lo que evita el "se me rompió el juego".
+  useEffect(() => {
+    const echado = (e) => {
+      setAvisoSesion((e && e.detail && e.detail.mensaje)
+        || T('Entraste desde otro teléfono. Esta cuenta se usa en un aparato a la vez.'));
+      setUser(null);
+      setStatus('login');
+    };
+    window.addEventListener('voltio:sesion-tomada', echado);
+    return () => window.removeEventListener('voltio:sesion-tomada', echado);
+  }, []);
 
   useEffect(() => {
     if (!window.Api || !window.Api.getToken()) { setStatus('login'); return; }
@@ -2013,7 +2031,8 @@ function AppRoot() {
   }
 
   if (status === 'login') {
-    return <LoginScreen onAuth={(u) => {
+    return <LoginScreen aviso={avisoSesion} onAuth={(u) => {
+      setAvisoSesion('');
       setUser(u);
       setStatus(pantallaPara(u));
       // Los límites llegan con /api/me: se piden apenas entra.

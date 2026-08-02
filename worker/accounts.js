@@ -5,7 +5,7 @@
 
 import {
   json, readJson, str, normalizePhone, normalizeUsername, validateUsername,
-  toPositiveInt, hashPassword, verifyPassword, signJwt, getSettings, settingNum,
+  toPositiveInt, hashPassword, verifyPassword, signJwt, abrirSesion, getSettings, settingNum,
   requireAuth, requireAdmin, validMethod, USER_FIELDS, nowSql,
   NUMERIC_SETTINGS, DEFAULT_SETTINGS, checkMultiplo,
   normalizeNombre, normalizeDocumento, normalizeEmail,
@@ -111,7 +111,8 @@ export async function register(request, env) {
          versionCondiciones, nowSql(), mayorDeEdad ? 1 : 0).run();
 
   const user = await getUser(env, res.meta.last_row_id);
-  const token = await signJwt({ sub: user.id, username, is_admin: isAdmin, role }, env);
+  const sid = await abrirSesion(env, user.id);
+  const token = await signJwt({ sub: user.id, username, is_admin: isAdmin, role, sid }, env);
   return json({ token, user });
 }
 
@@ -235,8 +236,12 @@ export async function login(request, env) {
   }
 
   const user = await getUser(env, row.id);
+  // Entrar abre una sesión NUEVA y pisa la anterior: si la cuenta estaba
+  // abierta en otro aparato, ese queda afuera en su próximo movimiento. Una
+  // cuenta, un aparato.
+  const sid = await abrirSesion(env, user.id);
   const token = await signJwt(
-    { sub: user.id, username: user.username, is_admin: user.is_admin, role: user.role }, env
+    { sub: user.id, username: user.username, is_admin: user.is_admin, role: user.role, sid }, env
   );
   return json({ token, user });
 }
@@ -346,7 +351,17 @@ export async function changePassword(request, env) {
 
   await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
     .bind(await hashPassword(next), auth.userId).run();
-  return json({ ok: true });
+
+  // Cambiar la clave echa a cualquiera que estuviera adentro con la anterior:
+  // si no, cambiarla no sirve de nada — el que se metió con la clave vieja
+  // sigue jugando con su pase hasta que venza. Al que la cambió se le entrega
+  // un pase nuevo para que no se eche a sí mismo.
+  const sid = await abrirSesion(env, auth.userId);
+  const user = await getUser(env, auth.userId);
+  const token = await signJwt(
+    { sub: user.id, username: user.username, is_admin: user.is_admin, role: user.role, sid }, env
+  );
+  return json({ ok: true, token });
 }
 
 // ─────────────────────────── Gestión desde el panel ───────────────────────
@@ -456,8 +471,15 @@ export async function adminResetPassword(request, env, userId) {
   const target = await getUser(env, userId);
   if (!target) return json({ error: 'Usuario no encontrado' }, 404);
 
-  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
-    .bind(await hashPassword(next), userId).run();
+  // Cambiarle la clave a alguien desde el panel lo saca de la mesa en el acto:
+  // `sesion = NULL` no sirve —con NULL se acepta cualquier pase— así que se le
+  // pone una marca nueva que ningún pase entregado tiene.
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .bind(await hashPassword(next), userId),
+    env.DB.prepare('UPDATE users SET sesion = ? WHERE id = ?')
+      .bind(crypto.randomUUID(), userId),
+  ]);
   return json({ ok: true });
 }
 
