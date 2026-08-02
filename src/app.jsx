@@ -280,6 +280,16 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
 
   // Estado del juego — el saldo es autoritativo del servidor (cae a STARTING_BALANCE solo sin sesión)
   const [balance, setBalance] = useState(user ? user.balance : STARTING_BALANCE);
+  // Lo que está RETENIDO por un retiro esperando aprobación. Es plata del
+  // jugador, pero no la puede jugar: el servidor descuenta contra
+  // `balance - held_balance` y rechaza la apuesta que se pase de ahí.
+  const [retenido, setRetenido] = useState(user ? (user.held_balance || 0) : 0);
+  // EL número del jugador. Antes la mesa mostraba el saldo entero: pedías un
+  // retiro de 300 con 2.300 y la mesa seguía diciendo 2.300 mientras la CAJA
+  // decía 2.000. Dos pantallas, dos números, y si apostabas contra el que
+  // mostraba la mesa el servidor te rechazaba la jugada. Se muestra lo que se
+  // puede jugar, que es lo único que le sirve para decidir.
+  const disponible = Math.max(0, balance - retenido);
   const [bets, setBets] = useState([]);
   const [lastBets, setLastBets] = useState([]);
   // Aviso corto que pisa al historial: si no, el jugador toca una ficha
@@ -406,8 +416,10 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
 
   const placeBet = useCallback((bet) => {
     if (!apuestasAbiertas) return;
-    if (bet.amount > balance) {
-      avisar(T('Saldo insuficiente'));
+    if (bet.amount > disponible) {
+      avisar(retenido > 0
+        ? T('Ese saldo está retenido por un retiro en revisión')
+        : T('Saldo insuficiente'));
       return;
     }
     // Tope por casilla: se frena acá, con la ficha en la mano. Cubrir otras
@@ -429,7 +441,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     }
     setBalance((b) => b - bet.amount);
     setBets((bs) => [...bs, bet]);
-  }, [apuestasAbiertas, balance, bets, topeDe, avisar]);
+  }, [apuestasAbiertas, disponible, retenido, bets, topeDe, avisar]);
 
   // Mudar una ficha de una casilla a otra: se levanta la ÚLTIMA de la casilla
   // de origen y se apoya en la de destino, con el mismo monto. No es poner una
@@ -560,6 +572,9 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
           const premio = typeof server.win === 'number' ? server.win : 0;
           setBalance(server.balance - premio);
         }
+        // Lo retenido puede haber cambiado mientras jugaba: el socio le aprobó
+        // o le rechazó el retiro y el saldo que puede jugar es otro.
+        if (typeof server.held_balance === 'number') setRetenido(server.held_balance);
         // Modo prueba: se anota el giro con lo apostado y lo ganado.
         if (pruebaTotal > 0) {
           const stake = finales.reduce((s, b) => s + b.amount, 0);
@@ -589,7 +604,11 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
         if (window.AudioEngine) { try { window.AudioEngine.stopSpin(); } catch (e) {} }
         setPhase('betting');
         setMessage(err && err.message ? T(err.message) : T('No se pudo girar'));
-        window.Api.me().then((d) => d && d.user && setBalance(d.user.balance)).catch(() => {});
+        window.Api.me().then((d) => {
+          if (!d || !d.user) return;
+          setBalance(d.user.balance);
+          setRetenido(d.user.held_balance || 0);
+        }).catch(() => {});
       });
   }, [runSpinAnimation, ficha.id, pruebaTotal]);
 
@@ -663,11 +682,11 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     }
     // Repetir apuestas (sin girar) — el jugador decide cuándo girar
     const total = lastBets.reduce((s, b) => s + b.amount, 0);
-    if (total > balance) { setMessage(T('Saldo insuficiente para repetir')); return; }
+    if (total > disponible) { setMessage(T('Saldo insuficiente para repetir')); return; }
     setBalance((b) => b - total);
     setBets(lastBets.map(b => ({ ...b })));
     if (window.AudioEngine) window.AudioEngine.chip();
-  }, [phase, bets, lastBets, balance, startSpin]);
+  }, [phase, bets, lastBets, disponible, startSpin]);
 
   const handleSpinEnd = useCallback(() => {
     setCameraZoom(false);
@@ -684,6 +703,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     setWinAmount(total);
     setWinDetails(server.winDetails || null);
     if (typeof server.balance === 'number') setBalance(server.balance);
+    if (typeof server.held_balance === 'number') setRetenido(server.held_balance);
 
     setHistory((h) => [{ n: resultNum, color: numColor(resultNum), lightning: anyLightning }, ...h].slice(0, HISTORIAL_MAX));
 
@@ -729,7 +749,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
   // Auto-spin
   useEffect(() => {
     if (!t.autoSpin) return;
-    if (phase === 'betting' && lastBets.length > 0 && balance >= lastBets.reduce((s, b) => s + b.amount, 0)) {
+    if (phase === 'betting' && lastBets.length > 0 && disponible >= lastBets.reduce((s, b) => s + b.amount, 0)) {
       const timer = setTimeout(() => {
         // Repetir apuestas anteriores
         const total = lastBets.reduce((s, b) => s + b.amount, 0);
@@ -742,7 +762,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [t.autoSpin, phase, lastBets, balance]);
+  }, [t.autoSpin, phase, lastBets, disponible]);
 
   // Theme background
   const bgByTheme = {
@@ -821,7 +841,18 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: isMobile ? 8 : 10, letterSpacing: isMobile ? 1 : 2, color: '#888' }}>{T('SALDO')}</div>
-            <div style={{ fontSize: isMobile ? 14 : 26, fontWeight: 900, color: '#fff' }}>${balance.toLocaleString()}</div>
+            <div style={{ fontSize: isMobile ? 14 : 26, fontWeight: 900, color: '#fff' }}>${disponible.toLocaleString()}</div>
+            {/* Lo retenido se DICE. Si sólo bajáramos el número, el jugador que
+                pidió un retiro ve menos plata de la que tiene y piensa que se
+                la comimos. */}
+            {retenido > 0 && (
+              <div style={{
+                fontSize: isMobile ? 7.5 : 10, color: '#c9a227', letterSpacing: .5,
+                lineHeight: 1.2, marginTop: 1,
+              }}>
+                +${retenido.toLocaleString()} {T('en revisión')}
+              </div>
+            )}
           </div>
           {/* Sonido del giro */}
           <div style={{ position: 'relative' }}>
@@ -1264,7 +1295,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                         key={v}
                         value={v}
                         selected={selectedChip === v}
-                        disabled={!apuestasAbiertas || v > balance}
+                        disabled={!apuestasAbiertas || v > disponible}
                         compact
                         onClick={() => {
                           setSelectedChip(v);
@@ -1400,7 +1431,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                       key={v}
                       value={v}
                       selected={selectedChip === v}
-                      disabled={!apuestasAbiertas || v > balance}
+                      disabled={!apuestasAbiertas || v > disponible}
                       onClick={() => {
                         setSelectedChip(v);
                         if (window.AudioEngine) window.AudioEngine.chip();

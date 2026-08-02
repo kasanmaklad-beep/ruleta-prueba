@@ -824,7 +824,16 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
     const puestosEnJuego = enPaño
       ? new Set(((E && E.manos) || []).map((h) => h.puesto)).size || 1
       : puestos;
-    const saldo = E && E.balance != null ? E.balance : (user ? user.balance : 0);
+    // El saldo que se muestra y con el que se apuesta es el DISPONIBLE: lo que
+    // hay menos lo retenido por un retiro esperando aprobación. Esa plata es
+    // del jugador pero no la puede jugar —el servidor descuenta contra
+    // `balance - held_balance`—, así que mostrarle el total lo mandaba a
+    // apostar contra un número que la mesa le iba a rechazar. La CAJA siempre
+    // mostró el disponible: acá se muestra lo mismo.
+    const bruto = E && E.balance != null ? E.balance : (user ? user.balance : 0);
+    const retenido = (E && E.held_balance != null)
+      ? E.held_balance : ((user && user.held_balance) || 0);
+    const saldo = Math.max(0, bruto - retenido);
 
     const montoDe = (p) => (pilas[p] || []).reduce((s, v) => s + v, 0);
     const montoTotal = () => pilas.reduce((s, _, p) => s + montoDe(p), 0);
@@ -1195,6 +1204,16 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
                   símbolo de la moneda configurada, no con el formato de un
                   país clavado a mano. */}
               {' '}{T('saldo')} <span className="bj-saldo">{window.UI.plata(saldo)}</span>
+              {/* Lo retenido se dice, no se esconde: si el número baja sin
+                  explicación, el jugador cree que le faltó plata. */}
+              {retenido > 0 && (
+                <span style={{
+                  display: 'block', fontSize: 9, color: '#c9a227',
+                  whiteSpace: 'nowrap', textAlign: 'right', lineHeight: 1.3,
+                }}>
+                  +{window.UI.plata(retenido)} {T('en revisión')}
+                </span>
+              )}
             </span>
           </span>
         </div>

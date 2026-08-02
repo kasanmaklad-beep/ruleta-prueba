@@ -54,6 +54,12 @@
       estado: 'apostando', ronda: null, version: 0, balance: 1250,
       mesa: MESA, manos: [], crupier: null, acciones: [],
     },
+    // El jugador pidió un retiro de 300 y el socio todavía no lo aprobó: tiene
+    // 2300 pero sólo puede jugar 2000.
+    retenido: {
+      estado: 'apostando', ronda: null, version: 0, balance: 2300, held_balance: 300,
+      mesa: MESA, manos: [], crupier: null, acciones: [],
+    },
     jugando: {
       estado: 'jugando', ronda: 9001, version: 3, balance: 1150, mano_activa: 0,
       mesa: MESA,

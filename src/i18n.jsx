@@ -174,6 +174,12 @@
       'GIRAR': 'SPIN',
       'SALÓN': 'ROOM',
       'Saldo insuficiente': 'Not enough balance',
+      // Lo retenido por un retiro que el socio todavía no aprobó: es plata del
+      // jugador que no puede jugar, y la mesa ahora lo dice en vez de sumarla
+      // al saldo.
+      'en revisión': 'on hold',
+      'Ese saldo está retenido por un retiro en revisión':
+        'That money is on hold for a withdrawal under review',
       'No hay apuestas': 'No bets placed',
       'Esa mesa no existe o está cerrada': 'That table does not exist or is closed',
       'GANASTE': 'YOU WON',
