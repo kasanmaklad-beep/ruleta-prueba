@@ -38,6 +38,18 @@ function parsePerfil(body, { pideBanco = true } = {}) {
   return { perfil: { firstName, lastName, doc, phone, email, bank } };
 }
 
+// Cómo se le dice al jugador dónde pagarle a su banquero. Se guarda armado
+// porque es lo que el jugador ve tal cual en su billetera.
+//
+// El banquero que no trabaja con bancos elige EFECTIVO en la lista, y ahí
+// "EFECTIVO (sin banco) 04141234567" se lee mal. Con efectivo lo único que
+// hace falta es el teléfono: se cobra en la mano.
+function datosDeCobro(bank, phone) {
+  const b = String(bank || '');
+  if (b.toUpperCase().startsWith('EFECTIVO')) return `Efectivo · ${phone}`;
+  return `${b} ${phone}`.trim();
+}
+
 // Chequea que el usuario y el documento no estén tomados.
 async function libreONull(env, username, documento) {
   const u = await env.DB.prepare('SELECT id FROM users WHERE username = ?').bind(username).first();
@@ -197,7 +209,8 @@ export async function crearBanquero(env, body, { creadorId, execId = null, permi
      VALUES (?, ?, 0, 0, 'cashier', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?, ?)`
   ).bind(username, password_hash, comision, share, perfil.phone, perfil.firstName,
          perfil.lastName, perfil.doc.documento, perfil.doc.doc_type, perfil.email,
-         perfil.bank, `${perfil.bank} ${perfil.phone}`, `${perfil.bank} ${perfil.phone}`,
+         perfil.bank, datosDeCobro(perfil.bank, perfil.phone),
+         datosDeCobro(perfil.bank, perfil.phone),
          creadorId, execId).run();
 
   const id = res.meta.last_row_id;

@@ -635,7 +635,10 @@
           <Campo label="BANCO">
             <select style={S.input} value={f.bank} onChange={set('bank')} required>
               <option value="">Elegí…</option>
-              {U.BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
+              {/* El banquero que cobra en la mano elige EFECTIVO. Va primero
+                  porque hoy la casa trabaja así y es lo que va a elegir casi
+                  todo el mundo. */}
+              {[U.EFECTIVO, ...U.BANCOS].map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           </Campo>
           <Campo label="CORREO">

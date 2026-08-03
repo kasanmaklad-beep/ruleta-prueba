@@ -360,6 +360,12 @@
 
   // Bancos venezolanos con Pago Móvil, por código. El código es lo que el
   // jugador dicta cuando le vas a transferir.
+  // "EFECTIVO" es para el BANQUERO que no trabaja con bancos: cobra y paga en
+  // la mano. Va aparte de BANCOS y no adentro, a propósito: en la lista del
+  // JUGADOR no tiene sentido —ahí el banco es a dónde se le manda su plata— y
+  // ofrecérselo sólo lo confundiría. Lo suman los formularios de alta de
+  // banquero, que son los únicos que lo necesitan.
+  const EFECTIVO = 'EFECTIVO (sin banco)';
   const BANCOS = [
     '0102 - Banco de Venezuela',
     '0104 - Venezolano de Crédito',
@@ -432,7 +438,7 @@
 
   window.UI = {
     GOLD, BORDER, bs, plata, simbolo, nombreMoneda, setMoneda, enBolivares,
-    fecha, styles, paleta, PALETAS, METODOS, BANCOS, DOCS, ejemploDoc, nombreMetodo,
+    fecha, styles, paleta, PALETAS, METODOS, BANCOS, EFECTIVO, DOCS, ejemploDoc, nombreMetodo,
     Boton, Aviso, Dato, Encabezado, Pestanas, Tabla, Estado, Confirmar, Campo, useForm, Idioma,
   };
 })();
