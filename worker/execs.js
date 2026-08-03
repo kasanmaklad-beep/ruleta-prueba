@@ -6,19 +6,23 @@
 //  arma y maneja su red de banqueros, les cobra a ellos, y rinde cuentas con
 //  la matriz cada tanto.
 //
-//  ESTO ES LA ETAPA 1 y sólo hace dos cosas: el vínculo (qué banquero cuelga
-//  de qué ejecutivo) y la MIRADA (el ejecutivo ve su red). Acá todavía no se
-//  mueve una sola ficha ni existe la deuda: eso llega en la etapa 3.
+//  HASTA ACÁ VAN LAS ETAPAS 1 Y 2: el vínculo (qué banquero cuelga de qué
+//  ejecutivo), la MIRADA (ve su red) y el ALTA (arma su red creando sus
+//  propios banqueros). Todavía no se mueve una sola ficha ni existe la deuda:
+//  eso llega en la etapa 3.
 //
 //  La regla que manda en este archivo: el ejecutivo VE a los jugadores de sus
 //  banqueros pero NO les toca el saldo. Cargar y pagar sigue siendo del
 //  banquero, que es quien pone la cara y la plata. Por eso acá no hay ni un
-//  UPDATE sobre `balance`.
+//  UPDATE sobre `balance`, y no lo tiene que haber nunca.
 // ════════════════════════════════════════════════════════════════════════
 
 import {
   json, readJson, toPositiveInt, requireAdmin, requireExec,
 } from './lib.js';
+// El alta de banquero es la MISMA que usa la matriz: una sola función, un solo
+// juego de validaciones.
+import { crearBanquero } from './accounts.js';
 
 // A quién estoy mirando. El ejecutivo se mira a sí mismo; el dueño puede
 // mirar a cualquiera pasando `?exec=<id>`, porque está por encima de él y si
@@ -103,6 +107,42 @@ export async function execPlayers(request, env, url) {
   ).bind(quien.execId).all();
 
   return json({ jugadores: rows.results || [] });
+}
+
+// ──────────────────── Lo que el ejecutivo SÍ puede hacer ──────────────────
+
+// Crear un banquero suyo. Es la única operación de esta etapa que escribe algo:
+// arma su red. El banquero nace colgado de él, sin que haya que asignarlo
+// después.
+//
+// Usa la MISMA función de alta que la matriz (crearBanquero), no una copia:
+// mismas validaciones de usuario, clave, documento y comisión. Con dos altas
+// parecidas en dos archivos, en un mes se comportan distinto.
+//
+// Dos cosas que el ejecutivo NO decide, a propósito:
+//  · la participación en la ganancia (`risk_share_pct`) queda en 0 — eso es
+//    plata de la casa y la reparte la matriz, no él;
+//  · nada del saldo de los jugadores, que sigue siendo del banquero.
+export async function execCreateCashier(request, env) {
+  const auth = await requireExec(request, env);
+  if (auth.error) return auth.response;
+
+  // El dueño no crea banqueros por acá: para eso tiene el PANEL MATRIZ, donde
+  // además puede fijar la participación. Si entra por acá es por error, y es
+  // mejor decírselo que dejarle un banquero colgado de nadie.
+  if (auth.role === 'admin') {
+    return json({
+      error: 'Creá el banquero desde el PANEL MATRIZ: ahí podés elegir de qué ejecutivo cuelga.',
+    }, 400);
+  }
+
+  const body = await readJson(request);
+  const r = await crearBanquero(env, body, {
+    creadorId: auth.userId,
+    execId: auth.userId,
+    permiteRiesgo: false,
+  });
+  return r.error || json({ cashier: r.cashier });
 }
 
 // ──────────────────── Lo que hace el dueño con ellos ──────────────────────

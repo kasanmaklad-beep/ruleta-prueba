@@ -23,7 +23,8 @@ import {
 
 // La capa ejecutiva: matriz → ejecutivo → banquero → jugador.
 import {
-  execSummary, execPlayers, adminExecs, adminSetExec, adminSetExecLimite,
+  execSummary, execPlayers, execCreateCashier,
+  adminExecs, adminSetExec, adminSetExecLimite,
 } from './execs.js';
 
 import {
@@ -198,6 +199,8 @@ async function handleApi(request, env, url) {
   // de cualquiera agregando ?exec=<id>, porque está por encima.
   if (method === 'GET'  && path === '/api/exec/summary') return execSummary(request, env, url);
   if (method === 'GET'  && path === '/api/exec/players') return execPlayers(request, env, url);
+  // El ejecutivo arma su propia red: el banquero nace colgado de él.
+  if (method === 'POST' && path === '/api/exec/cashiers') return execCreateCashier(request, env);
   if (method === 'GET'  && path === '/api/admin/execs')  return adminExecs(request, env);
   // Colgar un banquero de un ejecutivo (o devolverlo a la matriz).
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/cashiers\/(\d+)\/exec$/)))

@@ -163,6 +163,8 @@
     // pasando su id, porque está por encima de él.
     execSummary(exec) { return req('/api/exec/summary' + qs({ exec })); },
     execPlayers(exec) { return req('/api/exec/players' + qs({ exec })); },
+    // El ejecutivo crea sus propios banqueros: nacen colgados de él.
+    execCreateCashier(datos) { return POST('/api/exec/cashiers', datos); },
     adminExecs() { return req('/api/admin/execs'); },
     // Colgar un banquero de un ejecutivo. Con exec_id en null vuelve a la matriz.
     adminSetExec(cashierId, exec_id) {

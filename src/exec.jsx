@@ -3,15 +3,141 @@
 //
 // El piso del medio: matriz → EJECUTIVO → banquero → jugador.
 //
-// ESTO ES LA ETAPA 1 y por eso el panel MIRA y no toca: su red de banqueros y
-// los jugadores de ellos. Todavía no se mueve una ficha ni existe la deuda —
-// eso llega en la etapa 3. Si algún día aparece acá un botón que cambie un
-// saldo de jugador, está mal: cargar y pagar es del banquero, que es quien
-// pone la cara y la plata.
+// El ejecutivo ARMA su red (crea sus banqueros) y la MIRA: sus banqueros y los
+// jugadores de ellos. Todavía no se mueve una ficha ni existe la deuda — eso
+// llega en la etapa 3.
+//
+// Si algún día aparece acá un botón que cambie el saldo de un JUGADOR, está
+// mal: cargar y pagar es del banquero, que es quien pone la cara y la plata.
 (function () {
   const { useState, useEffect, useCallback } = React;
   const U = window.UI;
-  const { plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Estado } = U;
+  const { plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Estado, Campo } = U;
+
+  // Alta de un banquero propio. Los mismos campos que usa la matriz, MENOS la
+  // participación en la ganancia: esa es plata de la casa y la fija el dueño,
+  // no el ejecutivo. El banquero nace colgado de quien lo crea.
+  function FormNuevoBanquero({ setMsg, onHecho }) {
+    const vacio = {
+      first_name: '', last_name: '', doc_type: 'V', cedula: '', phone: '',
+      email: '', bank: '', username: '', password: '', commission_pct: '20',
+      referral_code: '',
+    };
+    const [f, setF] = useState(vacio);
+    const [abierto, setAbierto] = useState(false);
+    const [enviando, setEnviando] = useState(false);
+    const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+    const crear = async (e) => {
+      e.preventDefault();
+      setEnviando(true);
+      try {
+        const res = await window.Api.execCreateCashier({
+          ...f,
+          commission_pct: Number(f.commission_pct),
+          referral_code: f.referral_code.trim() || undefined,
+        });
+        setMsg({
+          kind: 'ok',
+          text: `Banquero ${res.cashier.username} creado y colgado de vos. `
+              + `Su código de referencia es ${res.cashier.referral_code}: con ese código `
+              + `sus jugadores le quedan adjudicados.`,
+        });
+        setF(vacio); setAbierto(false);
+        onHecho();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+      finally { setEnviando(false); }
+    };
+
+    if (!abierto) {
+      return (
+        <div style={S.card}>
+          <div style={{
+            display: 'flex', justifyContent: 'space-between',
+            alignItems: 'center', gap: 12, flexWrap: 'wrap',
+          }}>
+            <div>
+              <div style={{ ...S.titulo, marginBottom: 4 }}>TU RED</div>
+              <div style={{ fontSize: 12, color: '#8f83b0', lineHeight: 1.6 }}>
+                Los banqueros que crees acá quedan a tu cargo. Cada uno recibe un código de
+                referencia para que sus jugadores le queden adjudicados.
+              </div>
+            </div>
+            <Boton tono="verde" onClick={() => setAbierto(true)}>+ NUEVO BANQUERO</Boton>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={S.card}>
+        <div style={{
+          display: 'flex', justifyContent: 'space-between',
+          alignItems: 'center', marginBottom: 12,
+        }}>
+          <div style={{ ...S.titulo, marginBottom: 0 }}>NUEVO BANQUERO</div>
+          <Boton chico tono="gris" onClick={() => setAbierto(false)}>CANCELAR</Boton>
+        </div>
+        <form onSubmit={crear} style={{
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12,
+        }}>
+          <Campo label="NOMBRE">
+            <input style={S.input} value={f.first_name} onChange={set('first_name')} required />
+          </Campo>
+          <Campo label="APELLIDO">
+            <input style={S.input} value={f.last_name} onChange={set('last_name')} required />
+          </Campo>
+          <Campo label="DOCUMENTO">
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 6 }}>
+              <select style={S.input} value={f.doc_type} onChange={set('doc_type')}>
+                {U.DOCS.map(([id]) => <option key={id} value={id}>{id}</option>)}
+              </select>
+              <input style={S.input} placeholder={U.ejemploDoc(f.doc_type)}
+                     value={f.cedula} onChange={set('cedula')} required />
+            </div>
+          </Campo>
+          <Campo label="TELÉFONO">
+            <input style={S.input} placeholder="04141234567" value={f.phone}
+                   onChange={set('phone')} required />
+          </Campo>
+          <Campo label="BANCO">
+            <select style={S.input} value={f.bank} onChange={set('bank')} required>
+              <option value="">Elegí…</option>
+              {U.BANCOS.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </Campo>
+          <Campo label="CORREO">
+            <input style={S.input} type="email" value={f.email} onChange={set('email')} required />
+          </Campo>
+          <Campo label="USUARIO PARA ENTRAR">
+            <input style={S.input} value={f.username} onChange={set('username')} required />
+          </Campo>
+          <Campo label="CONTRASEÑA">
+            <input style={S.input} value={f.password} onChange={set('password')}
+                   placeholder="mínimo 6 caracteres" required />
+          </Campo>
+          <Campo label="TE PAGA EL (%) DE LAS FICHAS">
+            <input style={S.input} type="number" min="1" max="100"
+                   value={f.commission_pct} onChange={set('commission_pct')} required />
+            <div style={{ fontSize: 11, color: '#8f83b0', marginTop: 4, lineHeight: 1.5 }}>
+              Con {f.commission_pct || 0}% te paga {plata(Math.round(10000 * ((Number(f.commission_pct) || 0) / 100)))} por
+              cada 10.000 de fichas. Lo típico es 20.
+            </div>
+          </Campo>
+          <Campo label="CÓDIGO (opcional)">
+            <input style={{ ...S.input, textTransform: 'uppercase' }}
+                   placeholder="se genera solo" value={f.referral_code}
+                   onChange={set('referral_code')} />
+          </Campo>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <Boton tono="verde" disabled={enviando}>
+              {enviando ? 'CREANDO…' : 'CREAR BANQUERO'}
+            </Boton>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   function ExecPanel({ user, onExit, onLogout }) {
     const [data, setData] = useState(null);
@@ -69,8 +195,8 @@
                   padding: '14px 16px', borderRadius: 8, fontSize: 15, lineHeight: 1.7,
                   background: 'rgba(167,139,250,0.12)', border: '1px solid #5b3fa8', color: '#d8ccff',
                 }}>
-                  Todavía no tenés banqueros a cargo. Los asigna la matriz desde su panel:
-                  pedile al dueño que te cuelgue los que vas a manejar.
+                  Todavía no tenés banqueros a cargo. Creá el primero con “+ NUEVO BANQUERO”,
+                  o pedile al dueño que te cuelgue alguno de los que ya existen.
                 </div>
               )}
 
@@ -112,6 +238,8 @@
                   </div>
                 </div>
               )}
+
+              <FormNuevoBanquero setMsg={setMsg} onHecho={cargar} />
 
               <div style={S.card}>
                 <div style={S.titulo}>TUS BANQUEROS</div>

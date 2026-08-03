@@ -137,66 +137,91 @@ export async function aceptarCondiciones(request, env) {
   return json({ user: await getUser(env, auth.userId) });
 }
 
-// ─────────────────────── Alta de banqueros (solo la casa) ────────────────────
-// El banquero no se registra solo: lo da de alta la casa matriz con su ficha
-// completa, su comisión y su código de referencia.
-export async function adminCreateCashier(request, env) {
-  const auth = await requireAdmin(request, env);
-  if (auth.error) return auth.response;
-
-  const body = await readJson(request);
+// ────────────────────────── Alta de banqueros ────────────────────────────
+// El banquero no se registra solo: lo da de alta la matriz o su ejecutivo,
+// con la ficha completa, su comisión y su código de referencia.
+//
+// El alta va en UN SOLO LUGAR. La usan la matriz y el ejecutivo:
+// si mañana cambia una validación —el largo de la clave, el rango de la
+// comisión— cambia para los dos. Dos altas parecidas en dos archivos es la
+// forma más segura de que dentro de un mes se comporten distinto.
+//
+// `creadorId` queda guardado en `created_by`: quién lo dio de alta.
+// `execId` es de qué ejecutivo cuelga (null = de la matriz).
+// `permiteRiesgo` es falso cuando lo crea un ejecutivo: la participación en la
+// ganancia es plata de la casa y no la reparte él.
+export async function crearBanquero(env, body, { creadorId, execId = null, permiteRiesgo = true }) {
   const username = normalizeUsername(body.username);
   const password = String(body.password || '');
 
   const uErr = validateUsername(username);
-  if (uErr) return json({ error: uErr }, 400);
-  if (password.length < 6) return json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400);
+  if (uErr) return { error: json({ error: uErr }, 400) };
+  if (password.length < 6) {
+    return { error: json({ error: 'La contraseña debe tener al menos 6 caracteres' }, 400) };
+  }
 
   const { perfil, error } = parsePerfil(body);
-  if (error) return json({ error }, 400);
+  if (error) return { error: json({ error }, 400) };
 
   const tomado = await libreONull(env, username, perfil.doc.documento);
-  if (tomado) return json({ error: tomado }, 409);
+  if (tomado) return { error: json({ error: tomado }, 409) };
 
   // commission_pct = el % del valor de las fichas que el banquero PAGA (típico: 20).
   const comision = Number(body.commission_pct);
   if (!Number.isFinite(comision) || comision < 1 || comision > 100) {
-    return json({ error: 'El % que paga por las fichas debe estar entre 1 y 100' }, 400);
+    return { error: json({ error: 'El % que paga por las fichas debe estar entre 1 y 100' }, 400) };
   }
 
   // Participación en la ganancia (franquicia con responsabilidad compartida).
   // 0 = riesgo completo del banquero. Máximo 30, por decisión del dueño.
-  const share = Number(body.risk_share_pct ?? 0);
+  const share = permiteRiesgo ? Number(body.risk_share_pct ?? 0) : 0;
   if (!Number.isFinite(share) || share < 0 || share > 30) {
-    return json({ error: 'La participación en la ganancia va de 0 a 30%' }, 400);
+    return { error: json({ error: 'La participación en la ganancia va de 0 a 30%' }, 400) };
   }
 
-  // Código propuesto por el dueño, o generado con el id después de insertar.
+  // Código propuesto, o generado con el id después de insertar.
   let code = null;
   if (body.referral_code) {
     code = normalizeRefCode(body.referral_code);
-    if (!code) return json({ error: 'El código debe tener entre 3 y 12 letras o números' }, 400);
+    if (!code) return { error: json({ error: 'El código debe tener entre 3 y 12 letras o números' }, 400) };
     const dup = await env.DB.prepare('SELECT id FROM users WHERE referral_code = ?').bind(code).first();
-    if (dup) return json({ error: `El código ${code} ya está usado por otro banquero` }, 409);
+    if (dup) return { error: json({ error: `El código ${code} ya está usado por otro banquero` }, 409) };
   }
 
   const password_hash = await hashPassword(password);
   const res = await env.DB.prepare(
     `INSERT INTO users (username, password_hash, balance, is_admin, role, commission_pct,
                         risk_share_pct, phone, first_name, last_name, cedula, doc_type,
-                        email, bank, payout_method, payout_details, collect_details, created_by)
-     VALUES (?, ?, 0, 0, 'cashier', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?)`
+                        email, bank, payout_method, payout_details, collect_details,
+                        created_by, exec_id)
+     VALUES (?, ?, 0, 0, 'cashier', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pago_movil', ?, ?, ?, ?)`
   ).bind(username, password_hash, comision, share, perfil.phone, perfil.firstName,
          perfil.lastName, perfil.doc.documento, perfil.doc.doc_type, perfil.email,
          perfil.bank, `${perfil.bank} ${perfil.phone}`, `${perfil.bank} ${perfil.phone}`,
-         auth.userId).run();
+         creadorId, execId).run();
 
   const id = res.meta.last_row_id;
   await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?')
     .bind(code || refCodeDeId(id), id).run();
 
-  return json({ cashier: await getUser(env, id) });
+  return { cashier: await getUser(env, id) };
 }
+
+export async function adminCreateCashier(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  // La matriz puede crearlo ya colgado de un ejecutivo, o dejarlo bajo su ala.
+  const execId = body.exec_id ? Number(body.exec_id) : null;
+  if (execId) {
+    const e = await env.DB.prepare("SELECT id FROM users WHERE id = ? AND role = 'exec'").bind(execId).first();
+    if (!e) return json({ error: 'Ese ejecutivo no existe' }, 404);
+  }
+  const r = await crearBanquero(env, body, { creadorId: auth.userId, execId });
+  return r.error || json({ cashier: r.cashier });
+}
+
 
 // Cambiar el código de referencia de un banquero.
 export async function adminSetRefCode(request, env, userId) {
