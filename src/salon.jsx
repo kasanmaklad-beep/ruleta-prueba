@@ -186,7 +186,7 @@
             )}
             {onOpenCashier && (
               <button onClick={onOpenCashier}
-                style={botoncito('#8b6a20', 'rgba(0,0,0,0.4)', '#d4a94a')}>{T('TAQUILLA')}</button>
+                style={botoncito('#8b6a20', 'rgba(0,0,0,0.4)', '#d4a94a')}>{T('BANCA')}</button>
             )}
             {onOpenAdmin && (
               <button onClick={onOpenAdmin}

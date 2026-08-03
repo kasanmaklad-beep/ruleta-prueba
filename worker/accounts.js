@@ -14,7 +14,7 @@ import {
 } from './lib.js';
 
 // ─────────────────────── Ficha de datos personales ────────────────────────
-// La usan el registro del jugador y el alta de socios desde el panel, para
+// La usan el registro del jugador y el alta de banqueros desde el panel, para
 // que a nadie le falten datos según por dónde haya entrado.
 // Devuelve { perfil } o { error }.
 // `pideBanco` es falso cuando la casa paga en efectivo: ahí el banco no se
@@ -56,7 +56,7 @@ export async function register(request, env) {
 
   const settings = await getSettings(env);
   if (settingNum(settings, 'registration_open') !== 1) {
-    return json({ error: 'El registro está cerrado. Pedile una cuenta a tu socio.' }, 403);
+    return json({ error: 'El registro está cerrado. Pedile una cuenta a tu banquero.' }, 403);
   }
 
   const uErr = validateUsername(username);
@@ -81,16 +81,16 @@ export async function register(request, env) {
   const tomado = await libreONull(env, username, perfil.doc.documento);
   if (tomado) return json({ error: tomado }, 409);
 
-  // Código de socio: si viene, el jugador queda adjudicado a esa cuenta.
+  // Código de banquero: si viene, el jugador queda adjudicado a esa cuenta.
   let cashierId = null;
   let affiliatedAt = null;
   const ref = normalizeRefCode(body.ref);
   if (ref) {
-    const socio = await env.DB.prepare(
+    const banquero = await env.DB.prepare(
       "SELECT id FROM users WHERE referral_code = ? AND role = 'cashier' AND status = 'active'"
     ).bind(ref).first();
-    if (!socio) return json({ error: `El código de socio "${ref}" no existe` }, 400);
-    cashierId = socio.id;
+    if (!banquero) return json({ error: `El código de banquero "${ref}" no existe` }, 400);
+    cashierId = banquero.id;
     affiliatedAt = nowSql();
   }
 
@@ -137,8 +137,8 @@ export async function aceptarCondiciones(request, env) {
   return json({ user: await getUser(env, auth.userId) });
 }
 
-// ─────────────────────── Alta de socios (solo la casa) ────────────────────
-// El socio no se registra solo: lo da de alta la casa matriz con su ficha
+// ─────────────────────── Alta de banqueros (solo la casa) ────────────────────
+// El banquero no se registra solo: lo da de alta la casa matriz con su ficha
 // completa, su comisión y su código de referencia.
 export async function adminCreateCashier(request, env) {
   const auth = await requireAdmin(request, env);
@@ -158,14 +158,14 @@ export async function adminCreateCashier(request, env) {
   const tomado = await libreONull(env, username, perfil.doc.documento);
   if (tomado) return json({ error: tomado }, 409);
 
-  // commission_pct = el % del valor de las fichas que el socio PAGA (típico: 20).
+  // commission_pct = el % del valor de las fichas que el banquero PAGA (típico: 20).
   const comision = Number(body.commission_pct);
   if (!Number.isFinite(comision) || comision < 1 || comision > 100) {
     return json({ error: 'El % que paga por las fichas debe estar entre 1 y 100' }, 400);
   }
 
   // Participación en la ganancia (franquicia con responsabilidad compartida).
-  // 0 = riesgo completo del socio. Máximo 30, por decisión del dueño.
+  // 0 = riesgo completo del banquero. Máximo 30, por decisión del dueño.
   const share = Number(body.risk_share_pct ?? 0);
   if (!Number.isFinite(share) || share < 0 || share > 30) {
     return json({ error: 'La participación en la ganancia va de 0 a 30%' }, 400);
@@ -177,7 +177,7 @@ export async function adminCreateCashier(request, env) {
     code = normalizeRefCode(body.referral_code);
     if (!code) return json({ error: 'El código debe tener entre 3 y 12 letras o números' }, 400);
     const dup = await env.DB.prepare('SELECT id FROM users WHERE referral_code = ?').bind(code).first();
-    if (dup) return json({ error: `El código ${code} ya está usado por otro socio` }, 409);
+    if (dup) return json({ error: `El código ${code} ya está usado por otro banquero` }, 409);
   }
 
   const password_hash = await hashPassword(password);
@@ -198,7 +198,7 @@ export async function adminCreateCashier(request, env) {
   return json({ cashier: await getUser(env, id) });
 }
 
-// Cambiar el código de referencia de un socio.
+// Cambiar el código de referencia de un banquero.
 export async function adminSetRefCode(request, env, userId) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
@@ -208,12 +208,12 @@ export async function adminSetRefCode(request, env, userId) {
   if (!code) return json({ error: 'El código debe tener entre 3 y 12 letras o números' }, 400);
 
   const target = await getUser(env, userId);
-  if (!target) return json({ error: 'Socio no encontrado' }, 404);
-  if (target.role !== 'cashier') return json({ error: 'Solo los socios tienen código' }, 400);
+  if (!target) return json({ error: 'Banquero no encontrado' }, 404);
+  if (target.role !== 'cashier') return json({ error: 'Solo los banqueros tienen código' }, 400);
 
   const dup = await env.DB.prepare('SELECT id FROM users WHERE referral_code = ? AND id != ?')
     .bind(code, userId).first();
-  if (dup) return json({ error: `El código ${code} ya está usado por otro socio` }, 409);
+  if (dup) return json({ error: `El código ${code} ya está usado por otro banquero` }, 409);
 
   await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?').bind(code, userId).run();
   return json({ cashier: await getUser(env, userId) });
@@ -400,7 +400,7 @@ export async function adminUsers(request, env, url) {
   return json({ users: rows.results || [] });
 }
 
-// Cambia el rol de un usuario. Al volverlo socio se le fija su comisión.
+// Cambia el rol de un usuario. Al volverlo banquero se le fija su comisión.
 export async function adminSetRole(request, env, userId) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
@@ -417,9 +417,9 @@ export async function adminSetRole(request, env, userId) {
     const admins = await env.DB.prepare("SELECT COUNT(*) AS n FROM users WHERE role = 'admin'").first();
     if ((admins?.n || 0) <= 1) return json({ error: 'No podés quitar el último administrador' }, 400);
   }
-  // Un socio con cupo cargado no puede dejar de serlo sin liquidarlo.
+  // Un banquero con cupo cargado no puede dejar de serlo sin liquidarlo.
   if (target.role === 'cashier' && role !== 'cashier' && target.credit_balance > 0) {
-    return json({ error: `Ese socio todavía tiene ${target.credit_balance} de cupo sin usar. Liquidalo antes de cambiarle el rol.` }, 400);
+    return json({ error: `Ese banquero todavía tiene ${target.credit_balance} de cupo sin usar. Liquidalo antes de cambiarle el rol.` }, 400);
   }
 
   let commission = target.commission_pct;
@@ -433,7 +433,7 @@ export async function adminSetRole(request, env, userId) {
     'UPDATE users SET role = ?, is_admin = ?, commission_pct = ? WHERE id = ?'
   ).bind(role, role === 'admin' ? 1 : 0, commission, userId).run();
 
-  // Al volverse socio necesita su código de referencia.
+  // Al volverse banquero necesita su código de referencia.
   if (role === 'cashier' && !target.referral_code) {
     await env.DB.prepare('UPDATE users SET referral_code = ? WHERE id = ?')
       .bind(refCodeDeId(userId), userId).run();
@@ -485,7 +485,7 @@ export async function adminResetPassword(request, env, userId) {
 
 // ─────────────────────────── Movimientos manuales ─────────────────────────
 
-// Carga manual de saldo del dueño (sin pasar por cupo de socio).
+// Carga manual de saldo del dueño (sin pasar por cupo de banquero).
 export async function adminDeposit(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;

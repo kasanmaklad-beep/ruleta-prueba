@@ -47,7 +47,7 @@
       },
       {
         titulo: T('La plata entra y sale en efectivo'),
-        texto: T('Recargás y cobrás en la mano de tu taquillero. La recarga mínima es {min} '
+        texto: T('Recargás y cobrás en la mano de tu banquero. La recarga mínima es {min} '
           + 'y el retiro mínimo {ret}. VOLTIO NO te va a pedir nunca datos de tu banco ni '
           + 'claves por la aplicación: si alguien te los pide, no es de la casa.',
           { min: plata(c.min_topup != null ? c.min_topup : 5),

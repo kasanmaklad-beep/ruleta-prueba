@@ -30,7 +30,7 @@ export const DEFAULT_SETTINGS = {
   moneda: 'USD',
   // ── Cómo entra y sale la plata ─────────────────────────────────────────
   // '1' = a mano: el jugador no manda pagos digitales por la app; recarga y
-  // cobra en efectivo con su taquillero. Los datos bancarios se ocultan.
+  // cobra en efectivo con su banquero. Los datos bancarios se ocultan.
   // '0' = el circuito digital de siempre (Pago Móvil, transferencia, P2P).
   pagos_manuales: '1',
   rate_usd: '40',
@@ -49,7 +49,7 @@ export const DEFAULT_SETTINGS = {
   // Todo monto que se convierte en saldo va redondeado a este múltiplo, para
   // que no circulen cifras raras. Poner 1 lo desactiva.
   monto_multiplo: '100',
-  // Aviso de cupo bajo para los socios.
+  // Aviso de cupo bajo para los banqueros.
   cupo_alert: '2000',
   // Rayos (Lightning): cuántos números por giro y con qué peso sale cada
   // multiplicador. Ver LTG_VALORES y ventajaPleno().
@@ -699,7 +699,7 @@ export function normalizeDocumento(tipo, numero) {
   return { doc_type: t, documento: `${t}-${n}` };
 }
 
-// Código de referencia del socio: letras y números, 3 a 12, en mayúscula.
+// Código de referencia del banquero: letras y números, 3 a 12, en mayúscula.
 export function normalizeRefCode(v) {
   const s = str(v, 20);
   if (!s) return null;
@@ -724,7 +724,7 @@ export function normalizeEmail(v) {
 // Esta versión trabaja SOLO en bolívares. El P2P es para quien paga en
 // divisas por fuera: el monto que se registra igual es el acordado en Bs.
 // 'efectivo' es el método de la v1: el jugador paga y cobra en la mano del
-// taquillero, y en la app queda sólo el registro.
+// banquero, y en la app queda sólo el registro.
 export const PAYMENT_METHODS = ['pago_movil', 'transferencia', 'p2p', 'efectivo'];
 
 // ¿La casa está en modo manual? (ver DEFAULT_SETTINGS.pagos_manuales)
@@ -843,7 +843,7 @@ export function requireAdmin(request, env) {
   return requireRole(request, env, ['admin']);
 }
 
-// El dueño puede hacer todo lo que hace un socio.
+// El dueño puede hacer todo lo que hace un banquero.
 export function requireCashier(request, env) {
   return requireRole(request, env, ['cashier', 'admin']);
 }

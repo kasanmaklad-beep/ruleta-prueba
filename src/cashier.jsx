@@ -1,7 +1,7 @@
-// Panel del socio — expone window.CashierPanel
+// Panel del banquero — expone window.CashierPanel
 // Props: { user, onExit(), onLogout() }
 //
-// La ventanilla del socio: aprueba las recargas de sus afiliados (salen de
+// La ventanilla del banquero: aprueba las recargas de sus afiliados (salen de
 // su cupo), paga sus retiros (las fichas vuelven a su cupo), les carga saldo
 // a mano y reparte su código para sumar afiliados.
 (function () {
@@ -105,7 +105,7 @@
       <div style={{ ...S.page, ...U.paleta('socio') }}>
         <div style={{ maxWidth: 960, margin: '0 auto' }}>
           <Encabezado
-            titulo="🎟 TAQUILLA"
+            titulo="🎟 BANCA"
             rol="socio"
             subtitulo={`Sesión: ${user.username}`}
             acciones={<>
@@ -401,7 +401,7 @@
     );
   }
 
-  // Datos de cobro del socio: lo que ven sus afiliados al recargar.
+  // Datos de cobro del banquero: lo que ven sus afiliados al recargar.
   function DatosDeCobro({ actual, setMsg, onGuardado }) {
     const [texto, setTexto] = useState(actual);
     const [guardando, setGuardando] = useState(false);
@@ -439,7 +439,7 @@
   }
 
   // Código de referencia y enlace para repartir. Quien entre por acá queda
-  // adjudicado a la cuenta de este socio.
+  // adjudicado a la cuenta de este banquero.
   function CodigoDeReferencia({ codigo, setMsg }) {
     const enlace = `${window.location.origin}/?ref=${codigo}`;
 

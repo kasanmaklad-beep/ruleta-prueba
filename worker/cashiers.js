@@ -1,9 +1,9 @@
 // ════════════════════════════════════════════════════════════════════════
-//  Socios y cupo prepago.
+//  Banqueros y cupo prepago.
 //
-//  El dueño le vende cupo al socio: éste paga (por ejemplo 9.000) y
+//  El dueño le vende cupo al banquero: éste paga (por ejemplo 9.000) y
 //  recibe cupo (10.000). Esa diferencia ES su comisión y se la cobra en el
-//  acto. Después el socio carga saldo a sus jugadores y cada carga le
+//  acto. Después el banquero carga saldo a sus jugadores y cada carga le
 //  descuenta del cupo, así que nunca puede cargar más de lo que ya pagó.
 // ════════════════════════════════════════════════════════════════════════
 
@@ -16,7 +16,7 @@ import { getUser } from './accounts.js';
 
 // ─────────────────────────── Panel del dueño ──────────────────────────────
 
-// Lista de socios con su cupo actual y lo que movieron.
+// Lista de banqueros con su cupo actual y lo que movieron.
 export async function adminCashiers(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
@@ -41,7 +41,7 @@ export async function adminCashiers(request, env) {
 
   const cashiers = (rows.results || []).map((c) => ({
     ...c,
-    // Lo que ganó el socio: la diferencia entre el cupo que recibió y lo que pagó.
+    // Lo que ganó el banquero: la diferencia entre el cupo que recibió y lo que pagó.
     comision_generada: (c.cupo_comprado || 0) - (c.total_pagado || 0),
   }));
   return json({ cashiers });
@@ -55,10 +55,10 @@ export async function adminSellCredit(request, env) {
   const body = await readJson(request);
   const username = normalizeUsername(body.username);
   const amount = toPositiveInt(body.amount);
-  if (!username) return json({ error: 'Falta el socio' }, 400);
+  if (!username) return json({ error: 'Falta el banquero' }, 400);
   if (amount === null) return json({ error: 'Monto de cupo inválido' }, 400);
 
-  // El cupo entregado va en cifras redondas; lo que el socio pagó no,
+  // El cupo entregado va en cifras redondas; lo que el banquero pagó no,
   // porque ahí manda la comisión (10% de 5.000 son 4.500, pero 7% son 4.650).
   const s = await getSettings(env);
   const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
@@ -68,9 +68,9 @@ export async function adminSellCredit(request, env) {
     'SELECT id, username, role, commission_pct FROM users WHERE username = ?'
   ).bind(username).first();
   if (!cashier) return json({ error: 'Usuario no encontrado' }, 404);
-  if (cashier.role !== 'cashier') return json({ error: `${cashier.username} no es socio. Cambiale el rol primero.` }, 400);
+  if (cashier.role !== 'cashier') return json({ error: `${cashier.username} no es banquero. Cambiale el rol primero.` }, 400);
 
-  // Si no dicen cuánto pagó, se calcula con su porcentaje: el socio paga el
+  // Si no dicen cuánto pagó, se calcula con su porcentaje: el banquero paga el
   // commission_pct% del valor de las fichas (típico: 20% → 10.000 por 2.000).
   let paid;
   if (body.paid_amount === undefined || body.paid_amount === null || body.paid_amount === '') {
@@ -109,16 +109,16 @@ export async function adminAdjustCredit(request, env) {
   const amount = Number(body.amount);
   const note = str(body.note, 200);
 
-  if (!username) return json({ error: 'Falta el socio' }, 400);
+  if (!username) return json({ error: 'Falta el banquero' }, 400);
   if (!Number.isInteger(amount) || amount === 0) return json({ error: 'Monto inválido' }, 400);
   if (!note) return json({ error: 'Poné el motivo del ajuste' }, 400);
 
   const cashier = await env.DB.prepare(
     "SELECT id, username, credit_balance FROM users WHERE username = ? AND role = 'cashier'"
   ).bind(username).first();
-  if (!cashier) return json({ error: 'Socio no encontrado' }, 404);
+  if (!cashier) return json({ error: 'Banquero no encontrado' }, 404);
   if (amount < 0 && cashier.credit_balance + amount < 0) {
-    return json({ error: `Ese socio solo tiene ${cashier.credit_balance} de cupo` }, 400);
+    return json({ error: `Ese banquero solo tiene ${cashier.credit_balance} de cupo` }, 400);
   }
 
   await env.DB.batch([
@@ -133,7 +133,7 @@ export async function adminAdjustCredit(request, env) {
   return json({ cashier: await getUser(env, cashier.id) });
 }
 
-// Movimientos de cupo de un socio (o de todos si no se indica).
+// Movimientos de cupo de un banquero (o de todos si no se indica).
 export async function adminCreditLedger(request, env, url) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
@@ -154,7 +154,7 @@ export async function adminCreditLedger(request, env, url) {
   return json({ ledger: rows.results || [] });
 }
 
-// ─────────────────────────── Panel del socio ─────────────────────────
+// ─────────────────────────── Panel del banquero ─────────────────────────
 
 // Carga de saldo a un jugador descontando del cupo.
 export async function cashierLoad(request, env) {
@@ -210,10 +210,10 @@ export async function cashierLoad(request, env) {
          VALUES (?, 'deposit', ?, ?, ?, ?)`
       ).bind(
         player.id, amount,
-        note || (usaCupo ? `Carga de taquilla (${auth.username})` : `Carga de la casa (${auth.username})`),
+        note || (usaCupo ? `Carga de banca (${auth.username})` : `Carga de la casa (${auth.username})`),
         auth.userId, usaCupo ? 'cashier' : 'admin'
       ),
-      // El jugador queda asociado al primer socio que le cargó.
+      // El jugador queda asociado al primer banquero que le cargó.
       env.DB.prepare('UPDATE users SET cashier_id = ? WHERE id = ? AND cashier_id IS NULL')
         .bind(auth.userId, player.id),
     ];
@@ -245,7 +245,7 @@ export async function cashierLoad(request, env) {
   });
 }
 
-// Resumen del socio: su cupo, lo que cargó hoy y sus jugadores.
+// Resumen del banquero: su cupo, lo que cargó hoy y sus jugadores.
 export async function cashierSummary(request, env) {
   const auth = await requireCashier(request, env);
   if (auth.error) return auth.response;

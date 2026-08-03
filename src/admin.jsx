@@ -1,7 +1,7 @@
 // Panel de administración — expone window.AdminPanel
 // Props: { user, onExit(), onLogout() }  — onExit vuelve al juego
 //
-// Pestañas: Resumen · Jugadores · Socios · Recargas · Retiros ·
+// Pestañas: Resumen · Jugadores · Banqueros · Recargas · Retiros ·
 //           Mesas · Reportes · Configuración
 (function () {
   const { useState, useEffect, useCallback, useRef } = React;
@@ -37,7 +37,7 @@
     const tabs = [
       { id: 'resumen', label: 'RESUMEN' },
       { id: 'jugadores', label: 'JUGADORES' },
-      { id: 'socios', label: 'SOCIOS' },
+      { id: 'socios', label: 'BANQUEROS' },
       { id: 'recargas', label: 'RECARGAS', badge: pend.recargas_pendientes },
       { id: 'retiros', label: 'RETIROS', badge: pend.retiros_pendientes },
       { id: 'mesas', label: 'MESAS' },
@@ -83,11 +83,11 @@
             </div>
           )}
 
-          {/* Lo que está en cancha de los socios: informativo, lo resuelven ellos. */}
-          {resumen && ((pend.recargas_socios || 0) > 0 || (pend.retiros_socios || 0) > 0) && (
+          {/* Lo que está en cancha de los banqueros: informativo, lo resuelven ellos. */}
+          {resumen && ((pend.recargas_banqueros || 0) > 0 || (pend.retiros_banqueros || 0) > 0) && (
             <div style={{ marginBottom: 14, fontSize: 12, color: '#998' }}>
-              Además, los socios tienen {pend.recargas_socios || 0} recarga(s) y {pend.retiros_socios || 0} retiro(s)
-              en su cancha — los resuelven ellos desde su taquilla.
+              Además, los banqueros tienen {pend.recargas_banqueros || 0} recarga(s) y {pend.retiros_banqueros || 0} retiro(s)
+              en su cancha — los resuelven ellos desde su banca.
             </div>
           )}
 
@@ -96,7 +96,7 @@
 
           {tab === 'resumen'     && <TabResumen resumen={resumen} {...props} irA={setTab} />}
           {tab === 'jugadores'   && <TabJugadores {...props} />}
-          {tab === 'socios' && <TabSocios {...props} />}
+          {tab === 'socios' && <TabBanqueros {...props} />}
           {tab === 'recargas'    && <TabRecargas {...props} />}
           {tab === 'retiros'     && <TabRetiros {...props} />}
           {tab === 'mesas'       && <TabMesas {...props} />}
@@ -144,12 +144,12 @@
           <div style={S.titulo}>EL NEGOCIO EN NÚMEROS</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
             <Dato titulo="Jugadores" valor={bs(t.jugadores)} chico />
-            <Dato titulo="Socios" valor={bs(t.socios)} chico />
+            <Dato titulo="Banqueros" valor={bs(t.banqueros)} chico />
             <Dato titulo="Saldo en manos de jugadores" valor={bs(t.saldo_jugadores)} chico color="#ffd84a"
                   detalle="lo que te podrían pedir" />
             <Dato titulo="Congelado en retiros" valor={bs(t.saldo_congelado)} chico color="#ff9a9a" />
             <Dato titulo="Cupo en la calle" valor={bs(t.cupo_en_calle)} chico
-                  detalle="cupo sin usar de socios" />
+                  detalle="cupo sin usar de banqueros" />
           </div>
         </div>
 
@@ -240,13 +240,13 @@
             <select style={{ ...S.input, flex: '0 1 150px' }} value={rol} onChange={(e) => setRol(e.target.value)}>
               <option value="">Todos los roles</option>
               <option value="player">Jugadores</option>
-              <option value="cashier">Socios</option>
+              <option value="cashier">Banqueros</option>
               <option value="admin">Administradores</option>
             </select>
           </div>
 
           <Tabla
-            columnas={['USUARIO', 'TELÉFONO', 'SALDO', 'DISPONIBLE', 'ROL', 'ESTADO', 'SOCIO', '']}
+            columnas={['USUARIO', 'TELÉFONO', 'SALDO', 'DISPONIBLE', 'ROL', 'ESTADO', 'BANQUERO', '']}
             vacio={cargando ? 'Cargando…' : 'Sin resultados'}
           >
             {users.map((u) => (
@@ -269,7 +269,7 @@
                   {u.held_balance > 0 && <span style={{ fontSize: 11 }}> ({bs(u.held_balance)} ret.)</span>}
                 </td>
                 <td style={{ ...S.td, fontSize: 13 }}>
-                  {u.role === 'admin' ? '👑 dueño' : u.role === 'cashier' ? '🎟 socio' : 'jugador'}
+                  {u.role === 'admin' ? '👑 dueño' : u.role === 'cashier' ? '🎟 banquero' : 'jugador'}
                   {u.role === 'cashier' && (
                     <div style={{ fontSize: 11, color: '#888' }}>
                       cupo {bs(u.credit_balance)} · {u.commission_pct}%
@@ -385,7 +385,7 @@
       try {
         if (tipo === 'rol') {
           await window.Api.adminSetRole(user.id, rol, Number(comision));
-          onHecho(`${user.username} ahora es ${rol === 'admin' ? 'dueño' : rol === 'cashier' ? 'socio' : 'jugador'}.`);
+          onHecho(`${user.username} ahora es ${rol === 'admin' ? 'dueño' : rol === 'cashier' ? 'banquero' : 'jugador'}.`);
         } else if (tipo === 'estado') {
           const nuevo = user.status === 'blocked' ? 'active' : 'blocked';
           await window.Api.adminSetStatus(user.id, nuevo);
@@ -403,7 +403,7 @@
         <Campo label="ROL">
           <select style={S.input} value={rol} onChange={(e) => setRol(e.target.value)}>
             <option value="player">Jugador</option>
-            <option value="cashier">Socio</option>
+            <option value="cashier">Banquero</option>
             <option value="admin">Dueño (acceso total)</option>
           </select>
         </Campo>
@@ -485,7 +485,7 @@
                     <div style={{ fontSize: 12, color: '#888' }}>
                       {d.user.bank || 'sin banco'}
                       {d.user.email ? ` · ${d.user.email}` : ''}
-                      {d.user.cashier_username ? ` · socio: ${d.user.cashier_username}` : ''}
+                      {d.user.cashier_username ? ` · banquero: ${d.user.cashier_username}` : ''}
                       {' · desde '}{fecha(d.user.created_at, false)}
                     </div>
                   </div>
@@ -552,10 +552,10 @@
     );
   }
 
-  // ═════════════════════════════ Socios ══════════════════════════════
+  // ═════════════════════════════ Banqueros ══════════════════════════════
 
-  // Alta de un socio nuevo. No se registra solo: lo da de alta la casa.
-  function FormNuevoSocio({ setMsg, onHecho }) {
+  // Alta de un banquero nuevo. No se registra solo: lo da de alta la casa.
+  function FormNuevoBanquero({ setMsg, onHecho }) {
     const vacio = {
       first_name: '', last_name: '', doc_type: 'V', cedula: '', phone: '',
       email: '', bank: '', username: '', password: '', commission_pct: '20',
@@ -578,7 +578,7 @@
         });
         setMsg({
           kind: 'ok',
-          text: `Socio ${res.cashier.username} creado. Su código de referencia es ${res.cashier.referral_code}. Ya le podés vender fichas.`,
+          text: `Banquero ${res.cashier.username} creado. Su código de referencia es ${res.cashier.referral_code}. Ya le podés vender fichas.`,
         });
         setF(vacio); setAbierto(false);
         onHecho();
@@ -591,13 +591,13 @@
         <div style={S.card}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ ...S.titulo, marginBottom: 4 }}>SOCIOS</div>
+              <div style={{ ...S.titulo, marginBottom: 4 }}>BANQUEROS</div>
               <div style={{ fontSize: 12, color: '#888' }}>
-                Los socios los das de alta vos, con su ficha completa. Cada uno recibe un código
+                Los banqueros los das de alta vos, con su ficha completa. Cada uno recibe un código
                 de referencia para que sus jugadores queden adjudicados a su cuenta.
               </div>
             </div>
-            <Boton tono="verde" onClick={() => setAbierto(true)}>+ NUEVO SOCIO</Boton>
+            <Boton tono="verde" onClick={() => setAbierto(true)}>+ NUEVO BANQUERO</Boton>
           </div>
         </div>
       );
@@ -606,7 +606,7 @@
     return (
       <div style={S.card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <div style={{ ...S.titulo, marginBottom: 0 }}>NUEVO SOCIO</div>
+          <div style={{ ...S.titulo, marginBottom: 0 }}>NUEVO BANQUERO</div>
           <Boton chico tono="gris" onClick={() => setAbierto(false)}>CANCELAR</Boton>
         </div>
         <form onSubmit={crear} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
@@ -660,21 +660,21 @@
           </Campo>
           <div style={{ display: 'flex', alignItems: 'end' }}>
             <Boton type="submit" tono="verde" disabled={enviando} style={{ width: '100%' }}>
-              {enviando ? 'CREANDO...' : 'CREAR SOCIO'}
+              {enviando ? 'CREANDO...' : 'CREAR BANQUERO'}
             </Boton>
           </div>
         </form>
         <div style={{ fontSize: 12, color: '#888', marginTop: 12 }}>
           Pasale el usuario y la contraseña por un medio seguro. Él las puede cambiar después desde su panel.
           <br />“Paga el %”: lo que te paga por las fichas (típico 20). “Particip. ganancia”: solo para
-          franquicias con responsabilidad compartida — el % de la ganancia del socio que le toca a la
-          casa a cambio de cubrirle las pérdidas (0 = riesgo completo del socio; máximo 30).
+          franquicias con responsabilidad compartida — el % de la ganancia del banquero que le toca a la
+          casa a cambio de cubrirle las pérdidas (0 = riesgo completo del banquero; máximo 30).
         </div>
       </div>
     );
   }
 
-  function TabSocios({ setMsg, recargarResumen }) {
+  function TabBanqueros({ setMsg, recargarResumen }) {
     const [cashiers, setCashiers] = useState([]);
     const [ledger, setLedger] = useState([]);
     const [username, setUsername] = useState('');
@@ -698,7 +698,7 @@
 
     const elegido = cashiers.find((c) => c.username === username.trim().toLowerCase());
     const cupo = Number(amount) || 0;
-    // El socio paga el commission_pct% del valor de las fichas (típico: 20).
+    // El banquero paga el commission_pct% del valor de las fichas (típico: 20).
     const sugerido = elegido ? Math.round(cupo * ((elegido.commission_pct || 0) / 100)) : null;
     const cobra = pagado === '' ? sugerido : Number(pagado);
 
@@ -728,15 +728,15 @@
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <FormNuevoSocio setMsg={setMsg} onHecho={() => { cargar(); recargarResumen(); }} />
+        <FormNuevoBanquero setMsg={setMsg} onHecho={() => { cargar(); recargarResumen(); }} />
 
         <div style={S.card}>
           <div style={S.titulo}>VENDER CUPO</div>
           <div style={{ fontSize: 12, color: '#888', marginBottom: 12 }}>
-            El socio te paga primero y ahí le cargás el cupo. Nunca puede cargar más de lo que ya te pagó.
+            El banquero te paga primero y ahí le cargás el cupo. Nunca puede cargar más de lo que ya te pagó.
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, alignItems: 'end' }}>
-            <Campo label="SOCIO">
+            <Campo label="BANQUERO">
               <select style={S.input} value={username} onChange={(e) => setUsername(e.target.value)}>
                 <option value="">Elegí…</option>
                 {cashiers.map((c) => (
@@ -779,10 +779,10 @@
         />
 
         <div style={S.card}>
-          <div style={S.titulo}>SOCIOS ({cashiers.length})</div>
+          <div style={S.titulo}>BANQUEROS ({cashiers.length})</div>
           <Tabla
-            columnas={['SOCIO', 'CÓDIGO', 'FICHAS SIN USAR', 'PAGA %', 'PARTICIP.', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'SU MARGEN', 'AFILIADOS', 'ESTADO']}
-            vacio="Todavía no tenés socios. Tocá “+ NUEVO SOCIO” arriba para dar de alta al primero."
+            columnas={['BANQUERO', 'CÓDIGO', 'FICHAS SIN USAR', 'PAGA %', 'PARTICIP.', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'SU MARGEN', 'AFILIADOS', 'ESTADO']}
+            vacio="Todavía no tenés banqueros. Tocá “+ NUEVO BANQUERO” arriba para dar de alta al primero."
           >
             {cashiers.map((c) => (
               <tr key={c.id}>
@@ -811,7 +811,7 @@
 
         <div style={S.card}>
           <div style={S.titulo}>MOVIMIENTOS DE CUPO</div>
-          <Tabla columnas={['FECHA', 'SOCIO', 'MOVIMIENTO', 'CUPO', 'PAGÓ', 'JUGADOR', 'NOTA']} vacio="Sin movimientos">
+          <Tabla columnas={['FECHA', 'BANQUERO', 'MOVIMIENTO', 'CUPO', 'PAGÓ', 'JUGADOR', 'NOTA']} vacio="Sin movimientos">
             {ledger.map((l) => {
               const [txt, color] = LTIPO[l.type] || [l.type, '#aaa'];
               return (
@@ -923,9 +923,9 @@
                 )}
               </td>
               <td style={S.td}>
-                {t.status === 'pending' && (t.socio_username ? (
+                {t.status === 'pending' && (t.banquero_username ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, color: '#c9a0ff' }}>La maneja {t.socio_username}</span>
+                    <span style={{ fontSize: 11, color: '#c9a0ff' }}>La maneja {t.banquero_username}</span>
                     <Boton chico tono="rojo" onClick={() => abrir('rechazar', t)}>RECHAZAR</Boton>
                   </div>
                 ) : (
@@ -987,7 +987,7 @@
     const [cargando, setCargando] = useState(true);
     const [accion, setAccion] = useState(null); // { tipo:'pagar'|'rechazar', item }
     const [quienPaga, setQuienPaga] = useState('owner');
-    const [socio, setSocio] = useState('');
+    const [banquero, setBanquero] = useState('');
     const [nota, setNota] = useState('');
     const [enviando, setEnviando] = useState(false);
 
@@ -1009,7 +1009,7 @@
     const abrir = (tipo, item) => {
       setAccion({ tipo, item });
       setQuienPaga('owner');
-      setSocio(item.cashier_username || '');
+      setBanquero(item.cashier_username || '');
       setNota('');
     };
 
@@ -1018,14 +1018,14 @@
       setEnviando(true);
       try {
         if (tipo === 'pagar') {
-          if (quienPaga === 'cashier' && !socio) {
-            setMsg({ kind: 'err', text: 'Elegí qué socio lo pagó' }); setEnviando(false); return;
+          if (quienPaga === 'cashier' && !banquero) {
+            setMsg({ kind: 'err', text: 'Elegí qué banquero lo pagó' }); setEnviando(false); return;
           }
-          await window.Api.adminPayWithdrawal(item.id, quienPaga, socio || undefined, nota.trim() || undefined);
+          await window.Api.adminPayWithdrawal(item.id, quienPaga, banquero || undefined, nota.trim() || undefined);
           setMsg({
             kind: 'ok',
             text: quienPaga === 'cashier'
-              ? `Retiro pagado. Le repusimos ${plata(item.amount)} de cupo a ${socio}.`
+              ? `Retiro pagado. Le repusimos ${plata(item.amount)} de cupo a ${banquero}.`
               : `Retiro de ${plata(item.amount)} marcado como pagado.`,
           });
         } else {
@@ -1098,9 +1098,9 @@
                 )}
               </td>
               <td style={S.td}>
-                {w.status === 'pending' && (w.socio_username ? (
+                {w.status === 'pending' && (w.banquero_username ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, color: '#c9a0ff' }}>Lo paga {w.socio_username}</span>
+                    <span style={{ fontSize: 11, color: '#c9a0ff' }}>Lo paga {w.banquero_username}</span>
                     <Boton chico tono="rojo" onClick={() => abrir('rechazar', w)}>RECHAZAR</Boton>
                   </div>
                 ) : (
@@ -1142,12 +1142,12 @@
                   <Campo label="¿QUIÉN PONE LA PLATA?">
                     <select style={S.input} value={quienPaga} onChange={(e) => setQuienPaga(e.target.value)}>
                       <option value="owner">Vos, desde la cuenta principal</option>
-                      <option value="cashier">Un socio (se le repone en cupo)</option>
+                      <option value="cashier">Un banquero (se le repone en cupo)</option>
                     </select>
                   </Campo>
                   {quienPaga === 'cashier' && (
-                    <Campo label="SOCIO QUE PAGA">
-                      <select style={S.input} value={socio} onChange={(e) => setSocio(e.target.value)}>
+                    <Campo label="BANQUERO QUE PAGA">
+                      <select style={S.input} value={banquero} onChange={(e) => setBanquero(e.target.value)}>
                         <option value="">Elegí…</option>
                         {cashiers.map((c) => (
                           <option key={c.id} value={c.username}>
@@ -1310,10 +1310,10 @@
         </div>
 
         <div style={S.card}>
-          <div style={S.titulo}>POR SOCIO (EN EL PERÍODO)</div>
-          <Tabla columnas={['SOCIO', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'RETIROS QUE PAGÓ', 'RESULTADO', 'PARTICIP. CASA', 'FICHAS ACTUALES', 'AFILIADOS']}
-                 vacio="Sin movimientos de socios">
-            {(cash ? cash.socios : []).map((c) => (
+          <div style={S.titulo}>POR BANQUERO (EN EL PERÍODO)</div>
+          <Tabla columnas={['BANQUERO', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'RETIROS QUE PAGÓ', 'RESULTADO', 'PARTICIP. CASA', 'FICHAS ACTUALES', 'AFILIADOS']}
+                 vacio="Sin movimientos de banqueros">
+            {(cash ? cash.banqueros : []).map((c) => (
               <tr key={c.id}>
                 <td style={{ ...S.td, fontWeight: 700 }}>
                   {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.username}
@@ -1346,7 +1346,7 @@
 
   function Alertas({ a }) {
     const hay = a.ganadores.length || a.poco_juego.length || a.retiros_demorados.length
-      || (a.socios_cupo_bajo && a.socios_cupo_bajo.length);
+      || (a.banqueros_cupo_bajo && a.banqueros_cupo_bajo.length);
     return (
       <div style={S.card}>
         <div style={S.titulo}>🔎 ALERTAS</div>
@@ -1388,13 +1388,13 @@
           </div>
         )}
 
-        {a.socios_cupo_bajo && a.socios_cupo_bajo.length > 0 && (
+        {a.banqueros_cupo_bajo && a.banqueros_cupo_bajo.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ color: '#ffd84a', fontWeight: 700, marginBottom: 6 }}>
-              Socios con las fichas por agotarse (menos de {bs(a.umbral_cupo)})
+              Banqueros con las fichas por agotarse (menos de {bs(a.umbral_cupo)})
             </div>
-            <Tabla columnas={['SOCIO', 'FICHAS QUE LE QUEDAN']}>
-              {a.socios_cupo_bajo.map((s) => (
+            <Tabla columnas={['BANQUERO', 'FICHAS QUE LE QUEDAN']}>
+              {a.banqueros_cupo_bajo.map((s) => (
                 <tr key={s.id}>
                   <td style={{ ...S.td, fontWeight: 700 }}>
                     {[s.first_name, s.last_name].filter(Boolean).join(' ') || s.username}
@@ -1441,7 +1441,7 @@
     { key: 'max_win_per_spin', label: `Premio máximo por giro (${U.simbolo()})`, tipo: 'number',
       ayuda: 'El candado importante: los números Lightning pagan hasta 500x. Con este techo, un solo golpe de suerte no te vacía la caja.' },
     { key: 'monto_multiplo', label: `Los montos van en múltiplos de (${U.simbolo()})`, tipo: 'number',
-      ayuda: 'Recargas, retiros, cargas de taquilla y cupo se manejan en cifras redondas de este tamaño. Con 100, nadie puede pedir 1.350: pide 1.300 o 1.400. Cuando el jugador paga en dólares, la conversión se redondea para arriba y la diferencia la pone la casa. Poné 1 para desactivarlo.' },
+      ayuda: 'Recargas, retiros, cargas de banca y cupo se manejan en cifras redondas de este tamaño. Con 100, nadie puede pedir 1.350: pide 1.300 o 1.400. Cuando el jugador paga en dólares, la conversión se redondea para arriba y la diferencia la pone la casa. Poné 1 para desactivarlo.' },
     { key: 'min_topup', label: `Recarga mínima (${U.simbolo()})`, tipo: 'number',
       ayuda: 'Por debajo de esto no se puede pedir una recarga.' },
     { key: 'min_withdrawal', label: `Retiro mínimo (${U.simbolo()})`, tipo: 'number',
@@ -1449,14 +1449,14 @@
     { key: 'wager_pct_required', label: 'Hay que jugar el (%) de lo recargado', tipo: 'number',
       ayuda: 'Para poder retirar. Con 50%, quien recargó 1.000 tiene que haber apostado 500. Poné 0 para desactivarlo.' },
     { key: 'registration_open', label: '¿Registro abierto? (1 = sí, 0 = no)', tipo: 'number',
-      ayuda: 'Con 0, nadie puede crearse cuenta solo: las cuentas las crea el socio o vos.' },
+      ayuda: 'Con 0, nadie puede crearse cuenta solo: las cuentas las crea el banquero o vos.' },
     { key: 'bank_pago_movil', label: 'Datos de tu Pago Móvil', tipo: 'text',
       ayuda: 'Lo ve el jugador cuando elige pagar por Pago Móvil. Ej: Banco, cédula y teléfono.' },
     { key: 'bank_transferencia', label: 'Datos de tu cuenta bancaria', tipo: 'text' },
     { key: 'bank_p2p', label: 'Tus datos P2P (divisas)', tipo: 'text',
       ayuda: 'Para quien te paga en divisas por P2P (Binance u otro). El monto que se registra igual es en bolívares.' },
-    { key: 'cupo_alert', label: `Avisar fichas bajas del socio (${U.simbolo()})`, tipo: 'number',
-      ayuda: 'Cuando las fichas de un socio bajan de este número, le sale un aviso en su taquilla y a vos en las alertas.' },
+    { key: 'cupo_alert', label: `Avisar fichas bajas del banquero (${U.simbolo()})`, tipo: 'number',
+      ayuda: 'Cuando las fichas de un banquero bajan de este número, le sale un aviso en su banca y a vos en las alertas.' },
   ];
 
   // ═══════════════════════ Las mesas del salón ════════════════════════════

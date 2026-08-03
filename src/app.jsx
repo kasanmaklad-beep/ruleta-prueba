@@ -572,7 +572,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
           const premio = typeof server.win === 'number' ? server.win : 0;
           setBalance(server.balance - premio);
         }
-        // Lo retenido puede haber cambiado mientras jugaba: el socio le aprobó
+        // Lo retenido puede haber cambiado mientras jugaba: el banquero le aprobó
         // o le rechazó el retiro y el saldo que puede jugar es otro.
         if (typeof server.held_balance === 'number') setRetenido(server.held_balance);
         // Modo prueba: se anota el giro con lo apostado y lo ganado.
@@ -965,7 +965,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                     border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.4)', color: '#d4a94a',
                     fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: isMobile ? 8 : 11,
                     letterSpacing: 1, cursor: 'pointer',
-                  }}>TAQUILLA</button>
+                  }}>BANCA</button>
                 )}
                 {onOpenAdmin && (
                   <button onClick={onOpenAdmin} style={{
@@ -1809,7 +1809,7 @@ function MarcadorPrueba({ total, p, saldo, isMobile }) {
 }
 
 // ═══ Enlace de invitación abierto con otra sesión ya iniciada ═══
-// Sin esto, el código de socio se perdía en silencio y el invitado terminaba
+// Sin esto, el código de banquero se perdía en silencio y el invitado terminaba
 // dentro de la cuenta de quien estaba logueado en ese navegador.
 function PantallaInvitacion({ codigo, user, onRegistrarme, onSeguir }) {
   const boton = {
@@ -1892,7 +1892,7 @@ function AppRoot() {
 
   const rutaActual = () => window.location.pathname.replace(/\/+$/, '') || '/';
 
-  // Código de socio que viene en el enlace (.../?ref=S0009).
+  // Código de banquero que viene en el enlace (.../?ref=S0009).
   const refDelEnlace = () => {
     try { return (new URLSearchParams(window.location.search).get('ref') || '').toUpperCase(); }
     catch (e) { return ''; }
@@ -1900,7 +1900,7 @@ function AppRoot() {
 
   // A qué pantalla mandar según la URL y lo que el usuario tiene permitido.
   // Al entrar (raíz) cada uno cae en su lugar de trabajo: el dueño en su panel,
-  // el taquillero en la taquilla y el jugador en el SALÓN (elige mesa ahí).
+  // el banquero en la banca y el jugador en el SALÓN (elige mesa ahí).
   // El dueño no entra a jugar, entra a administrar; para las mesas está el
   // botón SALÓN, y /juego es la entrada directa a la mesa (la del enlace, o
   // la de siempre si no dice ninguna).
@@ -2036,7 +2036,7 @@ function AppRoot() {
 
   // Refresca el usuario al volver al juego: el saldo pudo cambiar en la billetera.
   // Va a /juego (y no a la raíz) para que al recargar la página el dueño y el
-  // taquillero se queden en la mesa en vez de rebotar a su panel. Se vuelve a
+  // banquero se queden en la mesa en vez de rebotar a su panel. Se vuelve a
   // la MISMA mesa que se estaba jugando, no a la de siempre.
   const volverAlJuego = () => entrarAMesa(mesaId);
 

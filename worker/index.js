@@ -6,7 +6,7 @@
 //  Este archivo tiene el ruteo y la lógica del juego. Lo demás vive en:
 //    lib.js       — utilidades compartidas (auth, validación, configuración)
 //    accounts.js  — registro, ingreso, perfil y gestión de usuarios
-//    cashiers.js  — socios y cupo prepago
+//    cashiers.js  — banqueros y cupo prepago
 //    payments.js  — recargas y retiros
 //    reports.js   — cierre diario, reportes y alertas
 // ════════════════════════════════════════════════════════════════
@@ -137,7 +137,7 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/wallet/topup')    return createTopup(request, env);
   if (method === 'POST' && path === '/api/wallet/withdraw') return createWithdrawal(request, env);
 
-  // ── Taquilla del socio ──
+  // ── Banca del banquero ──
   if (method === 'GET'  && path === '/api/cashier/summary') return cashierSummary(request, env);
   if (method === 'POST' && path === '/api/cashier/load')    return cashierLoad(request, env);
   if (method === 'PUT'  && path === '/api/cashier/collect-info') return cashierSetCollectInfo(request, env);
@@ -179,7 +179,7 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/users\/(\d+)\/password$/)))
     return adminResetPassword(request, env, Number(m[1]));
 
-  // ── Panel: socios ──
+  // ── Panel: banqueros ──
   if (method === 'GET'  && path === '/api/admin/cashiers')        return adminCashiers(request, env);
   if (method === 'POST' && path === '/api/admin/cashiers')        return adminCreateCashier(request, env);
   if (method === 'POST' && path === '/api/admin/cashiers/credit') return adminSellCredit(request, env);

@@ -139,7 +139,7 @@
     createTopup(data) { return POST('/api/wallet/topup', data); },
     createWithdrawal(data) { return POST('/api/wallet/withdraw', data); },
 
-    // ── Taquilla del socio ──
+    // ── Banca del banquero ──
     cashierSummary() { return req('/api/cashier/summary'); },
     cashierLoad(username, amount, note) {
       return POST('/api/cashier/load', { username, amount, note });
@@ -197,7 +197,7 @@
 
     adminEstadoMesa(id, estado) { return POST(`/api/admin/games/${id}/activo`, { estado }); },
 
-    // ── Panel: socios ──
+    // ── Panel: banqueros ──
     adminCashiers() { return req('/api/admin/cashiers'); },
     adminCreateCashier(datos) { return POST('/api/admin/cashiers', datos); },
     adminSetRefCode(id, referral_code) {

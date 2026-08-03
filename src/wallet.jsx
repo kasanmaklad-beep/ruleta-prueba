@@ -108,27 +108,27 @@
   // ─────────────────────────── Recargar ───────────────────────────────────
 
   // Con la casa en modo manual no hay formulario de recarga: la plata entra en
-  // efectivo por la taquilla. Se dice quién la carga y cómo ubicarlo, que es
+  // efectivo por la banca. Se dice quién la carga y cómo ubicarlo, que es
   // lo único que el jugador necesita saber en esta pantalla.
   function RecargaEnEfectivo({ info }) {
-    const socio = info.socio;
+    const banquero = info.banquero;
     return (
       <div style={S.card}>
         <div style={S.titulo}>{T('CÓMO RECARGAR')}</div>
         <div style={{ fontSize: 15, lineHeight: 1.8, color: '#d8cfae' }}>
           {T('Las recargas son')} <b>{T('en efectivo')}</b>.{' '}
-          {socio
-            ? <>{T('Hablá con tu taquillero')} <b style={{ color: U.GOLD }}>{socio.nombre}</b>
+          {banquero
+            ? <>{T('Hablá con tu banquero')} <b style={{ color: U.GOLD }}>{banquero.nombre}</b>
                {T(', entregale la plata y él te carga el saldo al instante.')}</>
-            : <>{T('Hablá con el taquillero que te registró: le entregás la plata y él te carga el saldo al instante.')}</>}
+            : <>{T('Hablá con el banquero que te registró: le entregás la plata y él te carga el saldo al instante.')}</>}
         </div>
-        {socio && socio.datos && (
+        {banquero && banquero.datos && (
           <div style={{
             marginTop: 12, background: 'rgba(0,0,0,0.45)',
             border: '1px dashed var(--borde, #8b6a20)', borderRadius: 8,
             padding: 12, fontSize: 15, color: '#7ee08a',
             fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          }}>{socio.datos}</div>
+          }}>{banquero.datos}</div>
         )}
         <div style={{ marginTop: 12, fontSize: 13, color: '#888', lineHeight: 1.7 }}>
           {T('Cuando te cargue, el saldo aparece acá solo. Si no aparece en el momento, mostrale esta pantalla: cada carga queda anotada con su nombre y la hora.')}
@@ -146,8 +146,8 @@
     const mult = info.limites.monto_multiplo || 1;
     const enBs = Number(monto) || 0;
     const multiploOk = mult <= 1 || enBs % mult === 0;
-    // Con socio, la plata va a él; sin socio, a las cuentas de la casa.
-    const datosCuenta = info.socio ? info.socio.datos : (info.cuentas ? info.cuentas[metodo] : '');
+    // Con banquero, la plata va a él; sin banquero, a las cuentas de la casa.
+    const datosCuenta = info.banquero ? info.banquero.datos : (info.cuentas ? info.cuentas[metodo] : '');
 
     const enviar = async () => {
       setEnviando(true);
@@ -155,8 +155,8 @@
         await window.Api.createTopup({ method: metodo, amount: enBs, reference: referencia.trim() });
         setMsg({
           kind: 'ok',
-          text: info.socio
-            ? `Listo. Tu recarga de ${plata(enBs)} le llegó a tu socio ${info.socio.nombre}: apenas confirme el pago te acredita el saldo.`
+          text: info.banquero
+            ? `Listo. Tu recarga de ${plata(enBs)} le llegó a tu banquero ${info.banquero.nombre}: apenas confirme el pago te acredita el saldo.`
             : `Listo. Tu recarga de ${plata(enBs)} quedó esperando revisión. Apenas verifiquemos la transferencia te acreditamos el saldo.`,
         });
         setMonto(''); setReferencia('');
@@ -190,7 +190,7 @@
 
         <div style={S.card}>
           <div style={S.titulo}>
-            {info.socio ? `2. PAGALE A TU SOCIO (${info.socio.nombre.toUpperCase()})` : '2. TRANSFERÍ A ESTA CUENTA'}
+            {info.banquero ? `2. PAGALE A TU BANQUERO (${info.banquero.nombre.toUpperCase()})` : '2. TRANSFERÍ A ESTA CUENTA'}
           </div>
           <div style={{
             background: 'rgba(0,0,0,0.45)', border: '1px dashed #8b6a20', borderRadius: 8,
@@ -237,8 +237,8 @@
               {enviando ? 'ENVIANDO...' : 'YA PAGUÉ, AVISAR'}
             </Boton>
             <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
-              {info.socio
-                ? `Tu recarga la revisa y aprueba tu socio ${info.socio.nombre}. Si el número de referencia está mal, la rechaza.`
+              {info.banquero
+                ? `Tu recarga la revisa y aprueba tu banquero ${info.banquero.nombre}. Si el número de referencia está mal, la rechaza.`
                 : 'El saldo entra cuando verificamos la transferencia en el banco. Si el número de referencia está mal, la recarga se rechaza.'}
             </div>
           </div>
@@ -284,7 +284,7 @@
       finally { setEnviando(false); }
     };
 
-    // En efectivo no hay "a dónde te lo mandamos": se cobra en la taquilla.
+    // En efectivo no hay "a dónde te lo mandamos": se cobra en la banca.
     const manual = !!info.pagos_manuales;
     const listo = m >= info.limites.min_withdrawal && m <= info.disponible
       && (manual || destino.trim()) && (yaTieneDoc || cedula.trim().length >= 4)
@@ -327,7 +327,7 @@
                 borderRadius: 6, padding: '10px 12px', fontSize: 14, color: '#d8cfae', lineHeight: 1.7,
               }}>
                 Cobrás <b>en efectivo</b>
-                {info.socio ? <> con tu taquillero <b style={{ color: U.GOLD }}>{info.socio.nombre}</b></> : ' en la taquilla'}.
+                {info.banquero ? <> con tu banquero <b style={{ color: U.GOLD }}>{info.banquero.nombre}</b></> : ' en la banca'}.
                 Pedilo acá y pasá a buscarlo: el pedido queda anotado con tu nombre, el monto y la hora.
               </div>
             ) : (
@@ -392,8 +392,8 @@
               {enviando ? T('ENVIANDO...') : T('PEDIR RETIRO')}
             </Boton>
             <div style={{ fontSize: 12, color: '#888', lineHeight: 1.5 }}>
-              {info.socio
-                ? `Este retiro lo revisa y te lo paga tu socio ${info.socio.nombre}. `
+              {info.banquero
+                ? `Este retiro lo revisa y te lo paga tu banquero ${info.banquero.nombre}. `
                 : ''}
               Al pedirlo, ese saldo te queda retenido y no lo vas a poder jugar. Si el retiro se rechaza,
               te vuelve automáticamente.

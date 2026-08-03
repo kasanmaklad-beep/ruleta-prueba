@@ -56,8 +56,8 @@ export async function adminSummary(request, env) {
          (SELECT COUNT(*) FROM topups      WHERE status = 'pending' AND cashier_id IS NULL) AS recargas_pendientes,
          (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NULL) AS retiros_pendientes,
          (SELECT COALESCE(SUM(amount), 0) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NULL) AS retiros_pendientes_monto,
-         (SELECT COUNT(*) FROM topups      WHERE status = 'pending' AND cashier_id IS NOT NULL) AS recargas_socios,
-         (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NOT NULL) AS retiros_socios`
+         (SELECT COUNT(*) FROM topups      WHERE status = 'pending' AND cashier_id IS NOT NULL) AS recargas_banqueros,
+         (SELECT COUNT(*) FROM withdrawals WHERE status = 'pending' AND cashier_id IS NOT NULL) AS retiros_banqueros`
     ).first(),
     env.DB.prepare(
       `SELECT
@@ -72,7 +72,7 @@ export async function adminSummary(request, env) {
     env.DB.prepare(
       `SELECT
          (SELECT COUNT(*) FROM users WHERE role = 'player')  AS jugadores,
-         (SELECT COUNT(*) FROM users WHERE role = 'cashier') AS socios,
+         (SELECT COUNT(*) FROM users WHERE role = 'cashier') AS banqueros,
          (SELECT COALESCE(SUM(balance), 0)      FROM users WHERE role = 'player') AS saldo_jugadores,
          (SELECT COALESCE(SUM(held_balance), 0) FROM users WHERE role = 'player') AS saldo_congelado`
     ).first(),
@@ -176,7 +176,7 @@ export async function reportDaily(request, env, url) {
   });
 }
 
-// ─────────────────────────── Reporte por socio ───────────────────────
+// ─────────────────────────── Reporte por banquero ───────────────────────
 
 export async function reportCashiers(request, env, url) {
   const auth = await requireAdmin(request, env);
@@ -201,10 +201,10 @@ export async function reportCashiers(request, env, url) {
       ORDER BY cargado DESC, c.username`
   ).bind(VE_OFFSET, from, to).all();
 
-  const socios = (rows.results || []).map((c) => {
-    // Resultado del período para el socio: lo que cobró a sus jugadores
+  const banqueros = (rows.results || []).map((c) => {
+    // Resultado del período para el banquero: lo que cobró a sus jugadores
     // (cargas de cupo) menos lo que les pagó en retiros. Si es negativo y el
-    // socio es franquiciado (participación > 0), esa pérdida corre por la casa.
+    // banquero es franquiciado (participación > 0), esa pérdida corre por la casa.
     const resultado = (c.cargado || 0) - (c.retiros_pagados || 0);
     return {
       ...c,
@@ -216,7 +216,7 @@ export async function reportCashiers(request, env, url) {
     };
   });
 
-  return json({ from, to, socios });
+  return json({ from, to, banqueros });
 }
 
 // ─────────────────────────── Historial de un jugador ──────────────────────
@@ -321,7 +321,7 @@ export async function reportAlerts(request, env, url) {
         LIMIT ?`
     ).bind(limit).all(),
 
-    // 4. Socios con el cupo por agotarse: sin fichas no pueden vender.
+    // 4. Banqueros con el cupo por agotarse: sin fichas no pueden vender.
     env.DB.prepare(
       `SELECT id, username, first_name, last_name, credit_balance
          FROM users
@@ -335,7 +335,7 @@ export async function reportAlerts(request, env, url) {
     ganadores: (ganadores.results || []).map((g) => ({ ...g, neto: g.premios - g.apostado })),
     poco_juego: sinJugar.results || [],
     retiros_demorados: viejos.results || [],
-    socios_cupo_bajo: cupoBajo.results || [],
+    banqueros_cupo_bajo: cupoBajo.results || [],
     umbral_cupo: umbralCupo,
   });
 }

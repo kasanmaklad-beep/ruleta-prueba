@@ -1,13 +1,13 @@
 // ════════════════════════════════════════════════════════════════════════
 //  Cobros y pagos — modelo franquicia.
 //
-//  Cada jugador tiene una "ventanilla": su socio, si está afiliado, o la
+//  Cada jugador tiene una "ventanilla": su banquero, si está afiliado, o la
 //  casa si entró solo. Las recargas y retiros van a la cola de ESA
 //  ventanilla (topups.cashier_id / withdrawals.cashier_id; NULL = casa).
 //
-//  · Recarga de afiliado: el jugador le paga a su socio, el socio verifica
-//    y aprueba → las fichas salen del CUPO del socio.
-//  · Retiro de afiliado: lo paga el socio de su bolsillo → las fichas
+//  · Recarga de afiliado: el jugador le paga a su banquero, el banquero verifica
+//    y aprueba → las fichas salen del CUPO del banquero.
+//  · Retiro de afiliado: lo paga el banquero de su bolsillo → las fichas
 //    vuelven a su cupo (no son reembolsables a la casa: las revende).
 //  · Jugadores directos: mismo circuito de siempre, con la casa.
 //
@@ -34,15 +34,15 @@ export async function walletInfo(request, env) {
   const s = await getSettings(env);
   const user = await getUser(env, auth.userId);
 
-  // Si tiene socio, la plata entra y sale por él.
-  let socio = null;
+  // Si tiene banquero, la plata entra y sale por él.
+  let banquero = null;
   if (user.cashier_id) {
     const srow = await env.DB.prepare(
       `SELECT username, first_name, last_name, collect_details, payout_details, bank, phone
          FROM users WHERE id = ? AND role = 'cashier'`
     ).bind(user.cashier_id).first();
     if (srow) {
-      socio = {
+      banquero = {
         username: srow.username,
         nombre: [srow.first_name, srow.last_name].filter(Boolean).join(' ') || srow.username,
         datos: srow.collect_details || srow.payout_details
@@ -58,12 +58,12 @@ export async function walletInfo(request, env) {
 
   return json({
     user,
-    socio,
+    banquero,
     // Con la casa en modo manual el teléfono del jugador no necesita —ni debe
     // recibir— los datos bancarios de nadie: la plata se mueve en la mano.
     pagos_manuales: manual,
     disponible: (user.balance || 0) - (user.held_balance || 0),
-    cuentas: (socio || manual) ? null : {
+    cuentas: (banquero || manual) ? null : {
       pago_movil: s.bank_pago_movil,
       transferencia: s.bank_transferencia,
       p2p: s.bank_p2p,
@@ -79,7 +79,7 @@ export async function walletInfo(request, env) {
 }
 
 // El jugador informa una transferencia ya hecha. Cae en la cola de su
-// ventanilla: su socio si está afiliado, la casa si no.
+// ventanilla: su banquero si está afiliado, la casa si no.
 export async function createTopup(request, env) {
   const auth = await requireAuth(request, env);
   if (auth.error) return auth.response;
@@ -88,12 +88,12 @@ export async function createTopup(request, env) {
   const s = await getSettings(env);
 
   // Con la casa en modo manual el jugador no reporta pagos por la app: la
-  // plata entra en la mano del taquillero. Se frena acá y no sólo en la
+  // plata entra en la mano del banquero. Se frena acá y no sólo en la
   // pantalla — si no, bastaría con llamar a la API a mano para meter una
   // recarga inventada esperando aprobación.
   if (pagosManuales(s)) {
     return json({
-      error: 'Las recargas son en efectivo: hablá con tu taquillero y él te carga el saldo.',
+      error: 'Las recargas son en efectivo: hablá con tu banquero y él te carga el saldo.',
     }, 400);
   }
 
@@ -147,11 +147,11 @@ export async function createWithdrawal(request, env) {
   const manual = pagosManuales(s);
 
   const amount = toPositiveInt(body.amount);
-  // En efectivo el destino es la taquilla, no una cuenta: el pedido queda
+  // En efectivo el destino es la banca, no una cuenta: el pedido queda
   // igual anotado (quién pidió cuánto y cuándo), que es lo que hace falta para
   // cuadrar la caja después.
   const method = manual ? 'efectivo' : validMethod(body.method);
-  const destination = manual ? 'Efectivo en taquilla' : str(body.destination, 200);
+  const destination = manual ? 'Efectivo en banca' : str(body.destination, 200);
 
   if (amount === null) return json({ error: 'Monto inválido' }, 400);
   if (!method) return json({ error: 'Elegí cómo querés cobrar' }, 400);
@@ -254,7 +254,7 @@ export async function walletHistory(request, env) {
   });
 }
 
-// ═════════════════════ Ventanilla del SOCIO: recargas ═════════════════════
+// ═════════════════════ Ventanilla del BANQUERO: recargas ═════════════════════
 
 export async function cashierTopups(request, env, url) {
   const auth = await requireCashier(request, env);
@@ -272,7 +272,7 @@ export async function cashierTopups(request, env, url) {
   return json({ topups: rows.results || [] });
 }
 
-// El socio aprueba la recarga de su afiliado: verifica que la plata le llegó
+// El banquero aprueba la recarga de su afiliado: verifica que la plata le llegó
 // y acredita. Las fichas salen de SU cupo.
 export async function cashierApproveTopup(request, env, topupId) {
   const auth = await requireCashier(request, env);
@@ -327,7 +327,7 @@ export async function cashierApproveTopup(request, env, topupId) {
         `INSERT INTO transactions (user_id, type, amount, note, actor_id, ref_id, source)
          VALUES (?, 'deposit', ?, ?, ?, ?, 'cashier')`
       ).bind(topup.user_id, amount,
-             `Recarga ${topup.method} ref ${topup.reference} (socio ${auth.username})`,
+             `Recarga ${topup.method} ref ${topup.reference} (banquero ${auth.username})`,
              auth.userId, topupId),
       env.DB.prepare(
         `INSERT INTO credit_ledger (cashier_id, type, amount, player_id, ref_id, note, actor_id)
@@ -368,7 +368,7 @@ export async function cashierRejectTopup(request, env, topupId) {
   return json({ ok: true });
 }
 
-// ═════════════════════ Ventanilla del SOCIO: retiros ══════════════════════
+// ═════════════════════ Ventanilla del BANQUERO: retiros ══════════════════════
 
 export async function cashierWithdrawals(request, env, url) {
   const auth = await requireCashier(request, env);
@@ -387,7 +387,7 @@ export async function cashierWithdrawals(request, env, url) {
   return json({ withdrawals: rows.results || [] });
 }
 
-// El socio pagó el retiro de su bolsillo: las fichas vuelven a su cupo
+// El banquero pagó el retiro de su bolsillo: las fichas vuelven a su cupo
 // (no son reembolsables a la casa: las revende a sus jugadores).
 export async function cashierPayWithdrawal(request, env, wdId) {
   const auth = await requireCashier(request, env);
@@ -416,7 +416,7 @@ export async function cashierPayWithdrawal(request, env, wdId) {
         `INSERT INTO transactions (user_id, type, amount, note, actor_id, ref_id, source)
          VALUES (?, 'withdraw', ?, ?, ?, ?, 'cashier')`
       ).bind(wd.user_id, wd.amount,
-             `Retiro ${wd.method} a ${wd.destination} — pagó socio ${auth.username}`,
+             `Retiro ${wd.method} a ${wd.destination} — pagó banquero ${auth.username}`,
              auth.userId, wdId),
       env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
         .bind(wd.amount, auth.userId),
@@ -461,7 +461,7 @@ export async function cashierRejectWithdrawal(request, env, wdId) {
   return json({ ok: true });
 }
 
-// Los datos de pago que el socio muestra a sus afiliados al recargar.
+// Los datos de pago que el banquero muestra a sus afiliados al recargar.
 export async function cashierSetCollectInfo(request, env) {
   const auth = await requireCashier(request, env);
   if (auth.error) return auth.response;
@@ -486,7 +486,7 @@ export async function adminTopups(request, env, url) {
 
   const rows = await env.DB.prepare(
     `SELECT t.*, u.username, u.phone, u.first_name, u.last_name,
-            r.username AS reviewer, sc.username AS socio_username
+            r.username AS reviewer, sc.username AS banquero_username
        FROM topups t
        JOIN users u ON u.id = t.user_id
        LEFT JOIN users r ON r.id = t.reviewed_by
@@ -500,7 +500,7 @@ export async function adminTopups(request, env, url) {
 }
 
 // La casa solo aprueba recargas de sus jugadores directos. Las de afiliados
-// las aprueba el socio: acreditarlas desde acá regalaría fichas que el socio
+// las aprueba el banquero: acreditarlas desde acá regalaría fichas que el banquero
 // nunca compró.
 export async function adminApproveTopup(request, env, topupId) {
   const auth = await requireAdmin(request, env);
@@ -508,13 +508,13 @@ export async function adminApproveTopup(request, env, topupId) {
 
   const body = await readJson(request);
   const topup = await env.DB.prepare(
-    `SELECT t.*, sc.username AS socio_username
+    `SELECT t.*, sc.username AS banquero_username
        FROM topups t LEFT JOIN users sc ON sc.id = t.cashier_id
       WHERE t.id = ?`
   ).bind(topupId).first();
   if (!topup) return json({ error: 'Recarga no encontrada' }, 404);
   if (topup.cashier_id) {
-    return json({ error: `Esa recarga la maneja el socio ${topup.socio_username}: solo él puede aprobarla (vos podés rechazarla si hace falta).` }, 400);
+    return json({ error: `Esa recarga la maneja el banquero ${topup.banquero_username}: solo él puede aprobarla (vos podés rechazarla si hace falta).` }, 400);
   }
   if (topup.status !== 'pending') return json({ error: `Esa recarga ya está ${topup.status === 'approved' ? 'aprobada' : 'rechazada'}` }, 409);
 
@@ -582,7 +582,7 @@ export async function adminWithdrawals(request, env, url) {
     `SELECT w.*, u.username, u.phone, u.balance, u.wagered_total, u.deposited_total,
             u.first_name, u.last_name, u.bank,
             r.username AS reviewer, p.username AS payer_username,
-            sc.username AS socio_username
+            sc.username AS banquero_username
        FROM withdrawals w
        JOIN users u ON u.id = w.user_id
        LEFT JOIN users r ON r.id = w.reviewed_by
@@ -597,20 +597,20 @@ export async function adminWithdrawals(request, env, url) {
 }
 
 // La casa paga los retiros de SUS jugadores directos. Los de afiliados los
-// paga su socio (y a él le vuelven las fichas al cupo).
+// paga su banquero (y a él le vuelven las fichas al cupo).
 export async function adminPayWithdrawal(request, env, wdId) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
 
   const body = await readJson(request);
   const wd = await env.DB.prepare(
-    `SELECT w.*, sc.username AS socio_username
+    `SELECT w.*, sc.username AS banquero_username
        FROM withdrawals w LEFT JOIN users sc ON sc.id = w.cashier_id
       WHERE w.id = ?`
   ).bind(wdId).first();
   if (!wd) return json({ error: 'Retiro no encontrado' }, 404);
   if (wd.cashier_id) {
-    return json({ error: `Ese retiro lo paga el socio ${wd.socio_username} (vos podés rechazarlo si hace falta).` }, 400);
+    return json({ error: `Ese retiro lo paga el banquero ${wd.banquero_username} (vos podés rechazarlo si hace falta).` }, 400);
   }
   if (wd.status !== 'pending') return json({ error: 'Ese retiro ya fue procesado' }, 409);
 
@@ -620,11 +620,11 @@ export async function adminPayWithdrawal(request, env, wdId) {
   let payer = null;
   if (paidBy === 'cashier') {
     const username = normalizeUsername(body.payer_username);
-    if (!username) return json({ error: 'Elegí qué socio lo pagó' }, 400);
+    if (!username) return json({ error: 'Elegí qué banquero lo pagó' }, 400);
     payer = await env.DB.prepare(
       "SELECT id, username FROM users WHERE username = ? AND role = 'cashier'"
     ).bind(username).first();
-    if (!payer) return json({ error: 'Socio no encontrado' }, 404);
+    if (!payer) return json({ error: 'Banquero no encontrado' }, 404);
   }
 
   const claim = await env.DB.prepare(

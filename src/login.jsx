@@ -135,7 +135,7 @@
   function LoginScreen({ onAuth, aviso }) {
     const [mode, setMode] = useState(() =>
       new URLSearchParams(window.location.search).get('ref') ? 'register' : 'login');
-    // El código de socio puede venir en el enlace que reparte el socio:
+    // El código de banquero puede venir en el enlace que reparte el banquero:
     // .../?ref=S0009 — así el jugador no tiene que escribirlo.
     const refDeLaUrl = (() => {
       try { return new URLSearchParams(window.location.search).get('ref') || ''; }
@@ -371,7 +371,7 @@
                        placeholder={T('Correo electrónico')}
                        value={f.email} onChange={set('email')} />
                 <input style={{ ...inputStyle, textTransform: 'uppercase' }} type="text" name="ref"
-                       placeholder={T('Código de tu socio (opcional)')}
+                       placeholder={T('Código de tu banquero (opcional)')}
                        value={f.ref}
                        onChange={(e) => setF((p) => ({ ...p, ref: e.target.value.toUpperCase() }))} />
                 <div style={ayuda}>
@@ -400,7 +400,7 @@
                   <b>{cfg && cfg.wager_pct_required != null ? cfg.wager_pct_required : 25}%</b>
                   {' '}{T('de lo que recargaste.')}
                 </div>
-                <div>· {T('Se recarga y se cobra')} <b>{T('en efectivo')}</b> {T('con tu taquillero.')}</div>
+                <div>· {T('Se recarga y se cobra')} <b>{T('en efectivo')}</b> {T('con tu banquero.')}</div>
                 <a href="#"
                    onClick={(e) => { e.preventDefault(); setVerCondiciones(true); }}
                    style={{ color: '#d4a94a', fontWeight: 700, textDecoration: 'underline',

@@ -55,7 +55,7 @@
       '¿No tenés cuenta? ': "Don't have an account? ",
       'Teléfono (ej: 04141234567)': 'Phone (e.g. 04141234567)',
       'Correo electrónico': 'Email address',
-      'Código de tu socio (opcional)': "Your teller's code (optional)",
+      'Código de tu banquero (opcional)': "Your banker's code (optional)",
       'Un documento, una cuenta. Solo el número: el tipo va aparte.':
         'One ID, one account. Just the number — the type goes in the box next to it.',
       'Si alguien te invitó, poné acá su código. Si entraste por su enlace, ya viene puesto.':
@@ -88,7 +88,7 @@
       'Para retirar hay que haber jugado el': 'To withdraw you must have wagered',
       'de lo que recargaste.': 'of what you deposited.',
       'Se recarga y se cobra': 'You deposit and collect',
-      'con tu taquillero.': 'with your teller.',
+      'con tu banquero.': 'with your banker.',
       'Leer las condiciones completas': 'Read the full terms',
       'CONDICIONES DE VOLTIO': 'VOLTIO TERMS',
       'versión': 'version',
@@ -115,8 +115,8 @@
         + 'deposited. If you deposit and do not play, you cannot withdraw: the house is not a '
         + 'currency exchange.',
       'La plata entra y sale en efectivo': 'Money comes in and goes out in cash',
-      'Recargás y cobrás en la mano de tu taquillero. La recarga mínima es {min} y el retiro mínimo {ret}. VOLTIO NO te va a pedir nunca datos de tu banco ni claves por la aplicación: si alguien te los pide, no es de la casa.':
-        'You deposit and collect in person with your teller. The minimum deposit is {min} and '
+      'Recargás y cobrás en la mano de tu banquero. La recarga mínima es {min} y el retiro mínimo {ret}. VOLTIO NO te va a pedir nunca datos de tu banco ni claves por la aplicación: si alguien te los pide, no es de la casa.':
+        'You deposit and collect in person with your banker. The minimum deposit is {min} and '
         + 'the minimum withdrawal is {ret}. VOLTIO will NEVER ask for your bank details or '
         + 'passwords through the app: if someone asks, they are not from the house.',
       'El resultado lo decide el servidor y queda anotado':
@@ -134,7 +134,7 @@
       'SALÓN DE JUEGOS': 'GAME ROOM',
       'SALDO': 'BALANCE',
       'CAJA': 'CASHIER',
-      'TAQUILLA': 'TELLER',
+      'BANCA': 'BANKER',
       'PANEL': 'PANEL',
       'BIENVENIDO': 'WELCOME',
       'entraste como': 'signed in as',
@@ -174,7 +174,7 @@
       'GIRAR': 'SPIN',
       'SALÓN': 'ROOM',
       'Saldo insuficiente': 'Not enough balance',
-      // Lo retenido por un retiro que el socio todavía no aprobó: es plata del
+      // Lo retenido por un retiro que el banquero todavía no aprobó: es plata del
       // jugador que no puede jugar, y la mesa ahora lo dice en vez de sumarla
       // al saldo.
       'en revisión': 'on hold',
@@ -232,7 +232,7 @@
       'MI BILLETERA': 'MY WALLET',
       'JUGADOR': 'PLAYER',
       'MATRIZ': 'HEAD OFFICE',
-      'SOCIO': 'PARTNER',
+      'BANQUERO': 'PARTNER',
       'SALDO PARA JUGAR': 'BALANCE TO PLAY',
       'dólares': 'dollars',
       'bolívares': 'bolivars',
@@ -252,11 +252,11 @@
       'CUÁNTO QUERÉS RETIRAR ({s})': 'HOW MUCH DO YOU WANT TO WITHDRAW ({s})',
       'Las recargas son': 'Deposits are',
       'en efectivo': 'in cash',
-      'Hablá con tu taquillero': 'Talk to your teller',
+      'Hablá con tu banquero': 'Talk to your banker',
       ', entregale la plata y él te carga el saldo al instante.':
         ' — hand them the cash and they load your balance right away.',
-      'Hablá con el taquillero que te registró: le entregás la plata y él te carga el saldo al instante.':
-        'Talk to the teller who registered you: hand them the cash and they load your balance right away.',
+      'Hablá con el banquero que te registró: le entregás la plata y él te carga el saldo al instante.':
+        'Talk to the banker who registered you: hand them the cash and they load your balance right away.',
       'Cuando te cargue, el saldo aparece acá solo. Si no aparece en el momento, mostrale esta pantalla: cada carga queda anotada con su nombre y la hora.':
         'Once they load it, the balance shows up here on its own. If it does not, show them this screen: every deposit is recorded with their name and the time.',
       'Cobrás en efectivo': 'You collect in cash',

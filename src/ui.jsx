@@ -1,10 +1,10 @@
-// Piezas visuales compartidas por el panel, la taquilla y la billetera.
+// Piezas visuales compartidas por el panel, la banca y la billetera.
 // Expone window.UI. Mantiene el mismo aire que el juego: dorado sobre negro.
 (function () {
   const { useState } = React;
 
   // ── El color de cada panel ────────────────────────────────────────────
-  // Los tres paneles (dueño, socio, jugador) comparten estos estilos, y hasta
+  // Los tres paneles (dueño, banquero, jugador) comparten estos estilos, y hasta
   // ahora compartían también el color: los tres eran dorados y de un vistazo
   // no se sabía en cuál estabas. Ahora el color sale de variables CSS que cada
   // panel define en su raíz — así no hay que duplicar ni un estilo, y el que
@@ -33,7 +33,7 @@
       // en el tono del panel.
       '--fondo-destacado': 'linear-gradient(180deg, #10283a, #071620)',
     },
-    // El socio: verde. Es la taquilla: entra y sale efectivo.
+    // El banquero: verde. Es la banca: entra y sale efectivo.
     socio: {
       '--acento': '#4fd18b',
       '--borde': '#2a7f52',
@@ -194,9 +194,9 @@
   // ya lo dice, pero el color solo no alcanza: hay gente que no lo distingue,
   // y a pleno sol en la calle un azul oscuro y un verde oscuro son lo mismo.
   // Escrito no falla.
-  // La casa matriz, los socios que venden fichas, y el jugador. La cinta dice
+  // La casa matriz, los banqueros que venden fichas, y el jugador. La cinta dice
   // el rol; el panel del dueño se llama PANEL MATRIZ.
-  const NOMBRE_ROL = { dueno: 'MATRIZ', socio: 'SOCIO', jugador: 'JUGADOR' };
+  const NOMBRE_ROL = { dueno: 'MATRIZ', socio: 'BANQUERO', jugador: 'JUGADOR' };
 
   function Encabezado({ titulo, subtitulo, acciones, rol }) {
     return (
