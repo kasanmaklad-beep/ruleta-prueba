@@ -24,6 +24,7 @@ export async function adminCashiers(request, env) {
   const rows = await env.DB.prepare(
     `SELECT u.id, u.username, u.phone, u.status, u.credit_balance, u.commission_pct, u.created_at,
             u.first_name, u.last_name, u.referral_code, u.cedula, u.bank, u.risk_share_pct,
+            u.exec_id,
             COALESCE(p.comprado, 0)   AS cupo_comprado,
             COALESCE(p.pagado, 0)     AS total_pagado,
             COALESCE(l.cargado, 0)    AS total_cargado,

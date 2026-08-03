@@ -843,6 +843,13 @@ export function requireAdmin(request, env) {
   return requireRole(request, env, ['admin']);
 }
 
+// El ejecutivo: el piso entre la matriz y los banqueros. El dueño entra a todo
+// lo del ejecutivo porque está por encima de él — si no, para mirar el panel de
+// uno de ellos tendría que pedirle la clave.
+export function requireExec(request, env) {
+  return requireRole(request, env, ['exec', 'admin']);
+}
+
 // El dueño puede hacer todo lo que hace un banquero.
 export function requireCashier(request, env) {
   return requireRole(request, env, ['cashier', 'admin']);

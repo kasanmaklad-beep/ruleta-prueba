@@ -21,6 +21,11 @@ import {
   adminGames, adminCreateGame, adminUpdateGame, adminToggleGame,
 } from './games.js';
 
+// La capa ejecutiva: matriz → ejecutivo → banquero → jugador.
+import {
+  execSummary, execPlayers, adminExecs, adminSetExec, adminSetExecLimite,
+} from './execs.js';
+
 import {
   bjRonda, bjApostar, bjPedir, bjPlantarse, bjDoblar, bjDividir, barrerRondasAbandonadas,
 } from './blackjack.js';
@@ -51,7 +56,7 @@ import {
 } from './reports.js';
 
 // Rutas de la SPA que no son archivos: hay que servirles el index.html.
-const SPA_ROUTES = ['/admin', '/taquilla', '/billetera', '/juego', '/mesa21', '/salon'];
+const SPA_ROUTES = ['/admin', '/taquilla', '/ejecutivo', '/billetera', '/juego', '/mesa21', '/salon'];
 
 export default {
   // ── La tarea programada (Cron Triggers de Cloudflare) ──────────────────
@@ -187,6 +192,19 @@ async function handleApi(request, env, url) {
     return adminSetRefCode(request, env, Number(m[1]));
   if (method === 'POST' && path === '/api/admin/cashiers/adjust') return adminAdjustCredit(request, env);
   if (method === 'GET'  && path === '/api/admin/credit-ledger')   return adminCreditLedger(request, env, url);
+
+  // ── La capa ejecutiva ──
+  // Lo del ejecutivo va bajo /api/exec y lo mira él mismo; el dueño entra a lo
+  // de cualquiera agregando ?exec=<id>, porque está por encima.
+  if (method === 'GET'  && path === '/api/exec/summary') return execSummary(request, env, url);
+  if (method === 'GET'  && path === '/api/exec/players') return execPlayers(request, env, url);
+  if (method === 'GET'  && path === '/api/admin/execs')  return adminExecs(request, env);
+  // Colgar un banquero de un ejecutivo (o devolverlo a la matriz).
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/cashiers\/(\d+)\/exec$/)))
+    return adminSetExec(request, env, Number(m[1]));
+  // El techo de exposición del ejecutivo.
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/limite$/)))
+    return adminSetExecLimite(request, env, Number(m[1]));
 
   // ── Panel: recargas ──
   if (method === 'GET'  && path === '/api/admin/topups') return adminTopups(request, env, url);

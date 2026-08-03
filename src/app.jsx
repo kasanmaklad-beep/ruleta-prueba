@@ -1919,12 +1919,14 @@ function AppRoot() {
     const ruta = rutaActual();
     if (ruta === '/admin' && u.role === 'admin') return 'admin';
     if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
+    if (ruta === '/ejecutivo' && (u.role === 'exec' || u.role === 'admin')) return 'ejecutivo';
     if (ruta === '/billetera') return 'billetera';
     if (ruta === '/juego') return 'game';
     if (ruta === '/mesa21') return 'mesa21';
     if (ruta === '/salon') return 'salon';
     if (ruta === '/') {
       if (u.role === 'admin') return 'admin';
+      if (u.role === 'exec') return 'ejecutivo';
       if (u.role === 'cashier') return 'taquilla';
       return 'salon';
     }
@@ -2106,6 +2108,7 @@ function AppRoot() {
 
   if (status === 'admin')     return <AdminPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
   if (status === 'taquilla')  return <CashierPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
+  if (status === 'ejecutivo') return <ExecPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
   if (status === 'billetera') return <WalletPanel user={user} onExit={volverAlJuego} onLogout={salir} />;
 
   const esAdmin = user && user.role === 'admin';

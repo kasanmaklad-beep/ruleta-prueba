@@ -45,6 +45,19 @@
       '--boton-texto': '#03150d',
       '--fondo-destacado': 'linear-gradient(180deg, #0d2b1d, #061510)',
     },
+    // El ejecutivo: violeta. No es el azul de la matriz ni el verde de la
+    // banca — el del medio tiene que saber de un vistazo en qué panel está.
+    ejecutivo: {
+      '--acento': '#a78bfa',
+      '--borde': '#5b3fa8',
+      '--linea': '#3a2a63',
+      '--linea-suave': '#22183a',
+      '--fondo-pagina': 'radial-gradient(ellipse at center, #1e1136 0%, #120a20 60%, #06030c 100%)',
+      '--fondo-tarjeta': 'linear-gradient(180deg, #1a1030, #0d0718)',
+      '--boton-acento': 'linear-gradient(180deg, #c4b0ff, #6b4bc4)',
+      '--boton-texto': '#0d0620',
+      '--fondo-destacado': 'linear-gradient(180deg, #241640, #120a22)',
+    },
     // El jugador: el dorado de la casa, que es el de las mesas.
     jugador: {
       '--acento': '#d4a94a',
@@ -196,7 +209,7 @@
   // Escrito no falla.
   // La casa matriz, los banqueros que venden fichas, y el jugador. La cinta dice
   // el rol; el panel del dueño se llama PANEL MATRIZ.
-  const NOMBRE_ROL = { dueno: 'MATRIZ', socio: 'BANQUERO', jugador: 'JUGADOR' };
+  const NOMBRE_ROL = { dueno: 'MATRIZ', ejecutivo: 'EJECUTIVO', socio: 'BANQUERO', jugador: 'JUGADOR' };
 
   function Encabezado({ titulo, subtitulo, acciones, rol }) {
     return (

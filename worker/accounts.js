@@ -407,7 +407,7 @@ export async function adminSetRole(request, env, userId) {
 
   const body = await readJson(request);
   const role = String(body.role || '');
-  if (!['player', 'cashier', 'admin'].includes(role)) return json({ error: 'Rol inválido' }, 400);
+  if (!['player', 'cashier', 'exec', 'admin'].includes(role)) return json({ error: 'Rol inválido' }, 400);
 
   const target = await getUser(env, userId);
   if (!target) return json({ error: 'Usuario no encontrado' }, 404);
@@ -420,6 +420,21 @@ export async function adminSetRole(request, env, userId) {
   // Un banquero con cupo cargado no puede dejar de serlo sin liquidarlo.
   if (target.role === 'cashier' && role !== 'cashier' && target.credit_balance > 0) {
     return json({ error: `Ese banquero todavía tiene ${target.credit_balance} de cupo sin usar. Liquidalo antes de cambiarle el rol.` }, 400);
+  }
+  // Lo mismo para el ejecutivo, y además no puede dejar de serlo con banqueros
+  // colgando: quedarían huérfanos, sin nadie arriba, y su plata sin dueño.
+  if (target.role === 'exec' && role !== 'exec') {
+    if (target.credit_balance > 0) {
+      return json({ error: `Ese ejecutivo todavía tiene ${target.credit_balance} de fichas asignadas. Liquidalas antes de cambiarle el rol.` }, 400);
+    }
+    const suyos = await env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM users WHERE exec_id = ? AND role = 'cashier'"
+    ).bind(userId).first();
+    if ((suyos?.n || 0) > 0) {
+      return json({
+        error: `Ese ejecutivo tiene ${suyos.n} banquero(s) a cargo. Pasalos a otro ejecutivo (o a la matriz) antes de cambiarle el rol.`,
+      }, 400);
+    }
   }
 
   let commission = target.commission_pct;

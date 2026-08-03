@@ -269,7 +269,9 @@
                   {u.held_balance > 0 && <span style={{ fontSize: 11 }}> ({bs(u.held_balance)} ret.)</span>}
                 </td>
                 <td style={{ ...S.td, fontSize: 13 }}>
-                  {u.role === 'admin' ? '👑 dueño' : u.role === 'cashier' ? '🎟 banquero' : 'jugador'}
+                  {u.role === 'admin' ? '👑 dueño'
+                    : u.role === 'exec' ? '◆ ejecutivo'
+                    : u.role === 'cashier' ? '🎟 banquero' : 'jugador'}
                   {u.role === 'cashier' && (
                     <div style={{ fontSize: 11, color: '#888' }}>
                       cupo {bs(u.credit_balance)} · {u.commission_pct}%
@@ -385,7 +387,8 @@
       try {
         if (tipo === 'rol') {
           await window.Api.adminSetRole(user.id, rol, Number(comision));
-          onHecho(`${user.username} ahora es ${rol === 'admin' ? 'dueño' : rol === 'cashier' ? 'banquero' : 'jugador'}.`);
+          const NOMBRE = { admin: 'dueño', exec: 'ejecutivo', cashier: 'banquero', player: 'jugador' };
+          onHecho(`${user.username} ahora es ${NOMBRE[rol] || rol}.`);
         } else if (tipo === 'estado') {
           const nuevo = user.status === 'blocked' ? 'active' : 'blocked';
           await window.Api.adminSetStatus(user.id, nuevo);
@@ -404,10 +407,11 @@
           <select style={S.input} value={rol} onChange={(e) => setRol(e.target.value)}>
             <option value="player">Jugador</option>
             <option value="cashier">Banquero</option>
+            <option value="exec">Ejecutivo (maneja banqueros)</option>
             <option value="admin">Dueño (acceso total)</option>
           </select>
         </Campo>
-        {rol === 'cashier' && (
+        {(rol === 'cashier' || rol === 'exec') && (
           <Campo label="PAGA EL (%) DE LAS FICHAS">
             <input style={S.input} type="number" min="1" max="100" value={comision}
                    onChange={(e) => setComision(e.target.value)} />
@@ -676,6 +680,7 @@
 
   function TabBanqueros({ setMsg, recargarResumen }) {
     const [cashiers, setCashiers] = useState([]);
+    const [ejecutivos, setEjecutivos] = useState([]);
     const [ledger, setLedger] = useState([]);
     const [username, setUsername] = useState('');
     const [amount, setAmount] = useState('');
@@ -685,14 +690,31 @@
 
     const cargar = useCallback(async () => {
       try {
-        const [c, l] = await Promise.all([
+        const [c, l, e] = await Promise.all([
           window.Api.adminCashiers(),
           window.Api.adminCreditLedger({ limit: 40 }),
+          // Los ejecutivos, para poder colgarles banqueros. Si falla no se cae
+          // la pestaña entera: sin ejecutivos, la columna queda vacía y todo
+          // lo demás sigue funcionando como siempre.
+          window.Api.adminExecs().catch(() => ({ ejecutivos: [] })),
         ]);
         setCashiers(c.cashiers || []);
         setLedger(l.ledger || []);
+        setEjecutivos(e.ejecutivos || []);
       } catch (err) { setMsg({ kind: 'err', text: err.message }); }
     }, [setMsg]);
+
+    // Colgar un banquero de un ejecutivo, o devolverlo a la matriz.
+    const asignarEjecutivo = async (cashier, valor) => {
+      try {
+        await window.Api.adminSetExec(cashier.id, valor === '' ? null : Number(valor));
+        const nombre = (ejecutivos.find((x) => String(x.id) === String(valor)) || {}).username;
+        setMsg({ kind: 'ok', text: valor
+          ? `${cashier.username} ahora responde a ${nombre}.`
+          : `${cashier.username} vuelve a depender de la matriz.` });
+        cargar();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+    };
 
     useEffect(() => { cargar(); }, [cargar]);
 
@@ -781,7 +803,7 @@
         <div style={S.card}>
           <div style={S.titulo}>BANQUEROS ({cashiers.length})</div>
           <Tabla
-            columnas={['BANQUERO', 'CÓDIGO', 'FICHAS SIN USAR', 'PAGA %', 'PARTICIP.', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'SU MARGEN', 'AFILIADOS', 'ESTADO']}
+            columnas={['BANQUERO', 'RESPONDE A', 'CÓDIGO', 'FICHAS SIN USAR', 'PAGA %', 'PARTICIP.', 'FICHAS COMPRADAS', 'TE PAGÓ', 'VENDIÓ', 'SU MARGEN', 'AFILIADOS', 'ESTADO']}
             vacio="Todavía no tenés banqueros. Tocá “+ NUEVO BANQUERO” arriba para dar de alta al primero."
           >
             {cashiers.map((c) => (
@@ -789,6 +811,20 @@
                 <td style={{ ...S.td, fontWeight: 700 }}>
                   {[c.first_name, c.last_name].filter(Boolean).join(' ') || c.username}
                   <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>{c.username}</div>
+                </td>
+                {/* De qué ejecutivo cuelga. Vacío = de la matriz, que es
+                    como estaban todos antes de que existiera esta capa. */}
+                <td style={S.td}>
+                  <select
+                    style={{ ...S.input, padding: '4px 6px', fontSize: 12, minWidth: 120 }}
+                    value={c.exec_id || ''}
+                    onChange={(e) => asignarEjecutivo(c, e.target.value)}
+                  >
+                    <option value="">— la matriz —</option>
+                    {ejecutivos.map((x) => (
+                      <option key={x.id} value={x.id}>{x.username}</option>
+                    ))}
+                  </select>
                 </td>
                 <td style={{ ...S.td, fontFamily: 'monospace', color: U.GOLD, fontWeight: 700 }}>
                   {c.referral_code || '—'}

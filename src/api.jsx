@@ -158,6 +158,20 @@
       return POST(`/api/cashier/withdrawals/${id}/reject`, { note });
     },
 
+    // ── La capa ejecutiva ──
+    // El ejecutivo mira lo suyo sin parámetros. El dueño mira lo de cualquiera
+    // pasando su id, porque está por encima de él.
+    execSummary(exec) { return req('/api/exec/summary' + qs({ exec })); },
+    execPlayers(exec) { return req('/api/exec/players' + qs({ exec })); },
+    adminExecs() { return req('/api/admin/execs'); },
+    // Colgar un banquero de un ejecutivo. Con exec_id en null vuelve a la matriz.
+    adminSetExec(cashierId, exec_id) {
+      return POST(`/api/admin/cashiers/${cashierId}/exec`, { exec_id });
+    },
+    adminSetExecLimite(execId, exec_limite) {
+      return POST(`/api/admin/execs/${execId}/limite`, { exec_limite });
+    },
+
     // ── Panel: tablero, usuarios y movimientos ──
     adminSummary() { return req('/api/admin/summary'); },
     adminUsers(params) { return req('/api/admin/users' + qs(params)); },
