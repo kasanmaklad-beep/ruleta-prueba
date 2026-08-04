@@ -158,7 +158,13 @@
     const elegido = banqueros.find((b) => b.username === username);
     // Lo que le va a cobrar y lo que va a quedar debiendo por esta venta.
     const cobra = elegido ? Math.round(cupo * ((elegido.commission_pct || 0) / 100)) : 0;
-    const debera = yo ? Math.round(cupo * ((yo.commission_pct || 0) / 100)) : 0;
+    // A sueldo debe TODO lo que cobra; por comisión, su porcentaje del valor.
+    // Es la misma cuenta que hace el servidor: si acá mostrara otra cosa, el
+    // ejecutivo confirmaría una venta creyendo que le queda un margen que no
+    // existe.
+    const debera = !yo ? 0
+      : yo.exec_asalariado ? cobra
+      : Math.round(cupo * ((yo.commission_pct || 0) / 100));
     const alcanza = yo && cupo > 0 && cupo <= (yo.credit_balance || 0);
 
     const vender = async () => {
@@ -210,7 +216,9 @@
             {elegido.username} recibe <b style={{ color: '#c4b0ff' }}>{U.plata(cupo)}</b> de cupo
             y te paga <b style={{ color: '#7ee08a' }}>{U.plata(cobra)}</b>.
             {' '}Vos vas a deberle <b style={{ color: '#ffa04a' }}>{U.plata(debera)}</b> a la casa
-            por esas fichas, así que te quedan <b>{U.plata(cobra - debera)}</b>.
+            por esas fichas, así que te {cobra - debera > 0 ? 'quedan' : 'queda'}
+            {' '}<b>{U.plata(cobra - debera)}</b>
+            {yo && yo.exec_asalariado ? ' (cobrás a sueldo, no por venta)' : ''}.
             {!alcanza && (
               <div style={{ color: '#ffc9c9', marginTop: 6 }}>
                 No te alcanza: tenés {U.plata((yo && yo.credit_balance) || 0)} sin repartir.
@@ -318,8 +326,15 @@
                         detalle="te las dio la casa" />
                   <Dato titulo="Le debés a la casa" valor={plata(cuenta.deuda || 0)}
                         color={cuenta.deuda > 0 ? '#ffa04a' : '#7ee08a'}
-                        detalle={`${yo.commission_pct || 0}% de lo que vendiste`} />
+                        detalle={cuenta.asalariado
+                          ? 'todo lo que cobraste'
+                          : `${yo.commission_pct || 0}% de lo que vendiste`} />
                   <Dato titulo="Ya rendiste" valor={plata(cuenta.rendido || 0)} chico />
+                  <Dato titulo="Cómo cobrás" chico
+                        valor={cuenta.asalariado ? 'a sueldo' : `comisión ${yo.commission_pct || 0}%`}
+                        detalle={cuenta.asalariado
+                          ? 'lo que cobrás es de la casa'
+                          : `te quedan ${U.plata(cuenta.margen || 0)} hasta ahora`} />
                   <Dato titulo="Tu techo" chico
                         valor={yo.exec_limite > 0 ? plata(yo.exec_limite) : 'sin techo'}
                         detalle={yo.exec_limite > 0 ? 'no recibís más si lo alcanzás' : null} />

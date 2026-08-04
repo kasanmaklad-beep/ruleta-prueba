@@ -25,7 +25,7 @@ import {
 import {
   execSummary, execPlayers, execCreateCashier, execVenderCupo,
   adminExecs, adminSetExec, adminSetExecLimite,
-  adminAsignarFichas, adminRendicion,
+  adminAsignarFichas, adminRendicion, adminSetExecPago,
 } from './execs.js';
 
 import {
@@ -216,6 +216,9 @@ async function handleApi(request, env, url) {
     return adminAsignarFichas(request, env, Number(m[1]));
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/rendicion$/)))
     return adminRendicion(request, env, Number(m[1]));
+  // A sueldo o por comisión: cambia cómo se calcula lo que debe.
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/pago$/)))
+    return adminSetExecPago(request, env, Number(m[1]));
 
   // ── Panel: recargas ──
   if (method === 'GET'  && path === '/api/admin/topups') return adminTopups(request, env, url);

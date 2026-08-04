@@ -742,7 +742,7 @@
             Ejecutivo desde JUGADORES.
           </div>
           <Tabla
-            columnas={['EJECUTIVO', 'BANQUEROS', 'FICHAS SIN REPARTIR', 'RINDE %', 'TE DEBE', 'TECHO', 'ACCIONES']}
+            columnas={['EJECUTIVO', 'BANQUEROS', 'FICHAS SIN REPARTIR', 'CÓMO COBRA', 'TE DEBE', 'TECHO', 'ACCIONES']}
             vacio="Todavía no tenés ejecutivos."
           >
             {lista.map((e) => (
@@ -753,7 +753,27 @@
                 </td>
                 <td style={S.td}>{e.banqueros || 0}</td>
                 <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(e.credit_balance)}</td>
-                <td style={S.td}>{e.commission_pct || 0}%</td>
+                {/* A sueldo NO es lo mismo que 0% de comisión: con 0% la
+                    cuenta le daría deuda cero y se quedaría con todo lo que
+                    cobra. Por eso es una casilla y no un número. */}
+                <td style={S.td}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+                    <input type="checkbox" checked={!!e.exec_asalariado}
+                           style={{ width: 16, height: 16, accentColor: '#a78bfa' }}
+                           onChange={async (ev) => {
+                             try {
+                               await window.Api.adminSetExecPago(e.id, ev.target.checked);
+                               setMsg({ kind: 'ok', text: ev.target.checked
+                                 ? `${e.username} pasa a sueldo: todo lo que cobre es de la casa.`
+                                 : `${e.username} vuelve a comisión del ${e.commission_pct || 0}%.` });
+                               cargar();
+                             } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+                           }} />
+                    <span style={{ color: e.exec_asalariado ? '#c4b0ff' : '#999' }}>
+                      {e.exec_asalariado ? 'a sueldo' : `comisión · rinde ${e.commission_pct || 0}%`}
+                    </span>
+                  </label>
+                </td>
                 <td style={{ ...S.td, color: e.deuda > 0 ? '#ffa04a' : '#7ee08a', fontWeight: 700 }}>
                   {bs(e.deuda || 0)}
                 </td>

@@ -176,6 +176,10 @@
     adminRendicion(execId, amount, note) {
       return POST(`/api/admin/execs/${execId}/rendicion`, { amount, note });
     },
+    // A sueldo (no gana por venta) o por comisión.
+    adminSetExecPago(execId, asalariado) {
+      return POST(`/api/admin/execs/${execId}/pago`, { asalariado });
+    },
     adminExecs() { return req('/api/admin/execs'); },
     // Colgar un banquero de un ejecutivo. Con exec_id en null vuelve a la matriz.
     adminSetExec(cashierId, exec_id) {

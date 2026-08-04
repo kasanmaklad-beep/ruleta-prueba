@@ -1,0 +1,25 @@
+-- ════════════════════════════════════════════════════════════════════════
+--  EL EJECUTIVO A SUELDO
+--
+--  Hay dos formas de que un ejecutivo cobre:
+--
+--   · POR COMISIÓN (lo de siempre): le rinde a la casa un porcentaje del
+--     valor que vende y se queda con la diferencia de lo que le cobró al
+--     banquero. Con 15% propio y 20% del banquero, le quedan 5 de cada 100.
+--
+--   · A SUELDO (esto): no gana nada por venta. Todo lo que le cobra al
+--     banquero es de la casa, y su paga sale por fuera del sistema.
+--
+--  POR QUÉ NO ALCANZA CON PONERLE 0%: la deuda se calcula como
+--  "vendido × su porcentaje". Con 0 le da CERO — o sea que cobra los 2.000
+--  del banquero y no le debe nada a nadie. Es exactamente al revés de lo que
+--  significa estar a sueldo, y el sistema no avisaría nunca porque el número
+--  cuadra solo consigo mismo.
+--
+--  Con la casilla marcada, la deuda pasa a ser TODO LO QUE COBRÓ: se suma lo
+--  que efectivamente le pagaron sus banqueros, no un porcentaje del valor
+--  nominal. Es más exacto incluso que la fórmula del porcentaje, porque cada
+--  banquero puede pagar un porcentaje distinto.
+-- ════════════════════════════════════════════════════════════════════════
+
+ALTER TABLE users ADD COLUMN exec_asalariado INTEGER NOT NULL DEFAULT 0;

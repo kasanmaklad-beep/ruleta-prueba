@@ -81,12 +81,13 @@ export async function execSummary(request, env, url) {
   }), { banqueros: 0, jugadores: 0, cupo: 0, cargado: 0 });
 
   const yo = await env.DB.prepare(
-    `SELECT id, username, first_name, last_name, credit_balance, exec_limite, commission_pct
+    `SELECT id, username, first_name, last_name, credit_balance, exec_limite,
+            commission_pct, exec_asalariado
        FROM users WHERE id = ?`
   ).bind(quien.execId).first();
 
   // La deuda es EL número del ejecutivo: lo que le debe a la casa ahora mismo.
-  const cuenta = await deudaDe(env, quien.execId, yo && yo.commission_pct);
+  const cuenta = await deudaDe(env, quien.execId, yo && yo.commission_pct, yo && yo.exec_asalariado);
 
   // Sus últimos movimientos de fichas, para que pueda seguir su propia cuenta
   // sin depender de que el dueño le pase un papel.
@@ -163,11 +164,13 @@ export async function execCreateCashier(request, env) {
   // porcentaje que el que el ejecutivo le rinde a la casa. Si le pone igual o
   // menos, el ejecutivo trabaja gratis o pone plata de su bolsillo en cada
   // venta, y eso no se nota hasta que el mes cierra mal.
-  const yo = await env.DB.prepare('SELECT commission_pct FROM users WHERE id = ?')
+  const yo = await env.DB.prepare('SELECT commission_pct, exec_asalariado FROM users WHERE id = ?')
     .bind(auth.userId).first();
   const mio = (yo && yo.commission_pct) || 0;
   const suyo = Number(body.commission_pct);
-  if (Number.isFinite(suyo) && mio > 0 && suyo <= mio) {
+  // A sueldo no hay margen que cuidar: todo lo que cobre es de la casa, así que
+  // el porcentaje del banquero no puede dejarlo en pérdida.
+  if (!(yo && yo.exec_asalariado) && Number.isFinite(suyo) && mio > 0 && suyo <= mio) {
     const por10k = Math.round(10000 * (suyo - mio) / 100);
     return json({
       error: `Con ${suyo}% ${suyo === mio ? 'no ganás nada' : `perdés ${-por10k}`} por cada 10.000 de fichas: `
@@ -213,18 +216,35 @@ export async function execCreateCashier(request, env) {
 // Cuánto debe HOY. Sale del libro, no de una columna guardada: una columna hay
 // que acordarse de actualizarla en todos lados y el día que alguien olvide un
 // caso, el número miente sin avisar. Esto siempre cuadra con los movimientos.
-async function deudaDe(env, execId, commissionPct) {
+async function deudaDe(env, execId, commissionPct, asalariado) {
   const r = await env.DB.prepare(
     `SELECT
        COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN -amount END), 0) AS vendido,
+       COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN paid_amount END), 0) AS cobrado,
        COALESCE(SUM(CASE WHEN type = 'exec_settle' THEN paid_amount END), 0) AS rendido
      FROM credit_ledger WHERE cashier_id = ?`
   ).bind(execId).first();
 
-  const vendido = (r && r.vendido) || 0;   // en valor de fichas
-  const rendido = (r && r.rendido) || 0;   // en plata
-  const generada = Math.round(vendido * ((commissionPct || 0) / 100));
-  return { vendido, rendido, deuda: Math.max(0, generada - rendido), generada };
+  const vendido = (r && r.vendido) || 0;   // valor nominal de las fichas
+  const cobrado = (r && r.cobrado) || 0;   // lo que le pagaron sus banqueros
+  const rendido = (r && r.rendido) || 0;   // lo que ya le entregó a la casa
+
+  // A SUELDO: no gana por venta, así que debe TODO lo que cobró. Se suma lo
+  // que efectivamente le pagaron y no un porcentaje del nominal — más exacto,
+  // porque cada banquero puede pagar un porcentaje distinto.
+  // POR COMISIÓN: debe su porcentaje del valor vendido y se queda con la
+  // diferencia de lo que cobró.
+  const generada = asalariado
+    ? cobrado
+    : Math.round(vendido * ((commissionPct || 0) / 100));
+
+  return {
+    vendido, cobrado, rendido, generada,
+    asalariado: !!asalariado,
+    deuda: Math.max(0, generada - rendido),
+    // Lo que le queda a él. A sueldo es cero por definición.
+    margen: asalariado ? 0 : cobrado - generada,
+  };
 }
 
 // ── El ejecutivo le vende cupo a uno de SUS banqueros ─────────────────────
@@ -312,9 +332,9 @@ export async function execVenderCupo(request, env) {
   ]);
 
   const yo = await env.DB.prepare(
-    'SELECT credit_balance, commission_pct FROM users WHERE id = ?'
+    'SELECT credit_balance, commission_pct, exec_asalariado FROM users WHERE id = ?'
   ).bind(auth.userId).first();
-  const info = await deudaDe(env, auth.userId, yo.commission_pct);
+  const info = await deudaDe(env, auth.userId, yo.commission_pct, yo.exec_asalariado);
 
   return json({
     ok: true,
@@ -338,8 +358,10 @@ export async function adminExecs(request, env) {
   const rows = await env.DB.prepare(
     `SELECT u.id, u.username, u.first_name, u.last_name, u.phone, u.status,
             u.credit_balance, u.commission_pct, u.exec_limite, u.created_at,
+            u.exec_asalariado,
             COALESCE(b.banqueros, 0) AS banqueros,
             COALESCE(v.vendido, 0)   AS vendido,
+            COALESCE(v.cobrado, 0)   AS cobrado,
             COALESCE(v.rendido, 0)   AS rendido
        FROM users u
        LEFT JOIN (SELECT exec_id, COUNT(*) AS banqueros
@@ -347,17 +369,21 @@ export async function adminExecs(request, env) {
                     GROUP BY exec_id) b ON b.exec_id = u.id
        LEFT JOIN (SELECT cashier_id,
                          COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN -amount END), 0) AS vendido,
+                         COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN paid_amount END), 0) AS cobrado,
                          COALESCE(SUM(CASE WHEN type = 'exec_settle' THEN paid_amount END), 0) AS rendido
                     FROM credit_ledger GROUP BY cashier_id) v ON v.cashier_id = u.id
       WHERE u.role = 'exec'
       ORDER BY u.username`
   ).all();
 
-  // La misma fórmula que deudaDe(), acá aplicada a la lista entera.
-  const ejecutivos = (rows.results || []).map((e) => ({
-    ...e,
-    deuda: Math.max(0, Math.round((e.vendido || 0) * ((e.commission_pct || 0) / 100)) - (e.rendido || 0)),
-  }));
+  // La misma fórmula que deudaDe(), acá aplicada a la lista entera: a sueldo
+  // debe todo lo que cobró; por comisión, su porcentaje de lo vendido.
+  const ejecutivos = (rows.results || []).map((e) => {
+    const generada = e.exec_asalariado
+      ? (e.cobrado || 0)
+      : Math.round((e.vendido || 0) * ((e.commission_pct || 0) / 100));
+    return { ...e, generada, deuda: Math.max(0, generada - (e.rendido || 0)) };
+  });
 
   return json({ ejecutivos });
 }
@@ -422,7 +448,8 @@ export async function adminAsignarFichas(request, env, execId) {
   if (multErr) return json({ error: multErr }, 400);
 
   const ejec = await env.DB.prepare(
-    "SELECT id, username, status, commission_pct, exec_limite, credit_balance FROM users WHERE id = ? AND role = 'exec'"
+    `SELECT id, username, status, commission_pct, exec_limite, credit_balance, exec_asalariado
+       FROM users WHERE id = ? AND role = 'exec'`
   ).bind(execId).first();
   if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
   if (ejec.status === 'blocked') {
@@ -431,7 +458,7 @@ export async function adminAsignarFichas(request, env, execId) {
 
   // EL TECHO. Frena de verdad: mientras deba lo que acordaron, no recibe más
   // hasta que rinda. Es lo que evita que una deuda crezca sin que nadie mire.
-  const { deuda } = await deudaDe(env, ejec.id, ejec.commission_pct);
+  const { deuda } = await deudaDe(env, ejec.id, ejec.commission_pct, ejec.exec_asalariado);
   if (ejec.exec_limite > 0 && deuda >= ejec.exec_limite) {
     return json({
       error: `${ejec.username} debe ${deuda} y su techo es ${ejec.exec_limite}. `
@@ -449,7 +476,7 @@ export async function adminAsignarFichas(request, env, execId) {
     ).bind(ejec.id, amount, str(body.note, 200) || `Entrega en consignación (${auth.username})`, auth.userId),
   ]);
 
-  const info = await deudaDe(env, ejec.id, ejec.commission_pct);
+  const info = await deudaDe(env, ejec.id, ejec.commission_pct, ejec.exec_asalariado);
   const actualizado = await env.DB.prepare(
     'SELECT credit_balance FROM users WHERE id = ?'
   ).bind(ejec.id).first();
@@ -468,11 +495,11 @@ export async function adminRendicion(request, env, execId) {
   if (pago === null) return json({ error: 'Monto inválido' }, 400);
 
   const ejec = await env.DB.prepare(
-    "SELECT id, username, commission_pct FROM users WHERE id = ? AND role = 'exec'"
+    "SELECT id, username, commission_pct, exec_asalariado FROM users WHERE id = ? AND role = 'exec'"
   ).bind(execId).first();
   if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
 
-  const antes = await deudaDe(env, ejec.id, ejec.commission_pct);
+  const antes = await deudaDe(env, ejec.id, ejec.commission_pct, ejec.exec_asalariado);
   if (pago > antes.deuda) {
     return json({
       error: `${ejec.username} debe ${antes.deuda}. No se puede registrar un pago mayor que la deuda.`,
@@ -485,8 +512,32 @@ export async function adminRendicion(request, env, execId) {
      VALUES (?, 'exec_settle', 0, ?, ?, ?)`
   ).bind(ejec.id, pago, str(body.note, 200) || `Rendición recibida (${auth.username})`, auth.userId).run();
 
-  const despues = await deudaDe(env, ejec.id, ejec.commission_pct);
+  const despues = await deudaDe(env, ejec.id, ejec.commission_pct, ejec.exec_asalariado);
   return json({ ok: true, ...despues });
+}
+
+// Cómo cobra el ejecutivo: a sueldo o por comisión.
+//
+// NO alcanzaba con ponerle 0% de comisión, y por eso existe esta casilla: la
+// deuda se calcula como "vendido × su porcentaje", así que con 0 le daba CERO
+// —cobraba lo del banquero y no le debía nada a nadie—, que es justo al revés
+// de lo que significa estar a sueldo.
+export async function adminSetExecPago(request, env, execId) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const asalariado = body.asalariado === true || body.asalariado === 1 ? 1 : 0;
+
+  const ejec = await env.DB.prepare(
+    "SELECT id, username FROM users WHERE id = ? AND role = 'exec'"
+  ).bind(execId).first();
+  if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
+
+  await env.DB.prepare('UPDATE users SET exec_asalariado = ? WHERE id = ?')
+    .bind(asalariado, execId).run();
+
+  return json({ ok: true, asalariado: !!asalariado });
 }
 
 // El techo de exposición del ejecutivo: cuánto se le puede tener asignado sin
