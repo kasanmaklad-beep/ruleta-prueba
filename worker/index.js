@@ -26,6 +26,7 @@ import {
   execSummary, execPlayers, execCreateCashier, execVenderCupo,
   adminExecs, adminSetExec, adminSetExecLimite,
   adminAsignarFichas, adminDevolverFichas, adminRendicion, adminSetExecPago,
+  cashierPedirCupo, cashierMisPedidos, pedidosPendientes, aprobarPedido, rechazarPedido,
 } from './execs.js';
 
 import {
@@ -204,6 +205,15 @@ async function handleApi(request, env, url) {
   if (method === 'POST' && path === '/api/exec/cashiers') return execCreateCashier(request, env);
   // El ejecutivo le entrega cupo a uno de SUS banqueros y le cobra.
   if (method === 'POST' && path === '/api/exec/vender')   return execVenderCupo(request, env);
+
+  // ── Pedidos de cupo: el banquero pide, el de arriba responde ──
+  if (method === 'POST' && path === '/api/cashier/pedir-cupo') return cashierPedirCupo(request, env);
+  if (method === 'GET'  && path === '/api/cashier/pedidos')    return cashierMisPedidos(request, env);
+  if (method === 'GET'  && path === '/api/pedidos')            return pedidosPendientes(request, env, url);
+  if (method === 'POST' && (m = path.match(/^\/api\/pedidos\/(\d+)\/aprobar$/)))
+    return aprobarPedido(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/pedidos\/(\d+)\/rechazar$/)))
+    return rechazarPedido(request, env, Number(m[1]));
   if (method === 'GET'  && path === '/api/admin/execs')  return adminExecs(request, env);
   // El pote: cuántas fichas hay en la calle y cuánto respaldo queda.
   if (method === 'GET'  && path === '/api/admin/pote')   return adminPote(request, env);

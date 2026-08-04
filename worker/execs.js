@@ -19,7 +19,7 @@
 
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
-  requireAdmin, requireExec, getSettings, settingNum, checkMultiplo, poteDeLaCasa,
+  requireAdmin, requireExec, requireRole, getSettings, settingNum, checkMultiplo, poteDeLaCasa,
 } from './lib.js';
 // El alta de banquero es la MISMA que usa la matriz: una sola función, un solo
 // juego de validaciones.
@@ -258,6 +258,79 @@ async function deudaDe(env, execId, commissionPct, asalariado) {
 // una lectura y una escritura pueden entrar dos ventas a la vez y dejar al
 // ejecutivo con fichas negativas. Es el mismo candado que usa el giro de la
 // ruleta para el saldo del jugador.
+// El corazón de la entrega, en UN SOLO LUGAR. Lo usan la venta directa y la
+// aprobación de un pedido: si mañana cambia una validación —el múltiplo, la
+// guardia de las fichas, lo que se anota en el libro— cambia para las dos.
+//
+// Devuelve { error } con la respuesta ya armada, o { ok, ... } con el detalle.
+export async function entregarCupoDelEjecutivo(env, { execId, execUsername, banquero, amount, paidPedido, note }) {
+  const s = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return { error: json({ error: multErr }, 400) };
+
+  if (banquero.status === 'blocked') {
+    return { error: json({ error: `${banquero.username} está bloqueado.` }, 400) };
+  }
+
+  // Lo que el banquero paga, con SU porcentaje.
+  let paid;
+  if (paidPedido === undefined || paidPedido === null || paidPedido === '') {
+    paid = Math.round(amount * ((banquero.commission_pct || 0) / 100));
+  } else {
+    const p = Number(paidPedido);
+    if (!Number.isInteger(p) || p < 0 || p > amount) {
+      return { error: json({ error: 'Lo pagado tiene que ser un entero entre 0 y el cupo entregado' }, 400) };
+    }
+    paid = p;
+  }
+
+  // Descuento con GUARDIA en la misma instrucción y no leyendo primero y
+  // restando después: entre una lectura y una escritura pueden entrar dos
+  // entregas a la vez y dejar al ejecutivo con fichas negativas. Es el mismo
+  // candado que usa el giro de la ruleta para el saldo del jugador.
+  const bajada = await env.DB.prepare(
+    'UPDATE users SET credit_balance = credit_balance - ? WHERE id = ? AND credit_balance >= ?'
+  ).bind(amount, execId, amount).run();
+  if (bajada.meta.changes === 0) {
+    const yo = await env.DB.prepare('SELECT credit_balance FROM users WHERE id = ?')
+      .bind(execId).first();
+    return {
+      error: json({
+        error: `No te alcanzan las fichas: tenés ${(yo && yo.credit_balance) || 0} y querés entregar ${amount}. Pedile a la matriz.`,
+        fichas: (yo && yo.credit_balance) || 0,
+      }, 400),
+    };
+  }
+
+  // Ya se descontó: de acá en más el resto tiene que quedar anotado sí o sí.
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .bind(amount, banquero.id),
+    // La salida del ejecutivo: es la que genera su deuda con la casa.
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, player_id, note, actor_id)
+       VALUES (?, 'exec_sale', ?, ?, ?, ?, ?)`
+    ).bind(execId, -amount, paid, banquero.id, note || `Cupo a ${banquero.username}`, execId),
+    // La entrada del banquero: el MISMO tipo 'purchase' de siempre, para que
+    // su banca y sus reportes no noten la diferencia de quién se lo vendió.
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
+       VALUES (?, 'purchase', ?, ?, ?, ?)`
+    ).bind(banquero.id, amount, paid, note || `Venta de cupo (${execUsername})`, execId),
+  ]);
+
+  const yo = await env.DB.prepare(
+    'SELECT credit_balance, commission_pct, exec_asalariado FROM users WHERE id = ?'
+  ).bind(execId).first();
+  const info = await deudaDe(env, execId, yo.commission_pct, yo.exec_asalariado);
+
+  return {
+    ok: true, banquero: banquero.username, entregado: amount, cobraste: paid,
+    fichas: yo.credit_balance, ...info,
+  };
+}
+
+// ── El ejecutivo le vende cupo a uno de SUS banqueros ─────────────────────
 export async function execVenderCupo(request, env) {
   const auth = await requireExec(request, env);
   if (auth.error) return auth.response;
@@ -271,79 +344,18 @@ export async function execVenderCupo(request, env) {
   if (!username) return json({ error: 'Falta el banquero' }, 400);
   if (amount === null) return json({ error: 'Monto de cupo inválido' }, 400);
 
-  const s = await getSettings(env);
-  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
-  if (multErr) return json({ error: multErr }, 400);
-
   // Sólo a los SUYOS. Sin esta condición un ejecutivo podría venderle al
   // banquero de otro y ensuciarle la cuenta a los dos.
   const banquero = await env.DB.prepare(
     "SELECT id, username, commission_pct, status FROM users WHERE username = ? AND role = 'cashier' AND exec_id = ?"
   ).bind(username, auth.userId).first();
-  if (!banquero) {
-    return json({ error: `${username} no es un banquero tuyo.` }, 404);
-  }
-  if (banquero.status === 'blocked') {
-    return json({ error: `${banquero.username} está bloqueado.` }, 400);
-  }
+  if (!banquero) return json({ error: `${username} no es un banquero tuyo.` }, 404);
 
-  // Lo que el banquero le paga, con SU porcentaje.
-  let paid;
-  if (body.paid_amount === undefined || body.paid_amount === null || body.paid_amount === '') {
-    paid = Math.round(amount * ((banquero.commission_pct || 0) / 100));
-  } else {
-    const p = Number(body.paid_amount);
-    if (!Number.isInteger(p) || p < 0 || p > amount) {
-      return json({ error: 'Lo pagado tiene que ser un entero entre 0 y el cupo entregado' }, 400);
-    }
-    paid = p;
-  }
-
-  // Descuento con guardia: si no le alcanzan las fichas, no pasa nada.
-  const bajada = await env.DB.prepare(
-    'UPDATE users SET credit_balance = credit_balance - ? WHERE id = ? AND credit_balance >= ?'
-  ).bind(amount, auth.userId, amount).run();
-  if (bajada.meta.changes === 0) {
-    const yo = await env.DB.prepare('SELECT credit_balance FROM users WHERE id = ?')
-      .bind(auth.userId).first();
-    return json({
-      error: `No te alcanzan las fichas: tenés ${(yo && yo.credit_balance) || 0} y querés entregar ${amount}. Pedile a la matriz.`,
-      fichas: (yo && yo.credit_balance) || 0,
-    }, 400);
-  }
-
-  // Ya se descontó: de acá en más el resto tiene que quedar anotado sí o sí.
-  await env.DB.batch([
-    env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
-      .bind(amount, banquero.id),
-    // La salida del ejecutivo: es la que genera su deuda con la casa.
-    env.DB.prepare(
-      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, player_id, note, actor_id)
-       VALUES (?, 'exec_sale', ?, ?, ?, ?, ?)`
-    ).bind(auth.userId, -amount, paid, banquero.id,
-           str(body.note, 200) || `Cupo a ${banquero.username}`, auth.userId),
-    // La entrada del banquero: el MISMO tipo 'purchase' de siempre, para que
-    // su banca y sus reportes no noten la diferencia de quién se lo vendió.
-    env.DB.prepare(
-      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
-       VALUES (?, 'purchase', ?, ?, ?, ?)`
-    ).bind(banquero.id, amount, paid,
-           str(body.note, 200) || `Venta de cupo (${auth.username})`, auth.userId),
-  ]);
-
-  const yo = await env.DB.prepare(
-    'SELECT credit_balance, commission_pct, exec_asalariado FROM users WHERE id = ?'
-  ).bind(auth.userId).first();
-  const info = await deudaDe(env, auth.userId, yo.commission_pct, yo.exec_asalariado);
-
-  return json({
-    ok: true,
-    banquero: banquero.username,
-    entregado: amount,
-    cobraste: paid,
-    fichas: yo.credit_balance,
-    ...info,
+  const r = await entregarCupoDelEjecutivo(env, {
+    execId: auth.userId, execUsername: auth.username, banquero, amount,
+    paidPedido: body.paid_amount, note: str(body.note, 200),
   });
+  return r.error || json(r);
 }
 
 // ──────────────────── Lo que hace el dueño con ellos ──────────────────────
@@ -623,3 +635,166 @@ export async function adminSetExecLimite(request, env, execId) {
 // El JUGADOR no sabe que esta capa existe y no tiene por qué saberlo: sigue
 // tratando con su banquero y con nadie más. Por eso acá no hay ni un endpoint
 // que él pueda llamar.
+
+// ═══════════════════════════ PEDIDOS DE CUPO ══════════════════════════════
+//
+//  El banquero pide fichas desde su banca en vez de llamar por teléfono. El
+//  pedido queda pendiente para su ejecutivo —o para la matriz, si cuelga
+//  directo de la casa— y el de arriba aprueba o rechaza.
+//
+//  La APROBACIÓN no inventa nada: llama a entregarCupoDelEjecutivo(), la
+//  misma que usa la venta directa. Un pedido aprobado y una venta a mano
+//  dejan exactamente los mismos movimientos en el libro.
+// ══════════════════════════════════════════════════════════════════════════
+
+// El banquero pide. Se guarda A QUIÉN se lo pide en el momento del pedido: si
+// después lo cambian de ejecutivo, el pedido sigue siendo del que lo recibió.
+export async function cashierPedirCupo(request, env) {
+  const auth = await requireRole(request, env, ['cashier']);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const amount = toPositiveInt(body.amount);
+  if (amount === null) return json({ error: 'Poné cuánto cupo necesitás' }, 400);
+
+  const s = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
+
+  // Un pedido a la vez: si no, un banquero ansioso deja diez pendientes y el
+  // que está arriba no sabe cuál es el bueno.
+  const abierto = await env.DB.prepare(
+    "SELECT id, amount FROM cupo_pedidos WHERE cashier_id = ? AND status = 'pending'"
+  ).bind(auth.userId).first();
+  if (abierto) {
+    return json({
+      error: `Ya tenés un pedido de ${abierto.amount} esperando respuesta. Esperá a que te contesten.`,
+    }, 409);
+  }
+
+  const yo = await env.DB.prepare('SELECT exec_id FROM users WHERE id = ?')
+    .bind(auth.userId).first();
+
+  const res = await env.DB.prepare(
+    `INSERT INTO cupo_pedidos (cashier_id, exec_id, amount, note)
+     VALUES (?, ?, ?, ?)`
+  ).bind(auth.userId, (yo && yo.exec_id) || null, amount, str(body.note, 200)).run();
+
+  return json({
+    ok: true, id: res.meta.last_row_id, amount,
+    a_quien: (yo && yo.exec_id) ? 'tu ejecutivo' : 'la matriz',
+  });
+}
+
+// Los pedidos del banquero, para que vea en qué quedaron.
+export async function cashierMisPedidos(request, env) {
+  const auth = await requireRole(request, env, ['cashier']);
+  if (auth.error) return auth.response;
+
+  const rows = await env.DB.prepare(
+    `SELECT id, amount, status, note, respuesta, paid_amount, created_at, reviewed_at
+       FROM cupo_pedidos WHERE cashier_id = ?
+      ORDER BY id DESC LIMIT 20`
+  ).bind(auth.userId).all();
+  return json({ pedidos: rows.results || [] });
+}
+
+// Los pedidos que le tocan a quien mira: al ejecutivo los de SUS banqueros; al
+// dueño los que van a la matriz (banqueros sin ejecutivo).
+export async function pedidosPendientes(request, env, url) {
+  const auth = await requireExec(request, env);
+  if (auth.error) return auth.response;
+
+  const esDueño = auth.role === 'admin';
+  const rows = await env.DB.prepare(
+    esDueño
+      ? `SELECT p.*, u.username AS banquero, u.commission_pct
+           FROM cupo_pedidos p JOIN users u ON u.id = p.cashier_id
+          WHERE p.exec_id IS NULL AND p.status = 'pending'
+          ORDER BY p.id DESC LIMIT 50`
+      : `SELECT p.*, u.username AS banquero, u.commission_pct
+           FROM cupo_pedidos p JOIN users u ON u.id = p.cashier_id
+          WHERE p.exec_id = ? AND p.status = 'pending'
+          ORDER BY p.id DESC LIMIT 50`
+  ).bind(...(esDueño ? [] : [auth.userId])).all();
+
+  return json({ pedidos: rows.results || [] });
+}
+
+// Aprobar: entrega el cupo de verdad y cierra el pedido.
+export async function aprobarPedido(request, env, pedidoId) {
+  const auth = await requireExec(request, env);
+  if (auth.error) return auth.response;
+
+  const p = await env.DB.prepare('SELECT * FROM cupo_pedidos WHERE id = ?').bind(pedidoId).first();
+  if (!p) return json({ error: 'Ese pedido no existe' }, 404);
+  if (p.status !== 'pending') return json({ error: 'Ese pedido ya fue respondido' }, 409);
+
+  // Que lo responda quien corresponde: el ejecutivo al que se le pidió, o el
+  // dueño si el pedido iba a la matriz.
+  const esDueño = auth.role === 'admin';
+  if (esDueño ? p.exec_id !== null : p.exec_id !== auth.userId) {
+    return json({ error: 'Ese pedido no es tuyo' }, 403);
+  }
+
+  const banquero = await env.DB.prepare(
+    "SELECT id, username, commission_pct, status FROM users WHERE id = ? AND role = 'cashier'"
+  ).bind(p.cashier_id).first();
+  if (!banquero) return json({ error: 'Ese banquero ya no existe' }, 404);
+
+  const body = await readJson(request);
+  // Se puede aprobar por menos de lo pedido: es lo que pasa en la vida real
+  // cuando al de arriba no le alcanzan las fichas.
+  const amount = body.amount === undefined ? p.amount : toPositiveInt(body.amount);
+  if (amount === null || amount <= 0) return json({ error: 'Monto inválido' }, 400);
+
+  // La entrega la hace el EJECUTIVO con sus fichas. Si el pedido va a la
+  // matriz, esto no aplica: ahí la casa emite y se usa VENDER CUPO del panel.
+  if (esDueño) {
+    return json({
+      error: 'Este pedido va a la matriz: aprobalo vendiéndole el cupo desde BANQUEROS. '
+           + 'Después el pedido se marca solo.',
+    }, 400);
+  }
+
+  const r = await entregarCupoDelEjecutivo(env, {
+    execId: auth.userId, execUsername: auth.username, banquero, amount,
+    paidPedido: body.paid_amount,
+    note: `Pedido #${pedidoId} de ${banquero.username}`,
+  });
+  if (r.error) return r.error;
+
+  await env.DB.prepare(
+    `UPDATE cupo_pedidos SET status = 'approved', paid_amount = ?, reviewed_by = ?,
+            reviewed_at = datetime('now'), amount = ?
+      WHERE id = ?`
+  ).bind(r.cobraste, auth.userId, amount, pedidoId).run();
+
+  return json({ ...r, pedido: pedidoId });
+}
+
+// Rechazar: se le dice por qué, que es lo que evita que vuelva a pedir igual.
+export async function rechazarPedido(request, env, pedidoId) {
+  const auth = await requireExec(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const motivo = str(body.respuesta, 200);
+  if (!motivo) return json({ error: 'Poné el motivo: el banquero lo va a leer' }, 400);
+
+  const p = await env.DB.prepare('SELECT * FROM cupo_pedidos WHERE id = ?').bind(pedidoId).first();
+  if (!p) return json({ error: 'Ese pedido no existe' }, 404);
+  if (p.status !== 'pending') return json({ error: 'Ese pedido ya fue respondido' }, 409);
+
+  const esDueño = auth.role === 'admin';
+  if (esDueño ? p.exec_id !== null : p.exec_id !== auth.userId) {
+    return json({ error: 'Ese pedido no es tuyo' }, 403);
+  }
+
+  await env.DB.prepare(
+    `UPDATE cupo_pedidos SET status = 'rejected', respuesta = ?, reviewed_by = ?,
+            reviewed_at = datetime('now') WHERE id = ?`
+  ).bind(motivo, auth.userId, pedidoId).run();
+
+  return json({ ok: true });
+}

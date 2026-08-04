@@ -158,6 +158,14 @@
       return POST(`/api/cashier/withdrawals/${id}/reject`, { note });
     },
 
+    // ── Pedidos de cupo ──
+    // El banquero pide fichas sin llamar por teléfono; el de arriba responde.
+    cashierPedirCupo(amount, note) { return POST('/api/cashier/pedir-cupo', { amount, note }); },
+    cashierMisPedidos() { return req('/api/cashier/pedidos'); },
+    pedidosPendientes() { return req('/api/pedidos'); },
+    aprobarPedido(id, amount) { return POST(`/api/pedidos/${id}/aprobar`, { amount }); },
+    rechazarPedido(id, respuesta) { return POST(`/api/pedidos/${id}/rechazar`, { respuesta }); },
+
     // ── La capa ejecutiva ──
     // El ejecutivo mira lo suyo sin parámetros. El dueño mira lo de cualquiera
     // pasando su id, porque está por encima de él.

@@ -23,17 +23,24 @@
     // Acción sobre una solicitud: { tipo: 'ap-rec'|'rej-rec'|'pago-ret'|'rej-ret', item }
     const [accion, setAccion] = useState(null);
     const [nota, setNota] = useState('');
+    // Pedidos de cupo: pedir fichas sin tener que llamar por teléfono.
+    const [pedidos, setPedidos] = useState([]);
+    const [pedirMonto, setPedirMonto] = useState('');
+    const [pidiendo, setPidiendo] = useState(false);
 
     const cargar = useCallback(async () => {
       try {
-        const [d, t, w] = await Promise.all([
+        const [d, t, w, p] = await Promise.all([
           window.Api.cashierSummary(),
           window.Api.cashierTopups('pending'),
           window.Api.cashierWithdrawals('pending'),
+          // Si falla no se cae la banca entera: es informativo.
+          window.Api.cashierMisPedidos().catch(() => ({ pedidos: [] })),
         ]);
         setData(d);
         setRecargas(t.topups || []);
         setRetiros(w.withdrawals || []);
+        setPedidos(p.pedidos || []);
       } catch (err) { setMsg({ kind: 'err', text: err.message }); }
     }, []);
 
@@ -121,6 +128,58 @@
 
           {data && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* PEDIR CUPO. Antes había que llamar por teléfono y no quedaba
+                  registro de quién pidió qué. */}
+              {(() => {
+                const abierto = pedidos.find((p) => p.status === 'pending');
+                const ultimo = pedidos[0];
+                const pedir = async () => {
+                  const n = Number(pedirMonto);
+                  if (!Number.isFinite(n) || n <= 0) {
+                    setMsg({ kind: 'err', text: 'Poné cuánto cupo necesitás' }); return;
+                  }
+                  setPidiendo(true);
+                  try {
+                    const r = await window.Api.cashierPedirCupo(n);
+                    setMsg({ kind: 'ok', text: `Pedido de ${plata(n)} enviado a ${r.a_quien}. Te va a llegar la respuesta acá.` });
+                    setPedirMonto(''); cargar();
+                  } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+                  finally { setPidiendo(false); }
+                };
+                return (
+                  <div style={S.card}>
+                    <div style={S.titulo}>PEDIR CUPO</div>
+                    {abierto ? (
+                      <div style={{ fontSize: 14, color: '#ffd84a', lineHeight: 1.7 }}>
+                        Tenés un pedido de <b>{plata(abierto.amount)}</b> esperando respuesta.
+                        Cuando te contesten lo vas a ver acá.
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ display: 'grid', gap: 12, alignItems: 'end',
+                                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+                          <Campo label="CUÁNTO NECESITÁS">
+                            <input style={S.input} type="number" min="0" value={pedirMonto}
+                                   onChange={(e) => setPedirMonto(e.target.value)} placeholder="0" />
+                          </Campo>
+                          <Boton tono="verde" disabled={pidiendo} onClick={pedir}>
+                            {pidiendo ? '...' : 'PEDIR'}
+                          </Boton>
+                        </div>
+                        {ultimo && ultimo.status !== 'pending' && (
+                          <div style={{ marginTop: 10, fontSize: 13, lineHeight: 1.6,
+                                        color: ultimo.status === 'approved' ? '#7ee08a' : '#ffc9c9' }}>
+                            {ultimo.status === 'approved'
+                              ? `Tu último pedido de ${plata(ultimo.amount)} fue aprobado.`
+                              : `Tu último pedido fue rechazado: ${ultimo.respuesta || 'sin motivo'}`}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Aviso de cupo bajo: sin fichas no puede vender. */}
               {cupoBajo && (
                 <div style={{

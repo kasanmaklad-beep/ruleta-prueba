@@ -246,12 +246,39 @@
     const [jugadores, setJugadores] = useState(null);
     const [verJugadores, setVerJugadores] = useState(false);
     const [msg, setMsg] = useState(null);
+    // Los pedidos de cupo de sus banqueros, esperando respuesta.
+    const [pedidos, setPedidos] = useState([]);
+    const [rechazando, setRechazando] = useState(null);
+    const [motivo, setMotivo] = useState('');
 
     const cargar = useCallback(async () => {
       try {
-        setData(await window.Api.execSummary());
+        const [d, p] = await Promise.all([
+          window.Api.execSummary(),
+          // Si falla no se cae el panel: es una lista aparte.
+          window.Api.pedidosPendientes().catch(() => ({ pedidos: [] })),
+        ]);
+        setData(d);
+        setPedidos(p.pedidos || []);
       } catch (err) { setMsg({ kind: 'err', text: err.message }); }
     }, []);
+
+    const aprobar = async (p) => {
+      try {
+        const r = await window.Api.aprobarPedido(p.id);
+        setMsg({ kind: 'ok', text: `${r.banquero} recibió ${plata(r.entregado)} y te pagó ${plata(r.cobraste)}. Te quedan ${plata(r.fichas)}.` });
+        cargar();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+    };
+
+    const rechazar = async () => {
+      if (!motivo.trim()) { setMsg({ kind: 'err', text: 'Poné el motivo: el banquero lo va a leer' }); return; }
+      try {
+        await window.Api.rechazarPedido(rechazando.id, motivo.trim());
+        setMsg({ kind: 'ok', text: `Pedido de ${rechazando.banquero} rechazado.` });
+        setRechazando(null); setMotivo(''); cargar();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+    };
 
     useEffect(() => { cargar(); }, [cargar]);
 
@@ -350,6 +377,46 @@
                 }}>
                   Llegaste a tu techo: debés <b>{plata(cuenta.deuda)}</b> de <b>{plata(yo.exec_limite)}</b>.
                   La casa no te puede entregar más fichas hasta que rindas.
+                </div>
+              )}
+
+              {/* Lo que espera respuesta va PRIMERO: si el banquero está sin
+                  fichas, no puede trabajar hasta que le contesten. */}
+              {!!pedidos.length && (
+                <div style={{ ...S.card, borderColor: '#5b3fa8' }}>
+                  <div style={S.titulo}>PEDIDOS DE CUPO ({pedidos.length})</div>
+                  <Tabla columnas={['Banquero', 'Pide', 'Te pagaría', 'Cuándo', 'Acciones']} vacio="">
+                    {pedidos.map((p) => (
+                      <tr key={p.id}>
+                        <td style={{ ...S.td, fontWeight: 700 }}>{p.banquero}</td>
+                        <td style={{ ...S.td, color: '#c4b0ff', fontWeight: 900 }}>{plata(p.amount)}</td>
+                        <td style={S.td}>
+                          {plata(Math.round(p.amount * ((p.commission_pct || 0) / 100)))}
+                          <span style={{ color: '#8f83b0', fontSize: 11 }}> · {p.commission_pct}%</span>
+                        </td>
+                        <td style={S.td}>{fecha(p.created_at)}</td>
+                        <td style={S.td}>
+                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            <Boton chico tono="verde" onClick={() => aprobar(p)}>APROBAR</Boton>
+                            <Boton chico tono="gris" onClick={() => { setRechazando(p); setMotivo(''); }}>RECHAZAR</Boton>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </Tabla>
+                  {rechazando && (
+                    <div style={{ marginTop: 12, display: 'grid', gap: 10,
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', alignItems: 'end' }}>
+                      <Campo label={`MOTIVO PARA ${rechazando.banquero} (lo va a leer)`}>
+                        <input style={S.input} value={motivo} onChange={(e) => setMotivo(e.target.value)}
+                               placeholder="ej: primero rendime lo anterior" />
+                      </Campo>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <Boton tono="rojo" onClick={rechazar}>RECHAZAR</Boton>
+                        <Boton tono="gris" onClick={() => setRechazando(null)}>CANCELAR</Boton>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
