@@ -165,6 +165,17 @@
     execPlayers(exec) { return req('/api/exec/players' + qs({ exec })); },
     // El ejecutivo crea sus propios banqueros: nacen colgados de él.
     execCreateCashier(datos) { return POST('/api/exec/cashiers', datos); },
+    // El ejecutivo le entrega cupo a uno de SUS banqueros y le cobra en el acto.
+    execVender(username, amount, paid_amount, note) {
+      return POST('/api/exec/vender', { username, amount, paid_amount, note });
+    },
+    // La casa le entrega fichas en consignación y registra lo que le rinde.
+    adminAsignarFichas(execId, amount, note) {
+      return POST(`/api/admin/execs/${execId}/fichas`, { amount, note });
+    },
+    adminRendicion(execId, amount, note) {
+      return POST(`/api/admin/execs/${execId}/rendicion`, { amount, note });
+    },
     adminExecs() { return req('/api/admin/execs'); },
     // Colgar un banquero de un ejecutivo. Con exec_id en null vuelve a la matriz.
     adminSetExec(cashierId, exec_id) {

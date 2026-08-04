@@ -38,6 +38,7 @@
       { id: 'resumen', label: 'RESUMEN' },
       { id: 'jugadores', label: 'JUGADORES' },
       { id: 'socios', label: 'BANQUEROS' },
+      { id: 'ejecutivos', label: 'EJECUTIVOS' },
       { id: 'recargas', label: 'RECARGAS', badge: pend.recargas_pendientes },
       { id: 'retiros', label: 'RETIROS', badge: pend.retiros_pendientes },
       { id: 'mesas', label: 'MESAS' },
@@ -97,6 +98,7 @@
           {tab === 'resumen'     && <TabResumen resumen={resumen} {...props} irA={setTab} />}
           {tab === 'jugadores'   && <TabJugadores {...props} />}
           {tab === 'socios' && <TabBanqueros {...props} />}
+          {tab === 'ejecutivos' && <TabEjecutivos {...props} />}
           {tab === 'recargas'    && <TabRecargas {...props} />}
           {tab === 'retiros'     && <TabRetiros {...props} />}
           {tab === 'mesas'       && <TabMesas {...props} />}
@@ -678,6 +680,127 @@
           casa a cambio de cubrirle las pérdidas (0 = riesgo completo del banquero; máximo 30).
         </div>
       </div>
+    );
+  }
+
+  // Los ejecutivos y su cuenta con la casa: cuántas fichas tienen en la mano,
+  // cuánto deben y hasta dónde se les puede estirar.
+  //
+  // Acá el dueño hace las dos operaciones que sólo él puede hacer: ENTREGAR
+  // fichas en consignación, y registrar lo que el ejecutivo le RINDE. La
+  // rendición la anota el que recibe la plata — si la anotara el ejecutivo,
+  // podría bajarse la deuda solo.
+  function TabEjecutivos({ setMsg, recargarResumen }) {
+    const [lista, setLista] = useState([]);
+    const [accion, setAccion] = useState(null); // { tipo:'fichas'|'rendicion'|'techo', e }
+    const [monto, setMonto] = useState('');
+    const [nota, setNota] = useState('');
+    const [enviando, setEnviando] = useState(false);
+
+    const cargar = useCallback(async () => {
+      try { setLista((await window.Api.adminExecs()).ejecutivos || []); }
+      catch (err) { setMsg({ kind: 'err', text: err.message }); }
+    }, [setMsg]);
+    useEffect(() => { cargar(); }, [cargar]);
+
+    const ejecutar = async () => {
+      const n = Number(monto);
+      if (!Number.isFinite(n) || (accion.tipo !== 'techo' && n <= 0)) {
+        setMsg({ kind: 'err', text: 'Poné un monto válido' }); return;
+      }
+      setEnviando(true);
+      try {
+        if (accion.tipo === 'fichas') {
+          const r = await window.Api.adminAsignarFichas(accion.e.id, n, nota);
+          setMsg({ kind: 'ok', text: `${accion.e.username} recibió ${plata(n)} en consignación. Ahora tiene ${plata(r.fichas)} y te debe ${plata(r.deuda)}.` });
+        } else if (accion.tipo === 'rendicion') {
+          const r = await window.Api.adminRendicion(accion.e.id, n, nota);
+          setMsg({ kind: 'ok', text: `Rendición de ${plata(n)} anotada. ${accion.e.username} te debe ${plata(r.deuda)}.` });
+        } else {
+          await window.Api.adminSetExecLimite(accion.e.id, n);
+          setMsg({ kind: 'ok', text: n > 0 ? `Techo de ${accion.e.username}: ${plata(n)}.` : `${accion.e.username} queda sin techo.` });
+        }
+        setAccion(null); setMonto(''); setNota('');
+        cargar(); recargarResumen();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+      finally { setEnviando(false); }
+    };
+
+    const TITULO = {
+      fichas: 'Entregar fichas en consignación',
+      rendicion: 'Anotar lo que te rindió',
+      techo: 'Techo de exposición (0 = sin techo)',
+    };
+
+    return (
+      <>
+        <div style={S.card}>
+          <div style={{ ...S.titulo, marginBottom: 4 }}>EJECUTIVOS ({lista.length})</div>
+          <div style={{ fontSize: 12, color: '#888', marginBottom: 12, lineHeight: 1.6 }}>
+            El ejecutivo recibe fichas sin pagarlas y te rinde después. Su deuda nace cuando le
+            vende cupo a un banquero, que es cuando cobra. Para crear uno, cambiale el rol a
+            Ejecutivo desde JUGADORES.
+          </div>
+          <Tabla
+            columnas={['EJECUTIVO', 'BANQUEROS', 'FICHAS SIN REPARTIR', 'RINDE %', 'TE DEBE', 'TECHO', 'ACCIONES']}
+            vacio="Todavía no tenés ejecutivos."
+          >
+            {lista.map((e) => (
+              <tr key={e.id}>
+                <td style={{ ...S.td, fontWeight: 700 }}>
+                  {[e.first_name, e.last_name].filter(Boolean).join(' ') || e.username}
+                  <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>{e.username}</div>
+                </td>
+                <td style={S.td}>{e.banqueros || 0}</td>
+                <td style={{ ...S.td, color: '#ffd84a', fontWeight: 900 }}>{bs(e.credit_balance)}</td>
+                <td style={S.td}>{e.commission_pct || 0}%</td>
+                <td style={{ ...S.td, color: e.deuda > 0 ? '#ffa04a' : '#7ee08a', fontWeight: 700 }}>
+                  {bs(e.deuda || 0)}
+                </td>
+                <td style={S.td}>{e.exec_limite > 0 ? bs(e.exec_limite) : '—'}</td>
+                <td style={S.td}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Boton chico tono="verde" onClick={() => { setAccion({ tipo: 'fichas', e }); setMonto(''); }}>FICHAS</Boton>
+                    <Boton chico onClick={() => { setAccion({ tipo: 'rendicion', e }); setMonto(''); }}>RINDIÓ</Boton>
+                    <Boton chico tono="gris" onClick={() => { setAccion({ tipo: 'techo', e }); setMonto(String(e.exec_limite || 0)); }}>TECHO</Boton>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </Tabla>
+        </div>
+
+        {accion && (
+          <div style={S.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ ...S.titulo, marginBottom: 0 }}>
+                {TITULO[accion.tipo]} — {accion.e.username}
+              </div>
+              <Boton chico tono="gris" onClick={() => setAccion(null)}>CANCELAR</Boton>
+            </div>
+            <div style={{ display: 'grid', gap: 12, alignItems: 'end', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+              <Campo label="MONTO">
+                <input style={S.input} type="number" min="0" value={monto}
+                       onChange={(e) => setMonto(e.target.value)} />
+              </Campo>
+              {accion.tipo !== 'techo' && (
+                <Campo label="NOTA (opcional)">
+                  <input style={S.input} value={nota} onChange={(e) => setNota(e.target.value)} />
+                </Campo>
+              )}
+              <Boton tono="verde" disabled={enviando} onClick={ejecutar}>
+                {enviando ? '...' : 'CONFIRMAR'}
+              </Boton>
+            </div>
+            {accion.tipo === 'fichas' && (
+              <div style={{ marginTop: 10, fontSize: 13, color: '#bbb', lineHeight: 1.7 }}>
+                No cobrás nada ahora: se las entregás para que reparta. Te va a deber el
+                {' '}{accion.e.commission_pct || 0}% de lo que le venda a sus banqueros.
+              </div>
+            )}
+          </div>
+        )}
+      </>
     );
   }
 

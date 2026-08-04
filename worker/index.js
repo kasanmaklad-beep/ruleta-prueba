@@ -23,8 +23,9 @@ import {
 
 // La capa ejecutiva: matriz → ejecutivo → banquero → jugador.
 import {
-  execSummary, execPlayers, execCreateCashier,
+  execSummary, execPlayers, execCreateCashier, execVenderCupo,
   adminExecs, adminSetExec, adminSetExecLimite,
+  adminAsignarFichas, adminRendicion,
 } from './execs.js';
 
 import {
@@ -201,6 +202,8 @@ async function handleApi(request, env, url) {
   if (method === 'GET'  && path === '/api/exec/players') return execPlayers(request, env, url);
   // El ejecutivo arma su propia red: el banquero nace colgado de él.
   if (method === 'POST' && path === '/api/exec/cashiers') return execCreateCashier(request, env);
+  // El ejecutivo le entrega cupo a uno de SUS banqueros y le cobra.
+  if (method === 'POST' && path === '/api/exec/vender')   return execVenderCupo(request, env);
   if (method === 'GET'  && path === '/api/admin/execs')  return adminExecs(request, env);
   // Colgar un banquero de un ejecutivo (o devolverlo a la matriz).
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/cashiers\/(\d+)\/exec$/)))
@@ -208,6 +211,11 @@ async function handleApi(request, env, url) {
   // El techo de exposición del ejecutivo.
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/limite$/)))
     return adminSetExecLimite(request, env, Number(m[1]));
+  // La casa le entrega fichas en consignación, y registra lo que le rinde.
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/fichas$/)))
+    return adminAsignarFichas(request, env, Number(m[1]));
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/rendicion$/)))
+    return adminRendicion(request, env, Number(m[1]));
 
   // ── Panel: recargas ──
   if (method === 'GET'  && path === '/api/admin/topups') return adminTopups(request, env, url);

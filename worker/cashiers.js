@@ -1,10 +1,19 @@
 // ════════════════════════════════════════════════════════════════════════
 //  Banqueros y cupo prepago.
 //
-//  El dueño le vende cupo al banquero: éste paga (por ejemplo 9.000) y
-//  recibe cupo (10.000). Esa diferencia ES su comisión y se la cobra en el
-//  acto. Después el banquero carga saldo a sus jugadores y cada carga le
-//  descuenta del cupo, así que nunca puede cargar más de lo que ya pagó.
+//  El dueño le vende cupo al banquero. `commission_pct` es EL PORCENTAJE QUE
+//  EL BANQUERO PAGA sobre el valor de las fichas: con 20, paga 2.000 y recibe
+//  cupo por 10.000. La diferencia (8.000) es su margen, y la casa la cobra por
+//  adelantado en el momento de la venta.
+//
+//  OJO: este encabezado decía antes "paga 9.000 y recibe 10.000", que es el
+//  reparto inverso y NO es lo que hace el código. Se corrigió el 03/08/2026
+//  después de que el dueño confirmara que el número es lo que el banquero
+//  paga. Si alguna vez el comentario y la cuenta vuelven a discrepar, la
+//  cuenta manda y el comentario está mal.
+//
+//  Después el banquero carga saldo a sus jugadores y cada carga le descuenta
+//  del cupo, así que nunca puede cargar más de lo que ya pagó.
 // ════════════════════════════════════════════════════════════════════════
 
 import {

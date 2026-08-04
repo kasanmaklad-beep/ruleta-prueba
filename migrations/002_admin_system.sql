@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   cashier_id  INTEGER NOT NULL,
   type        TEXT    NOT NULL,   -- purchase | load | withdrawal_refill | adjust
+                                 -- + exec_assign | exec_sale | exec_settle (capa ejecutiva, 03/08/2026)
   amount      INTEGER NOT NULL,   -- positivo suma cupo, negativo lo consume
   paid_amount INTEGER,            -- lo que el taquillero pagó (solo en 'purchase')
   player_id   INTEGER,            -- jugador afectado (en 'load' y 'withdrawal_refill')

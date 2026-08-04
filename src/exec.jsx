@@ -3,16 +3,17 @@
 //
 // El piso del medio: matriz → EJECUTIVO → banquero → jugador.
 //
-// El ejecutivo ARMA su red (crea sus banqueros) y la MIRA: sus banqueros y los
-// jugadores de ellos. Todavía no se mueve una ficha ni existe la deuda — eso
-// llega en la etapa 3.
+// El ejecutivo ARMA su red (crea sus banqueros), la MIRA, y REPARTE las fichas
+// que la casa le entregó en consignación, llevando su cuenta: cuánto le queda
+// y cuánto le debe a la matriz.
 //
 // Si algún día aparece acá un botón que cambie el saldo de un JUGADOR, está
 // mal: cargar y pagar es del banquero, que es quien pone la cara y la plata.
 (function () {
   const { useState, useEffect, useCallback } = React;
   const U = window.UI;
-  const { plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Estado, Campo } = U;
+  const { plata, fecha, styles: S, Boton, Aviso, Dato, Encabezado, Tabla, Estado, Campo,
+          Confirmar } = U;
 
   // Alta de un banquero propio. Los mismos campos que usa la matriz, MENOS la
   // participación en la ganancia: esa es plata de la casa y la fija el dueño,
@@ -142,6 +143,96 @@
     );
   }
 
+  // Entregarle cupo a un banquero propio. Es la operación que mueve la plata:
+  // le salen fichas al ejecutivo, le entran al banquero, el banquero le paga en
+  // el acto, y al ejecutivo le nace la deuda con la casa por esas fichas.
+  function FormVenderCupo({ data, setMsg, onHecho }) {
+    const [username, setUsername] = useState('');
+    const [amount, setAmount] = useState('');
+    const [confirmar, setConfirmar] = useState(false);
+    const [enviando, setEnviando] = useState(false);
+
+    const banqueros = (data && data.banqueros) || [];
+    const yo = data && data.ejecutivo;
+    const cupo = Number(amount) || 0;
+    const elegido = banqueros.find((b) => b.username === username);
+    // Lo que le va a cobrar y lo que va a quedar debiendo por esta venta.
+    const cobra = elegido ? Math.round(cupo * ((elegido.commission_pct || 0) / 100)) : 0;
+    const debera = yo ? Math.round(cupo * ((yo.commission_pct || 0) / 100)) : 0;
+    const alcanza = yo && cupo > 0 && cupo <= (yo.credit_balance || 0);
+
+    const vender = async () => {
+      setConfirmar(false); setEnviando(true);
+      try {
+        const r = await window.Api.execVender(username, cupo);
+        setMsg({
+          kind: 'ok',
+          text: `${r.banquero} recibió ${U.plata(r.entregado)} de cupo y te pagó ${U.plata(r.cobraste)}. `
+              + `Te quedan ${U.plata(r.fichas)} y le debés ${U.plata(r.deuda)} a la casa.`,
+        });
+        setUsername(''); setAmount('');
+        onHecho();
+      } catch (err) { setMsg({ kind: 'err', text: err.message }); }
+      finally { setEnviando(false); }
+    };
+
+    if (!banqueros.length) return null;
+
+    return (
+      <div style={S.card}>
+        <div style={S.titulo}>ENTREGAR CUPO A UN BANQUERO</div>
+        <div style={{
+          display: 'grid', gap: 12, alignItems: 'end',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
+        }}>
+          <Campo label="BANQUERO">
+            <select style={S.input} value={username} onChange={(e) => setUsername(e.target.value)}>
+              <option value="">Elegí…</option>
+              {banqueros.map((b) => (
+                <option key={b.id} value={b.username}>
+                  {b.username} · paga {b.commission_pct}%
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <Campo label="CUPO A ENTREGAR">
+            <input style={S.input} type="number" min="0" value={amount}
+                   onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+          </Campo>
+          <Boton tono="verde" disabled={!elegido || !alcanza || enviando}
+                 onClick={() => setConfirmar(true)}>
+            {enviando ? '...' : 'ENTREGAR'}
+          </Boton>
+        </div>
+
+        {elegido && cupo > 0 && (
+          <div style={{ marginTop: 12, fontSize: 14, color: '#d8ccff', lineHeight: 1.8 }}>
+            {elegido.username} recibe <b style={{ color: '#c4b0ff' }}>{U.plata(cupo)}</b> de cupo
+            y te paga <b style={{ color: '#7ee08a' }}>{U.plata(cobra)}</b>.
+            {' '}Vos vas a deberle <b style={{ color: '#ffa04a' }}>{U.plata(debera)}</b> a la casa
+            por esas fichas, así que te quedan <b>{U.plata(cobra - debera)}</b>.
+            {!alcanza && (
+              <div style={{ color: '#ffc9c9', marginTop: 6 }}>
+                No te alcanza: tenés {U.plata((yo && yo.credit_balance) || 0)} sin repartir.
+              </div>
+            )}
+          </div>
+        )}
+
+        <Confirmar
+          abierto={confirmar}
+          titulo="Confirmar entrega de cupo"
+          texto={`¿Ya recibiste los ${U.plata(cobra)} de ${username}? Al confirmar le quedan `
+               + `${U.plata(cupo)} de cupo para cargar a sus jugadores, y vos pasás a deber `
+               + `${U.plata(debera)} más a la casa.`}
+          onSi={vender}
+          onNo={() => setConfirmar(false)}
+          textoSi="SÍ, YA COBRÉ"
+        />
+      </div>
+    );
+  }
+
   function ExecPanel({ user, onExit, onLogout }) {
     const [data, setData] = useState(null);
     const [jugadores, setJugadores] = useState(null);
@@ -170,6 +261,7 @@
 
     const t = (data && data.totales) || { banqueros: 0, jugadores: 0, cupo: 0, cargado: 0 };
     const yo = data && data.ejecutivo;
+    const cuenta = (data && data.cuenta) || { deuda: 0, rendido: 0, vendido: 0 };
 
     return (
       <div style={{ ...S.page, ...U.paleta('ejecutivo') }}>
@@ -215,32 +307,38 @@
                       detalle="histórico de toda tu red" />
               </div>
 
-              {/* Las fichas propias del ejecutivo: en la etapa 1 esto es
-                  siempre cero, porque todavía no hay forma de asignarle. Se
-                  muestra igual para que el dueño vea el lugar donde va a
-                  aparecer, y para que nadie crea que se perdieron. */}
+              {/* SU CUENTA CON LA CASA. Es lo primero que mira: cuántas
+                  fichas le quedan para repartir y cuánto debe. */}
               {yo && (
                 <div style={{
-                  ...S.card, display: 'flex', flexWrap: 'wrap', gap: 20,
-                  alignItems: 'center', justifyContent: 'space-between',
+                  display: 'grid', gap: 12,
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
                 }}>
-                  <div>
-                    <div style={{ fontSize: 12, letterSpacing: 1.5, color: '#9b8fc0' }}>
-                      TUS FICHAS SIN REPARTIR
-                    </div>
-                    <div style={{ fontSize: 26, fontWeight: 700, color: '#c4b0ff' }}>
-                      {plata(yo.credit_balance || 0)}
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 13, color: '#8f83b0', maxWidth: 460, lineHeight: 1.6 }}>
-                    Todavía no se pueden asignar ni repartir fichas: eso llega en la próxima
-                    etapa, junto con la cuenta de lo que le debés a la matriz.
-                    {yo.exec_limite > 0 && (
-                      <> Tu techo acordado es <b style={{ color: '#c4b0ff' }}>{plata(yo.exec_limite)}</b>.</>
-                    )}
-                  </div>
+                  <Dato titulo="Fichas sin repartir" valor={plata(yo.credit_balance || 0)}
+                        detalle="te las dio la casa" />
+                  <Dato titulo="Le debés a la casa" valor={plata(cuenta.deuda || 0)}
+                        color={cuenta.deuda > 0 ? '#ffa04a' : '#7ee08a'}
+                        detalle={`${yo.commission_pct || 0}% de lo que vendiste`} />
+                  <Dato titulo="Ya rendiste" valor={plata(cuenta.rendido || 0)} chico />
+                  <Dato titulo="Tu techo" chico
+                        valor={yo.exec_limite > 0 ? plata(yo.exec_limite) : 'sin techo'}
+                        detalle={yo.exec_limite > 0 ? 'no recibís más si lo alcanzás' : null} />
                 </div>
               )}
+
+              {/* El aviso que evita el llamado telefónico: si llegó al techo, se
+                  lo dice antes de que pida fichas y le digan que no. */}
+              {yo && yo.exec_limite > 0 && cuenta.deuda >= yo.exec_limite && (
+                <div style={{
+                  padding: '12px 16px', borderRadius: 8, fontSize: 15, lineHeight: 1.7,
+                  background: 'rgba(180,16,26,0.18)', border: '1px solid #b8101a', color: '#ffc9c9',
+                }}>
+                  Llegaste a tu techo: debés <b>{plata(cuenta.deuda)}</b> de <b>{plata(yo.exec_limite)}</b>.
+                  La casa no te puede entregar más fichas hasta que rindas.
+                </div>
+              )}
+
+              <FormVenderCupo data={data} setMsg={setMsg} onHecho={cargar} />
 
               <FormNuevoBanquero setMsg={setMsg} onHecho={cargar} />
 
@@ -264,6 +362,32 @@
                   ))}
                 </Tabla>
               </div>
+
+              {/* Su cuenta con la casa, movimiento por movimiento. Es lo que
+                  le permite discutir un número sin depender de un papel. */}
+              {!!(data.movimientos || []).length && (
+                <div style={S.card}>
+                  <div style={S.titulo}>TU CUENTA CON LA CASA</div>
+                  <Tabla columnas={['Cuándo', 'Qué pasó', 'Fichas', 'Plata', 'Nota']} vacio="Sin movimientos.">
+                    {data.movimientos.map((m) => {
+                      const T = {
+                        exec_assign: ['La casa te entregó fichas', '#7ee08a'],
+                        exec_sale:   ['Le entregaste cupo a un banquero', '#c4b0ff'],
+                        exec_settle: ['Le rendiste a la casa', '#ffa04a'],
+                      }[m.type] || [m.type, '#999'];
+                      return (
+                        <tr key={m.id}>
+                          <td style={S.td}>{fecha(m.created_at)}</td>
+                          <td style={{ ...S.td, color: T[1] }}>{T[0]}</td>
+                          <td style={S.td}>{m.amount ? plata(m.amount) : '—'}</td>
+                          <td style={S.td}>{m.paid_amount != null ? plata(m.paid_amount) : '—'}</td>
+                          <td style={{ ...S.td, color: '#8f83b0' }}>{m.note || '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </Tabla>
+                </div>
+              )}
 
               <div style={S.card}>
                 <div style={{

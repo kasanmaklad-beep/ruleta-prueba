@@ -6,10 +6,10 @@
 //  arma y maneja su red de banqueros, les cobra a ellos, y rinde cuentas con
 //  la matriz cada tanto.
 //
-//  HASTA ACÁ VAN LAS ETAPAS 1 Y 2: el vínculo (qué banquero cuelga de qué
-//  ejecutivo), la MIRADA (ve su red) y el ALTA (arma su red creando sus
-//  propios banqueros). Todavía no se mueve una sola ficha ni existe la deuda:
-//  eso llega en la etapa 3.
+//  Qué hay acá: el vínculo (qué banquero cuelga de qué ejecutivo), la MIRADA
+//  (ve su red), el ALTA (crea sus propios banqueros) y LAS FICHAS con su
+//  DEUDA — la casa se las entrega en consignación, él se las vende a sus
+//  banqueros y le rinde a la casa. Ver el bloque LAS FICHAS Y LA DEUDA.
 //
 //  La regla que manda en este archivo: el ejecutivo VE a los jugadores de sus
 //  banqueros pero NO les toca el saldo. Cargar y pagar sigue siendo del
@@ -18,7 +18,8 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import {
-  json, readJson, toPositiveInt, requireAdmin, requireExec,
+  json, readJson, str, toPositiveInt, normalizeUsername,
+  requireAdmin, requireExec, getSettings, settingNum, checkMultiplo,
 } from './lib.js';
 // El alta de banquero es la MISMA que usa la matriz: una sola función, un solo
 // juego de validaciones.
@@ -80,10 +81,30 @@ export async function execSummary(request, env, url) {
   }), { banqueros: 0, jugadores: 0, cupo: 0, cargado: 0 });
 
   const yo = await env.DB.prepare(
-    'SELECT id, username, first_name, last_name, credit_balance, exec_limite FROM users WHERE id = ?'
+    `SELECT id, username, first_name, last_name, credit_balance, exec_limite, commission_pct
+       FROM users WHERE id = ?`
   ).bind(quien.execId).first();
 
-  return json({ ejecutivo: yo, banqueros, totales, como_dueño: !!quien.comoDueño });
+  // La deuda es EL número del ejecutivo: lo que le debe a la casa ahora mismo.
+  const cuenta = await deudaDe(env, quien.execId, yo && yo.commission_pct);
+
+  // Sus últimos movimientos de fichas, para que pueda seguir su propia cuenta
+  // sin depender de que el dueño le pase un papel.
+  const movs = await env.DB.prepare(
+    `SELECT id, type, amount, paid_amount, note, created_at
+       FROM credit_ledger
+      WHERE cashier_id = ? AND type IN ('exec_assign', 'exec_sale', 'exec_settle')
+      ORDER BY created_at DESC, id DESC LIMIT 40`
+  ).bind(quien.execId).all();
+
+  return json({
+    ejecutivo: yo,
+    cuenta,
+    movimientos: movs.results || [],
+    banqueros,
+    totales,
+    como_dueño: !!quien.comoDueño,
+  });
 }
 
 // Los jugadores de sus banqueros. SÓLO LECTURA: no hay forma de tocarles el
@@ -137,12 +158,172 @@ export async function execCreateCashier(request, env) {
   }
 
   const body = await readJson(request);
+
+  // Freno contra el error que se paga caro: el banquero tiene que pagar MÁS
+  // porcentaje que el que el ejecutivo le rinde a la casa. Si le pone igual o
+  // menos, el ejecutivo trabaja gratis o pone plata de su bolsillo en cada
+  // venta, y eso no se nota hasta que el mes cierra mal.
+  const yo = await env.DB.prepare('SELECT commission_pct FROM users WHERE id = ?')
+    .bind(auth.userId).first();
+  const mio = (yo && yo.commission_pct) || 0;
+  const suyo = Number(body.commission_pct);
+  if (Number.isFinite(suyo) && mio > 0 && suyo <= mio) {
+    const por10k = Math.round(10000 * (suyo - mio) / 100);
+    return json({
+      error: `Con ${suyo}% ${suyo === mio ? 'no ganás nada' : `perdés ${-por10k}`} por cada 10.000 de fichas: `
+           + `vos le rendís ${mio}% a la casa y él te pagaría ${suyo}%. Ponele un porcentaje mayor a ${mio}.`,
+    }, 400);
+  }
+
   const r = await crearBanquero(env, body, {
     creadorId: auth.userId,
     execId: auth.userId,
     permiteRiesgo: false,
   });
   return r.error || json({ cashier: r.cashier });
+}
+
+// ═══════════════════════ LAS FICHAS Y LA DEUDA ════════════════════════════
+//
+//  El ejecutivo NO compra sus fichas: la casa se las entrega EN CONSIGNACIÓN y
+//  él rinde después. Ésa es la diferencia de fondo con el banquero, que paga
+//  en el acto, y es la razón por la que acá aparece algo que en el resto del
+//  sistema no existía: una DEUDA.
+//
+//  Cuándo nace la deuda: cuando el ejecutivo le VENDE cupo a un banquero. Ése
+//  es el instante en que le entra plata al bolsillo —el banquero le paga en el
+//  acto, igual que le pagaría a la casa—. Las fichas que todavía tiene sin
+//  vender son de la casa, en su poder, y no las debe.
+//
+//      deuda = Σ(fichas vendidas × su porcentaje) − Σ(lo que rindió)
+//
+//  `commission_pct` del ejecutivo es EL PORCENTAJE QUE ÉL PAGA sobre el valor
+//  de las fichas, igual que en el banquero. Tiene que ser MENOR que el de sus
+//  banqueros: si el banquero paga 20% y el ejecutivo rinde 15%, al ejecutivo
+//  le quedan 5 de cada 100 de valor vendido. Si fuera al revés, el ejecutivo
+//  pondría plata de su bolsillo en cada venta.
+//
+//  Los tres movimientos nuevos van al MISMO libro que ya existe
+//  (`credit_ledger`), con `cashier_id` = el ejecutivo:
+//    exec_assign  la casa le entrega fichas   (amount +, sin pago)
+//    exec_sale    le vende cupo a un banquero (amount −, y genera deuda)
+//    exec_settle  rinde plata a la casa       (amount 0, paid_amount = lo pagado)
+// ══════════════════════════════════════════════════════════════════════════
+
+// Cuánto debe HOY. Sale del libro, no de una columna guardada: una columna hay
+// que acordarse de actualizarla en todos lados y el día que alguien olvide un
+// caso, el número miente sin avisar. Esto siempre cuadra con los movimientos.
+async function deudaDe(env, execId, commissionPct) {
+  const r = await env.DB.prepare(
+    `SELECT
+       COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN -amount END), 0) AS vendido,
+       COALESCE(SUM(CASE WHEN type = 'exec_settle' THEN paid_amount END), 0) AS rendido
+     FROM credit_ledger WHERE cashier_id = ?`
+  ).bind(execId).first();
+
+  const vendido = (r && r.vendido) || 0;   // en valor de fichas
+  const rendido = (r && r.rendido) || 0;   // en plata
+  const generada = Math.round(vendido * ((commissionPct || 0) / 100));
+  return { vendido, rendido, deuda: Math.max(0, generada - rendido), generada };
+}
+
+// ── El ejecutivo le vende cupo a uno de SUS banqueros ─────────────────────
+//
+// Es la operación donde se mueve todo: le salen fichas al ejecutivo, le entran
+// al banquero, el banquero le paga en el acto, y al ejecutivo le nace la deuda
+// con la casa por esas fichas.
+//
+// El descuento va con GUARDIA en la misma instrucción
+// (`WHERE credit_balance >= ?`) y no leyendo primero y restando después: entre
+// una lectura y una escritura pueden entrar dos ventas a la vez y dejar al
+// ejecutivo con fichas negativas. Es el mismo candado que usa el giro de la
+// ruleta para el saldo del jugador.
+export async function execVenderCupo(request, env) {
+  const auth = await requireExec(request, env);
+  if (auth.error) return auth.response;
+  if (auth.role === 'admin') {
+    return json({ error: 'Esta venta la hace el ejecutivo con sus fichas. Desde la matriz, usá VENDER CUPO en BANQUEROS.' }, 400);
+  }
+
+  const body = await readJson(request);
+  const username = normalizeUsername(body.username);
+  const amount = toPositiveInt(body.amount);
+  if (!username) return json({ error: 'Falta el banquero' }, 400);
+  if (amount === null) return json({ error: 'Monto de cupo inválido' }, 400);
+
+  const s = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
+
+  // Sólo a los SUYOS. Sin esta condición un ejecutivo podría venderle al
+  // banquero de otro y ensuciarle la cuenta a los dos.
+  const banquero = await env.DB.prepare(
+    "SELECT id, username, commission_pct, status FROM users WHERE username = ? AND role = 'cashier' AND exec_id = ?"
+  ).bind(username, auth.userId).first();
+  if (!banquero) {
+    return json({ error: `${username} no es un banquero tuyo.` }, 404);
+  }
+  if (banquero.status === 'blocked') {
+    return json({ error: `${banquero.username} está bloqueado.` }, 400);
+  }
+
+  // Lo que el banquero le paga, con SU porcentaje.
+  let paid;
+  if (body.paid_amount === undefined || body.paid_amount === null || body.paid_amount === '') {
+    paid = Math.round(amount * ((banquero.commission_pct || 0) / 100));
+  } else {
+    const p = Number(body.paid_amount);
+    if (!Number.isInteger(p) || p < 0 || p > amount) {
+      return json({ error: 'Lo pagado tiene que ser un entero entre 0 y el cupo entregado' }, 400);
+    }
+    paid = p;
+  }
+
+  // Descuento con guardia: si no le alcanzan las fichas, no pasa nada.
+  const bajada = await env.DB.prepare(
+    'UPDATE users SET credit_balance = credit_balance - ? WHERE id = ? AND credit_balance >= ?'
+  ).bind(amount, auth.userId, amount).run();
+  if (bajada.meta.changes === 0) {
+    const yo = await env.DB.prepare('SELECT credit_balance FROM users WHERE id = ?')
+      .bind(auth.userId).first();
+    return json({
+      error: `No te alcanzan las fichas: tenés ${(yo && yo.credit_balance) || 0} y querés entregar ${amount}. Pedile a la matriz.`,
+      fichas: (yo && yo.credit_balance) || 0,
+    }, 400);
+  }
+
+  // Ya se descontó: de acá en más el resto tiene que quedar anotado sí o sí.
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .bind(amount, banquero.id),
+    // La salida del ejecutivo: es la que genera su deuda con la casa.
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, player_id, note, actor_id)
+       VALUES (?, 'exec_sale', ?, ?, ?, ?, ?)`
+    ).bind(auth.userId, -amount, paid, banquero.id,
+           str(body.note, 200) || `Cupo a ${banquero.username}`, auth.userId),
+    // La entrada del banquero: el MISMO tipo 'purchase' de siempre, para que
+    // su banca y sus reportes no noten la diferencia de quién se lo vendió.
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
+       VALUES (?, 'purchase', ?, ?, ?, ?)`
+    ).bind(banquero.id, amount, paid,
+           str(body.note, 200) || `Venta de cupo (${auth.username})`, auth.userId),
+  ]);
+
+  const yo = await env.DB.prepare(
+    'SELECT credit_balance, commission_pct FROM users WHERE id = ?'
+  ).bind(auth.userId).first();
+  const info = await deudaDe(env, auth.userId, yo.commission_pct);
+
+  return json({
+    ok: true,
+    banquero: banquero.username,
+    entregado: amount,
+    cobraste: paid,
+    fichas: yo.credit_balance,
+    ...info,
+  });
 }
 
 // ──────────────────── Lo que hace el dueño con ellos ──────────────────────
@@ -152,19 +333,33 @@ export async function adminExecs(request, env) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
 
+  // La deuda de todos en UNA consulta y no una por ejecutivo: con diez
+  // ejecutivos serían once viajes a la base para dibujar una tabla.
   const rows = await env.DB.prepare(
     `SELECT u.id, u.username, u.first_name, u.last_name, u.phone, u.status,
             u.credit_balance, u.commission_pct, u.exec_limite, u.created_at,
-            COALESCE(b.banqueros, 0) AS banqueros
+            COALESCE(b.banqueros, 0) AS banqueros,
+            COALESCE(v.vendido, 0)   AS vendido,
+            COALESCE(v.rendido, 0)   AS rendido
        FROM users u
        LEFT JOIN (SELECT exec_id, COUNT(*) AS banqueros
                     FROM users WHERE exec_id IS NOT NULL AND role = 'cashier'
                     GROUP BY exec_id) b ON b.exec_id = u.id
+       LEFT JOIN (SELECT cashier_id,
+                         COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN -amount END), 0) AS vendido,
+                         COALESCE(SUM(CASE WHEN type = 'exec_settle' THEN paid_amount END), 0) AS rendido
+                    FROM credit_ledger GROUP BY cashier_id) v ON v.cashier_id = u.id
       WHERE u.role = 'exec'
       ORDER BY u.username`
   ).all();
 
-  return json({ ejecutivos: rows.results || [] });
+  // La misma fórmula que deudaDe(), acá aplicada a la lista entera.
+  const ejecutivos = (rows.results || []).map((e) => ({
+    ...e,
+    deuda: Math.max(0, Math.round((e.vendido || 0) * ((e.commission_pct || 0) / 100)) - (e.rendido || 0)),
+  }));
+
+  return json({ ejecutivos });
 }
 
 // Colgar un banquero de un ejecutivo, o devolverlo a la matriz con exec = null.
@@ -210,9 +405,92 @@ export async function adminSetExec(request, env, cashierId) {
   return json({ ok: true, exec_id: execId, ejecutivo: ejec.username });
 }
 
+// ── La casa le entrega fichas (consignación) ──────────────────────────────
+// No cobra nada acá: por eso `paid_amount` va en NULL y no en 0. Un 0 diría
+// "se cobró cero", que es una afirmación; NULL dice "acá no se cobra", que es
+// la verdad. La diferencia importa el día que alguien sume la columna.
+export async function adminAsignarFichas(request, env, execId) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const amount = toPositiveInt(body.amount);
+  if (amount === null) return json({ error: 'Monto de fichas inválido' }, 400);
+
+  const s = await getSettings(env);
+  const multErr = checkMultiplo(amount, settingNum(s, 'monto_multiplo'));
+  if (multErr) return json({ error: multErr }, 400);
+
+  const ejec = await env.DB.prepare(
+    "SELECT id, username, status, commission_pct, exec_limite, credit_balance FROM users WHERE id = ? AND role = 'exec'"
+  ).bind(execId).first();
+  if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
+  if (ejec.status === 'blocked') {
+    return json({ error: `${ejec.username} está bloqueado.` }, 400);
+  }
+
+  // EL TECHO. Frena de verdad: mientras deba lo que acordaron, no recibe más
+  // hasta que rinda. Es lo que evita que una deuda crezca sin que nadie mire.
+  const { deuda } = await deudaDe(env, ejec.id, ejec.commission_pct);
+  if (ejec.exec_limite > 0 && deuda >= ejec.exec_limite) {
+    return json({
+      error: `${ejec.username} debe ${deuda} y su techo es ${ejec.exec_limite}. `
+           + 'No se le puede entregar más hasta que rinda.',
+      deuda, techo: ejec.exec_limite,
+    }, 400);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
+      .bind(amount, ejec.id),
+    env.DB.prepare(
+      `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
+       VALUES (?, 'exec_assign', ?, NULL, ?, ?)`
+    ).bind(ejec.id, amount, str(body.note, 200) || `Entrega en consignación (${auth.username})`, auth.userId),
+  ]);
+
+  const info = await deudaDe(env, ejec.id, ejec.commission_pct);
+  const actualizado = await env.DB.prepare(
+    'SELECT credit_balance FROM users WHERE id = ?'
+  ).bind(ejec.id).first();
+  return json({ ok: true, fichas: actualizado.credit_balance, ...info });
+}
+
+// ── El ejecutivo rinde plata a la casa ────────────────────────────────────
+// Lo registra el DUEÑO, no el ejecutivo: es el que recibe la plata quien dice
+// que la recibió. Al revés, el ejecutivo podría bajarse la deuda solo.
+export async function adminRendicion(request, env, execId) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const pago = toPositiveInt(body.amount);
+  if (pago === null) return json({ error: 'Monto inválido' }, 400);
+
+  const ejec = await env.DB.prepare(
+    "SELECT id, username, commission_pct FROM users WHERE id = ? AND role = 'exec'"
+  ).bind(execId).first();
+  if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
+
+  const antes = await deudaDe(env, ejec.id, ejec.commission_pct);
+  if (pago > antes.deuda) {
+    return json({
+      error: `${ejec.username} debe ${antes.deuda}. No se puede registrar un pago mayor que la deuda.`,
+      deuda: antes.deuda,
+    }, 400);
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
+     VALUES (?, 'exec_settle', 0, ?, ?, ?)`
+  ).bind(ejec.id, pago, str(body.note, 200) || `Rendición recibida (${auth.username})`, auth.userId).run();
+
+  const despues = await deudaDe(env, ejec.id, ejec.commission_pct);
+  return json({ ok: true, ...despues });
+}
+
 // El techo de exposición del ejecutivo: cuánto se le puede tener asignado sin
-// rendir. Se guarda desde la etapa 1 aunque todavía no frene nada — el freno
-// es de la etapa 3, cuando existan las fichas y la deuda.
+// rendir. Cuando la deuda lo alcanza, adminAsignarFichas() frena la entrega.
 export async function adminSetExecLimite(request, env, execId) {
   const auth = await requireAdmin(request, env);
   if (auth.error) return auth.response;
