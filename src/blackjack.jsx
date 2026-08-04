@@ -311,7 +311,16 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
 .bj-barra{
     width:100%; max-width:520px; display:flex; justify-content:space-between; align-items:center;
     margin-top:12px; font-size:11px; color:var(--tenue); letter-spacing:1px;
+    gap:8px; flex-wrap:wrap;
   }
+/* Los botones de la cabecera. Con tres (SALÓN, CAJA, SALIR) más el usuario y
+   el saldo, en un teléfono de 375 no entraba todo y las palabras se partían en
+   dos renglones. Van más ajustados y sin permitir el corte. */
+  .bj-barra button{padding:5px 8px; font-size:10px; letter-spacing:.5px; white-space:nowrap}
+/* En pantalla angosta el NOMBRE DE USUARIO se va. De todo lo que hay en la
+   cabecera es lo único prescindible: el jugador sabe quién es, y lo que
+   necesita ver es su saldo y cómo salir. */
+  @media (max-width: 420px){ .bj-quien-usuario{display:none} }
 .bj-saldo{color:var(--oro); font-size:15px; font-weight:700; letter-spacing:0}
 .bj-sonido{cursor:pointer; font-size:14px; opacity:.8; user-select:none}
 .bj-sonido.bj-mudo{opacity:.35}
@@ -1181,18 +1190,24 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
         {/* La cabecera del salón: saldo, caja y la puerta de salida. */}
         <div className="bj-barra">
           <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="bj-gris" style={{ padding: '6px 10px', fontSize: 11 }}
-                    onClick={onSalirAlSalon}>← {T('SALÓN')}</button>
+            <button className="bj-gris" onClick={onSalirAlSalon}>← {T('SALÓN')}</button>
             {onOpenWallet && (
-              <button className="bj-gris" style={{ padding: '6px 10px', fontSize: 11 }}
-                      onClick={onOpenWallet}>{T('CAJA')}</button>
+              <button className="bj-gris" onClick={onOpenWallet}>{T('CAJA')}</button>
+            )}
+            {/* SALIR faltaba. La pantalla recibía `onLogout` desde el principio
+                y nunca lo usaba: para cerrar sesión había que volver al salón
+                primero. En un teléfono prestado eso no es una incomodidad, es
+                dejar la cuenta abierta. */}
+            {onLogout && (
+              <button className="bj-gris" onClick={onLogout}>{T('SALIR')}</button>
             )}
           </span>
           {/* El usuario a la vista: en esta mesa se apuesta plata, y el jugador
               tiene que poder ver con qué cuenta está sin salir a buscarlo. */}
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             {user && user.username && (
-              <span style={{ fontSize: 10, color: '#bba876', letterSpacing: 1 }}>
+              <span className="bj-quien-usuario"
+                    style={{ fontSize: 10, color: '#bba876', letterSpacing: 1 }}>
                 {user.username}
               </span>
             )}

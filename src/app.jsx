@@ -1914,6 +1914,18 @@ function AppRoot() {
     return String(u.condiciones_version || '') !== String(vigente);
   };
 
+  // A qué pantalla entra alguien que ABRE la aplicación (o que acaba de
+  // ingresar). Ojo: esto NO decide la navegación de adentro —eso lo hace ir()—,
+  // así que acá se está mirando siempre "de dónde vengo al abrir".
+  //
+  // AL ABRIR SE ENTRA POR EL SALÓN, aunque hayas cerrado la aplicación
+  // sentado en una mesa. Antes se respetaba la dirección guardada y el jugador
+  // volvía directo a la ruleta o al 21 sin poder elegir. Que la mesa anterior
+  // te agarre de nuevo no es una comodidad: es no dejarte decidir.
+  //
+  // Los PANELES sí se respetan (/admin, /taquilla, /ejecutivo, /billetera):
+  // son herramientas de trabajo y quien las usa las tiene guardadas en su
+  // teléfono. Volver a la mesa de juego es otra cosa.
   const pantallaPara = (u) => {
     if (debeAceptar(u)) return 'condiciones';
     const ruta = rutaActual();
@@ -1921,16 +1933,21 @@ function AppRoot() {
     if (ruta === '/taquilla' && (u.role === 'cashier' || u.role === 'admin')) return 'taquilla';
     if (ruta === '/ejecutivo' && (u.role === 'exec' || u.role === 'admin')) return 'ejecutivo';
     if (ruta === '/billetera') return 'billetera';
-    if (ruta === '/juego') return 'game';
-    if (ruta === '/mesa21') return 'mesa21';
-    if (ruta === '/salon') return 'salon';
     if (ruta === '/') {
       if (u.role === 'admin') return 'admin';
       if (u.role === 'exec') return 'ejecutivo';
       if (u.role === 'cashier') return 'taquilla';
       return 'salon';
     }
-    return 'game';
+    // Todo lo demás —incluidas /juego y /mesa21, y cualquier dirección que no
+    // reconozcamos— entra por el salón. Antes una dirección desconocida caía
+    // en la ruleta, así que un enlace mal escrito te metía a jugar.
+    // Se corrige también la dirección, para que una recarga no vuelva a
+    // dejarte en la mesa vieja.
+    if (ruta !== '/salon') {
+      try { window.history.replaceState({}, '', '/salon'); } catch (e) { /* navegador viejo */ }
+    }
+    return 'salon';
   };
 
   const ir = (ruta, pantalla) => {
