@@ -173,6 +173,10 @@
     adminAsignarFichas(execId, amount, note) {
       return POST(`/api/admin/execs/${execId}/fichas`, { amount, note });
     },
+    // Las fichas sin vender vuelven a la casa.
+    adminDevolverFichas(execId, amount, note) {
+      return POST(`/api/admin/execs/${execId}/devolver`, { amount, note });
+    },
     adminRendicion(execId, amount, note) {
       return POST(`/api/admin/execs/${execId}/rendicion`, { amount, note });
     },

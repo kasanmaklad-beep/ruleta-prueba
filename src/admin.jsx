@@ -409,11 +409,11 @@
           <select style={S.input} value={rol} onChange={(e) => setRol(e.target.value)}>
             <option value="player">Jugador</option>
             <option value="cashier">Banquero</option>
-            <option value="exec">Ejecutivo (maneja banqueros)</option>
+            <option value="exec">Ejecutivo (reparte fichas, no gana comisión)</option>
             <option value="admin">Dueño (acceso total)</option>
           </select>
         </Campo>
-        {(rol === 'cashier' || rol === 'exec') && (
+        {rol === 'cashier' && (
           <Campo label="PAGA EL (%) DE LAS FICHAS">
             <input style={S.input} type="number" min="1" max="100" value={comision}
                    onChange={(e) => setComision(e.target.value)} />
@@ -713,6 +713,9 @@
         if (accion.tipo === 'fichas') {
           const r = await window.Api.adminAsignarFichas(accion.e.id, n, nota);
           setMsg({ kind: 'ok', text: `${accion.e.username} recibió ${plata(n)} en consignación. Ahora tiene ${plata(r.fichas)} y te debe ${plata(r.deuda)}.` });
+        } else if (accion.tipo === 'devolver') {
+          const r = await window.Api.adminDevolverFichas(accion.e.id, n, nota);
+          setMsg({ kind: 'ok', text: `${accion.e.username} devolvió ${plata(n)} en fichas. Le quedan ${plata(r.fichas)}. Su deuda sigue en ${plata(r.deuda)}: lo que debe nace de lo que vendió, no de lo que tiene en la mano.` });
         } else if (accion.tipo === 'rendicion') {
           const r = await window.Api.adminRendicion(accion.e.id, n, nota);
           setMsg({ kind: 'ok', text: `Rendición de ${plata(n)} anotada. ${accion.e.username} te debe ${plata(r.deuda)}.` });
@@ -729,6 +732,7 @@
     const TITULO = {
       fichas: 'Entregar fichas en consignación',
       rendicion: 'Anotar lo que te rindió',
+      devolver: 'Fichas que te devolvió (sin vender)',
       techo: 'Techo de exposición (0 = sin techo)',
     };
 
@@ -782,6 +786,7 @@
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <Boton chico tono="verde" onClick={() => { setAccion({ tipo: 'fichas', e }); setMonto(''); }}>FICHAS</Boton>
                     <Boton chico onClick={() => { setAccion({ tipo: 'rendicion', e }); setMonto(''); }}>RINDIÓ</Boton>
+                    <Boton chico tono="gris" onClick={() => { setAccion({ tipo: 'devolver', e }); setMonto(''); }}>DEVOLVIÓ</Boton>
                     <Boton chico tono="gris" onClick={() => { setAccion({ tipo: 'techo', e }); setMonto(String(e.exec_limite || 0)); }}>TECHO</Boton>
                   </div>
                 </td>

@@ -25,7 +25,7 @@ import {
 import {
   execSummary, execPlayers, execCreateCashier, execVenderCupo,
   adminExecs, adminSetExec, adminSetExecLimite,
-  adminAsignarFichas, adminRendicion, adminSetExecPago,
+  adminAsignarFichas, adminDevolverFichas, adminRendicion, adminSetExecPago,
 } from './execs.js';
 
 import {
@@ -214,6 +214,10 @@ async function handleApi(request, env, url) {
   // La casa le entrega fichas en consignación, y registra lo que le rinde.
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/fichas$/)))
     return adminAsignarFichas(request, env, Number(m[1]));
+  // Las fichas que le quedaron sin vender vuelven a la casa. No toca la deuda:
+  // lo que debe nace de lo que vendió, no de lo que tiene en la mano.
+  if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/devolver$/)))
+    return adminDevolverFichas(request, env, Number(m[1]));
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/execs\/(\d+)\/rendicion$/)))
     return adminRendicion(request, env, Number(m[1]));
   // A sueldo o por comisión: cambia cómo se calcula lo que debe.

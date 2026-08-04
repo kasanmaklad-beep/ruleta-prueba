@@ -475,6 +475,13 @@ export async function adminSetRole(request, env, userId) {
     }
   }
 
+  // Un ejecutivo nace A SUELDO. Es cómo trabaja la casa: reparte, cobra y
+  // entrega todo. Y además evita la peor combinación posible —0% de comisión
+  // sin la casilla—, que le daría deuda cero mientras cobra todo.
+  if (role === 'exec' && target.role !== 'exec') {
+    await env.DB.prepare('UPDATE users SET exec_asalariado = 1 WHERE id = ?').bind(userId).run();
+  }
+
   let commission = target.commission_pct;
   if (body.commission_pct !== undefined) {
     const c = Number(body.commission_pct);

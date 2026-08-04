@@ -94,7 +94,7 @@ export async function execSummary(request, env, url) {
   const movs = await env.DB.prepare(
     `SELECT id, type, amount, paid_amount, note, created_at
        FROM credit_ledger
-      WHERE cashier_id = ? AND type IN ('exec_assign', 'exec_sale', 'exec_settle')
+      WHERE cashier_id = ? AND type IN ('exec_assign', 'exec_sale', 'exec_settle', 'exec_return')
       ORDER BY created_at DESC, id DESC LIMIT 40`
   ).bind(quien.execId).all();
 
@@ -480,6 +480,51 @@ export async function adminAsignarFichas(request, env, execId) {
   const actualizado = await env.DB.prepare(
     'SELECT credit_balance FROM users WHERE id = ?'
   ).bind(ejec.id).first();
+  return json({ ok: true, fichas: actualizado.credit_balance, ...info });
+}
+
+// ── El ejecutivo le devuelve fichas a la casa ─────────────────────────────
+//
+// Las fichas nunca fueron suyas: se las dieron para repartir. Si le quedaron
+// sin vender —porque cerró el mes, cambió de zona o deja el puesto— tienen que
+// poder volver. Sin esto figurarían en su poder para siempre y el inventario
+// de la casa quedaría mintiendo.
+//
+// NO toca la deuda, y es a propósito: la deuda nace de lo que VENDIÓ, no de lo
+// que tiene en la mano. Devolver fichas sin vender no le perdona un peso de lo
+// que ya cobró.
+export async function adminDevolverFichas(request, env, execId) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+
+  const body = await readJson(request);
+  const amount = toPositiveInt(body.amount);
+  if (amount === null) return json({ error: 'Monto de fichas inválido' }, 400);
+
+  const ejec = await env.DB.prepare(
+    "SELECT id, username, credit_balance, commission_pct, exec_asalariado FROM users WHERE id = ? AND role = 'exec'"
+  ).bind(execId).first();
+  if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
+
+  // Con guardia, igual que la venta: nadie puede devolver lo que no tiene.
+  const baja = await env.DB.prepare(
+    'UPDATE users SET credit_balance = credit_balance - ? WHERE id = ? AND credit_balance >= ?'
+  ).bind(amount, ejec.id, amount).run();
+  if (baja.meta.changes === 0) {
+    return json({
+      error: `${ejec.username} tiene ${ejec.credit_balance} fichas sin repartir y querés devolver ${amount}.`,
+      fichas: ejec.credit_balance,
+    }, 400);
+  }
+
+  await env.DB.prepare(
+    `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, note, actor_id)
+     VALUES (?, 'exec_return', ?, NULL, ?, ?)`
+  ).bind(ejec.id, -amount, str(body.note, 200) || `Devolución a la casa (${auth.username})`, auth.userId).run();
+
+  const info = await deudaDe(env, ejec.id, ejec.commission_pct, ejec.exec_asalariado);
+  const actualizado = await env.DB.prepare('SELECT credit_balance FROM users WHERE id = ?')
+    .bind(ejec.id).first();
   return json({ ok: true, fichas: actualizado.credit_balance, ...info });
 }
 

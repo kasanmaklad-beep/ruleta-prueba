@@ -389,6 +389,7 @@
                         exec_assign: ['La casa te entregó fichas', '#7ee08a'],
                         exec_sale:   ['Le entregaste cupo a un banquero', '#c4b0ff'],
                         exec_settle: ['Le rendiste a la casa', '#ffa04a'],
+                        exec_return: ['Devolviste fichas sin vender', '#9b8fc0'],
                       }[m.type] || [m.type, '#999'];
                       return (
                         <tr key={m.id}>
