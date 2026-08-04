@@ -418,12 +418,24 @@ export async function cashierPayWithdrawal(request, env, wdId) {
       ).bind(wd.user_id, wd.amount,
              `Retiro ${wd.method} a ${wd.destination} — pagó banquero ${auth.username}`,
              auth.userId, wdId),
-      env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
-        .bind(wd.amount, auth.userId),
+      // ── LAS FICHAS DEL RETIRO VUELVEN A LA MATRIZ, NO AL BANQUERO ──────
+      // Antes, al pagar un retiro el banquero recuperaba ese cupo y podía
+      // revenderlo sin volver a comprarlo. Con eso la casa cobraba UNA sola
+      // vez por plata que circulaba muchas: medido con jugadores que vuelven
+      // al salón durante el mes, la misma plata da 3,7 vueltas.
+      //
+      // Ahora el cupo NO se le recarga: se retira de circulación y el
+      // banquero tiene que volver a comprarlo. Así la casa participa de cada
+      // vuelta, que es de lo que se trataba.
+      //
+      // El movimiento igual se anota —con `amount` en 0 porque no se le mueve
+      // el cupo, y `paid_amount` con lo que pagó de su bolsillo— para que su
+      // libro muestre el pago y no parezca que la plata se evaporó.
       env.DB.prepare(
-        `INSERT INTO credit_ledger (cashier_id, type, amount, player_id, ref_id, note, actor_id)
-         VALUES (?, 'withdrawal_refill', ?, ?, ?, ?, ?)`
-      ).bind(auth.userId, wd.amount, wd.user_id, wdId, `Pagó el retiro #${wdId}`, auth.userId),
+        `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, player_id, ref_id, note, actor_id)
+         VALUES (?, 'withdrawal_paid', 0, ?, ?, ?, ?, ?)`
+      ).bind(auth.userId, wd.amount, wd.user_id, wdId,
+             `Pagó el retiro #${wdId} — las fichas volvieron a la matriz`, auth.userId),
     ]);
   } catch (err) {
     await env.DB.prepare(
@@ -647,12 +659,12 @@ export async function adminPayWithdrawal(request, env, wdId) {
     ];
     if (payer) {
       stmts.push(
-        env.DB.prepare('UPDATE users SET credit_balance = credit_balance + ? WHERE id = ?')
-          .bind(wd.amount, payer.id),
+        // Mismo criterio que arriba: las fichas vuelven a la matriz.
         env.DB.prepare(
-          `INSERT INTO credit_ledger (cashier_id, type, amount, player_id, ref_id, note, actor_id)
-           VALUES (?, 'withdrawal_refill', ?, ?, ?, ?, ?)`
-        ).bind(payer.id, wd.amount, wd.user_id, wdId, `Pagó el retiro #${wdId}`, auth.userId)
+          `INSERT INTO credit_ledger (cashier_id, type, amount, paid_amount, player_id, ref_id, note, actor_id)
+           VALUES (?, 'withdrawal_paid', 0, ?, ?, ?, ?, ?)`
+        ).bind(payer.id, wd.amount, wd.user_id, wdId,
+               `Pagó el retiro #${wdId} — las fichas volvieron a la matriz`, auth.userId)
       );
     }
     await env.DB.batch(stmts);

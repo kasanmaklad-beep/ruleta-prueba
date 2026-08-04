@@ -121,7 +121,10 @@ CREATE INDEX IF NOT EXISTS idx_wd_user   ON withdrawals(user_id, created_at DESC
 CREATE TABLE IF NOT EXISTS credit_ledger (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   cashier_id  INTEGER NOT NULL,
-  type        TEXT    NOT NULL,   -- purchase | load | withdrawal_refill | adjust
+  type        TEXT    NOT NULL,   -- purchase | load | withdrawal_paid | adjust
+                                 -- ('withdrawal_refill' es el nombre viejo: cuando
+                                 --  el cupo del retiro volvía al banquero. Desde el
+                                 --  03/08/2026 las fichas vuelven a la matriz.)
                                  -- + exec_assign | exec_sale | exec_settle (capa ejecutiva, 03/08/2026)
   amount      INTEGER NOT NULL,   -- positivo suma cupo, negativo lo consume
   paid_amount INTEGER,            -- lo que el taquillero pagó (solo en 'purchase')

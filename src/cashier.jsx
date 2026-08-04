@@ -82,7 +82,7 @@
           setMsg({ kind: 'ok', text: 'Recarga rechazada. El jugador va a ver el motivo.' });
         } else if (tipo === 'pago-ret') {
           const res = await window.Api.cashierPayWithdrawal(item.id, nota.trim() || undefined);
-          setMsg({ kind: 'ok', text: `Retiro pagado. Esas fichas volvieron a tu cupo: tenés ${plata(res.credit_balance)} para revender.` });
+          setMsg({ kind: 'ok', text: `Retiro pagado. Esas fichas volvieron a la casa, no a tu cupo: te quedan ${plata(res.credit_balance)} para cargar.` });
         } else if (tipo === 'rej-ret') {
           if (!nota.trim()) { setMsg({ kind: 'err', text: 'Poné el motivo del rechazo' }); setEnviando(false); return; }
           await window.Api.cashierRejectWithdrawal(item.id, nota.trim());
@@ -97,7 +97,8 @@
     const LTIPO = {
       purchase: ['Compraste fichas', '#7ee08a'],
       load: ['Cargaste a jugador', '#5ab8ff'],
-      withdrawal_refill: ['Pagaste un retiro', '#ffa04a'],
+      withdrawal_refill: ['Pagaste un retiro (cupo devuelto)', '#ffa04a'],
+      withdrawal_paid: ['Pagaste un retiro · las fichas vuelven a la casa', '#ffa04a'],
       adjust: ['Ajuste de la casa', '#c9a0ff'],
     };
 
@@ -368,7 +369,9 @@
                 )}
                 {accion.tipo === 'pago-ret' && (
                   <div style={{ fontSize: 13, color: '#ffc9c9', marginBottom: 12 }}>
-                    Confirmá solo después de haber hecho la transferencia de verdad. Las fichas vuelven a tu cupo.
+                    Confirmá solo después de haberle pagado de verdad. Ojo: <b>estas fichas
+                    NO vuelven a tu cupo</b> — vuelven a la casa. Para seguir cargando saldo
+                    vas a tener que comprar cupo de nuevo.
                   </div>
                 )}
                 {(accion.tipo === 'rej-rec' || accion.tipo === 'rej-ret') && (

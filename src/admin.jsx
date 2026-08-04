@@ -895,7 +895,8 @@
     const LTIPO = {
       purchase: ['Compró cupo', '#7ee08a'],
       load: ['Cargó a jugador', '#5ab8ff'],
-      withdrawal_refill: ['Pagó un retiro', '#ffa04a'],
+      withdrawal_refill: ['Pagó un retiro (cupo devuelto)', '#ffa04a'],
+      withdrawal_paid: ['Pagó un retiro · fichas a la matriz', '#ffa04a'],
       adjust: ['Ajuste', '#c9a0ff'],
     };
 
