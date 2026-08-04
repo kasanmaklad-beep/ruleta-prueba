@@ -192,10 +192,10 @@ export async function reportCashiers(request, env, url) {
             COALESCE(SUM(CASE WHEN l.type = 'load' THEN -l.amount END), 0)                 AS cargado,
             COUNT(CASE WHEN l.type = 'load' THEN 1 END)                                    AS cargas,
             -- Los retiros que pagó el banquero. Se contemplan las dos formas:
-            -- 'withdrawal_refill' es la vieja, cuando el cupo se le recargaba
-            -- y el monto iba en `amount`; 'withdrawal_paid' es la de ahora,
-            -- donde las fichas vuelven a la matriz y lo pagado va en
-            -- `paid_amount`. Sin las dos, el reporte se cortaría en la fecha
+            -- withdrawal_refill es la vieja, cuando el cupo se le recargaba y
+            -- el monto iba en la columna amount; withdrawal_paid es la de
+            -- ahora, donde las fichas vuelven a la matriz y lo pagado va en
+            -- paid_amount. Sin las dos, el reporte se cortaría en la fecha
             -- del cambio.
             COALESCE(SUM(CASE WHEN l.type = 'withdrawal_refill' THEN l.amount
                               WHEN l.type = 'withdrawal_paid'   THEN l.paid_amount END), 0) AS retiros_pagados,
