@@ -11,6 +11,7 @@
 
 import {
   json, str, requireAdmin, VE_OFFSET, todayVE, getSettings, settingNum, catalogoInterno,
+  poteDeLaCasa,
 } from './lib.js';
 
 // Mesa por la que se está filtrando, si se pidió una. Devuelve null cuando
@@ -345,4 +346,15 @@ export async function reportAlerts(request, env, url) {
     banqueros_cupo_bajo: cupoBajo.results || [],
     umbral_cupo: umbralCupo,
   });
+}
+
+
+// ── EL POTE DE LA CASA ────────────────────────────────────────────────────
+// Cuánta plata de la casa está en la calle ahora mismo, y cuánto respaldo le
+// queda. Es el número que no existía: había que sumar a mano los cupos de
+// ejecutivos y banqueros más los saldos de todos los jugadores.
+export async function adminPote(request, env) {
+  const auth = await requireAdmin(request, env);
+  if (auth.error) return auth.response;
+  return json({ pote: await poteDeLaCasa(env) });
 }

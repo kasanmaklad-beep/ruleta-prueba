@@ -113,19 +113,69 @@
 
   function TabResumen({ resumen, irA }) {
     const [movs, setMovs] = useState([]);
+    const [pote, setPote] = useState(null);
 
     useEffect(() => {
       window.Api.adminTransactions({ limit: 25 })
         .then((d) => setMovs(d.transactions || []))
         .catch(() => {});
+      // El pote no rompe la pantalla si falla: es informativo.
+      window.Api.adminPote().then((d) => setPote(d.pote)).catch(() => {});
     }, []);
 
     if (!resumen) return <div style={{ color: '#888' }}>Cargando…</div>;
     const h = resumen.hoy;
     const t = resumen.totales;
 
+    // EL POTE DE LA CASA. Cada ficha en la calle es un saldo que la casa puede
+    // tener que pagar: es lo que de verdad mide su exposición.
+    const Pote = () => {
+      if (!pote) return null;
+      const usado = pote.fondo > 0 ? Math.min(100, pote.en_la_calle / pote.fondo * 100) : 0;
+      const apretado = pote.fondo > 0 && usado >= 85;
+      return (
+        <div style={{ ...S.card, borderColor: apretado ? '#b8101a' : undefined }}>
+          <div style={{ ...S.titulo, marginBottom: 10 }}>EL POTE DE LA CASA</div>
+          <div style={{
+            display: 'grid', gap: 12,
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+          }}>
+            <Dato titulo="En la calle" valor={bs(pote.en_la_calle)}
+                  color={apretado ? '#ffa04a' : '#ffd84a'}
+                  detalle="plata tuya en manos de otros" />
+            <Dato titulo="Fondo" chico
+                  valor={pote.fondo > 0 ? bs(pote.fondo) : 'sin tope'}
+                  detalle={pote.sin_tope ? 'no frena nada' : 'lo que respaldás'} />
+            <Dato titulo="Por emitir" chico
+                  valor={pote.sin_tope ? '—' : bs(pote.disponible)}
+                  color={pote.disponible < 0 ? '#ff9a9a' : undefined} />
+            <Dato titulo="Ejecutivos" chico valor={bs(pote.ejecutivos)} />
+            <Dato titulo="Banqueros" chico valor={bs(pote.banqueros)} />
+            <Dato titulo="Jugadores" chico valor={bs(pote.jugadores)}
+                  detalle={pote.retenido > 0 ? `${bs(pote.retenido)} retenido` : null} />
+          </div>
+          {pote.sin_tope ? (
+            <div style={{ marginTop: 10, fontSize: 12, color: '#888', lineHeight: 1.6 }}>
+              No tenés fondo definido, así que el sistema informa pero no frena: podés emitir
+              fichas sin límite. Ponele un número en AJUSTES → <b>casa_fondo</b> y no se van a
+              poder entregar más fichas de las que respaldás.
+            </div>
+          ) : apretado && (
+            <div style={{
+              marginTop: 10, padding: '10px 12px', borderRadius: 8, fontSize: 13, lineHeight: 1.6,
+              background: 'rgba(180,16,26,0.18)', border: '1px solid #b8101a', color: '#ffc9c9',
+            }}>
+              Estás usando el {usado.toFixed(0)}% de tu fondo. Cuando se llene no vas a poder
+              entregar más fichas hasta que vuelvan de la calle.
+            </div>
+          )}
+        </div>
+      );
+    };
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Pote />
         <div style={S.card}>
           <div style={S.titulo}>HOY ({resumen.fecha})</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>

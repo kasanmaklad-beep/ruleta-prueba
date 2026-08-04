@@ -19,7 +19,7 @@
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAdmin, requireCashier, VE_OFFSET, todayVE,
-  getSettings, settingNum, checkMultiplo,
+  getSettings, settingNum, checkMultiplo, poteDeLaCasa,
 } from './lib.js';
 import { getUser } from './accounts.js';
 
@@ -91,6 +91,16 @@ export async function adminSellCredit(request, env) {
       return json({ error: 'Lo pagado tiene que ser un entero entre 0 y el cupo entregado' }, 400);
     }
     paid = p;
+  }
+
+  // El pote: la casa no emite más fichas de las que respalda.
+  const pote = await poteDeLaCasa(env);
+  if (!pote.sin_tope && amount > pote.disponible) {
+    return json({
+      error: `El pote de la casa no alcanza: hay ${pote.en_la_calle} en la calle de un fondo de `
+           + `${pote.fondo}, así que quedan ${pote.disponible} por emitir y querés vender ${amount}.`,
+      pote,
+    }, 400);
   }
 
   await env.DB.batch([

@@ -54,7 +54,7 @@ import {
 } from './payments.js';
 
 import {
-  adminSummary, reportDaily, reportCashiers, reportPlayer, reportAlerts,
+  adminSummary, reportDaily, reportCashiers, reportPlayer, reportAlerts, adminPote,
 } from './reports.js';
 
 // Rutas de la SPA que no son archivos: hay que servirles el index.html.
@@ -205,6 +205,8 @@ async function handleApi(request, env, url) {
   // El ejecutivo le entrega cupo a uno de SUS banqueros y le cobra.
   if (method === 'POST' && path === '/api/exec/vender')   return execVenderCupo(request, env);
   if (method === 'GET'  && path === '/api/admin/execs')  return adminExecs(request, env);
+  // El pote: cuántas fichas hay en la calle y cuánto respaldo queda.
+  if (method === 'GET'  && path === '/api/admin/pote')   return adminPote(request, env);
   // Colgar un banquero de un ejecutivo (o devolverlo a la matriz).
   if (method === 'POST' && (m = path.match(/^\/api\/admin\/cashiers\/(\d+)\/exec$/)))
     return adminSetExec(request, env, Number(m[1]));

@@ -19,7 +19,7 @@
 
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
-  requireAdmin, requireExec, getSettings, settingNum, checkMultiplo,
+  requireAdmin, requireExec, getSettings, settingNum, checkMultiplo, poteDeLaCasa,
 } from './lib.js';
 // El alta de banquero es la MISMA que usa la matriz: una sola función, un solo
 // juego de validaciones.
@@ -454,6 +454,19 @@ export async function adminAsignarFichas(request, env, execId) {
   if (!ejec) return json({ error: 'Ese ejecutivo no existe' }, 404);
   if (ejec.status === 'blocked') {
     return json({ error: `${ejec.username} está bloqueado.` }, 400);
+  }
+
+  // EL POTE. La casa no puede emitir más fichas de las que respalda: cada
+  // ficha en la calle es un saldo que puede tener que pagar. Con el fondo en 0
+  // no hay tope y esto no frena nada.
+  const pote = await poteDeLaCasa(env);
+  if (!pote.sin_tope && amount > pote.disponible) {
+    return json({
+      error: `El pote de la casa no alcanza: hay ${pote.en_la_calle} en la calle de un fondo de `
+           + `${pote.fondo}, así que quedan ${pote.disponible} por emitir y querés entregar ${amount}. `
+           + 'Subí el fondo desde AJUSTES o esperá a que vuelvan fichas.',
+      pote,
+    }, 400);
   }
 
   // EL TECHO. Frena de verdad: mientras deba lo que acordaron, no recibe más

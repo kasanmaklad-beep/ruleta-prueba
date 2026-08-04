@@ -195,6 +195,8 @@
 
     // ── Panel: tablero, usuarios y movimientos ──
     adminSummary() { return req('/api/admin/summary'); },
+    // El pote de la casa: fichas en la calle contra el fondo que las respalda.
+    adminPote() { return req('/api/admin/pote'); },
     adminUsers(params) { return req('/api/admin/users' + qs(params)); },
     adminTransactions(params) { return req('/api/admin/transactions' + qs(params)); },
     adminDeposit(username, amount, note) {

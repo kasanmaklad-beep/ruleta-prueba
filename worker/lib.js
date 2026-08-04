@@ -76,6 +76,7 @@ export const NUMERIC_SETTINGS = {
   registration_open:  { min: 0,    max: 1,    integer: true },
   monto_multiplo:     { min: 1,    max: 100000, integer: true },
   cupo_alert:         { min: 0,    max: 1e12, integer: true },
+  casa_fondo:         { min: 0,    max: 1e12, integer: true },
   ltg_min:            { min: 0,    max: 20,   integer: true },
   ltg_max:            { min: 1,    max: 20,   integer: true },
   pagos_manuales:     { min: 0,    max: 1,    integer: true },
@@ -779,6 +780,47 @@ export const USER_FIELDS =
   // Qué versión de las condiciones aceptó. Viaja con el usuario para que la
   // pantalla sepa, al entrar, si hay que volver a pedírselas.
   'condiciones_version, condiciones_at, mayor_de_edad';
+
+// ── EL POTE DE LA CASA ────────────────────────────────────────────────────
+//
+// Las fichas en la calle NO se calculan sumando movimientos: ya están a la
+// vista, porque las fichas SON esos saldos. Sumar el libro obligaría a acertar
+// con cada tipo de movimiento y el día que aparezca uno nuevo el número
+// mentiría sin avisar. Esto no puede desfasarse: es la foto de dónde está la
+// plata ahora mismo.
+//
+//     en la calle = cupo de ejecutivos + cupo de banqueros + saldo de jugadores
+//     disponible  = fondo − en la calle
+//
+// Se corrige solo: cuando un jugador pierde, su saldo baja y el pote sube;
+// cuando el banquero paga un retiro, el saldo del jugador baja y su cupo ya no
+// se recarga, así que esas fichas vuelven al pote. Sin escribir una línea.
+export async function poteDeLaCasa(env) {
+  const s = await getSettings(env);
+  const fondo = settingNum(s, 'casa_fondo');
+
+  const r = await env.DB.prepare(
+    `SELECT
+       COALESCE(SUM(CASE WHEN role = 'exec'    THEN credit_balance END), 0) AS ejecutivos,
+       COALESCE(SUM(CASE WHEN role = 'cashier' THEN credit_balance END), 0) AS banqueros,
+       COALESCE(SUM(CASE WHEN role = 'player'  THEN balance END), 0)        AS jugadores,
+       COALESCE(SUM(CASE WHEN role = 'player'  THEN held_balance END), 0)   AS retenido
+     FROM users`
+  ).first();
+
+  const enLaCalle = (r.ejecutivos || 0) + (r.banqueros || 0) + (r.jugadores || 0);
+  return {
+    fondo,
+    ejecutivos: r.ejecutivos || 0,
+    banqueros: r.banqueros || 0,
+    jugadores: r.jugadores || 0,
+    retenido: r.retenido || 0,
+    en_la_calle: enLaCalle,
+    // Con fondo 0 el pote no limita nada: se informa y listo.
+    disponible: fondo > 0 ? fondo - enLaCalle : null,
+    sin_tope: fondo <= 0,
+  };
+}
 
 export async function requireAuth(request, env) {
   const header = request.headers.get('Authorization') || '';
