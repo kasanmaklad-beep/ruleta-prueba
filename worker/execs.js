@@ -20,6 +20,7 @@
 import {
   json, readJson, str, toPositiveInt, normalizeUsername,
   requireAdmin, requireExec, requireRole, getSettings, settingNum, checkMultiplo, poteDeLaCasa,
+  VE_OFFSET, todayVE,
 } from './lib.js';
 // El alta de banquero es la MISMA que usa la matriz: una sola función, un solo
 // juego de validaciones.
@@ -797,4 +798,88 @@ export async function rechazarPedido(request, env, pedidoId) {
   ).bind(motivo, auth.userId, pedidoId).run();
 
   return json({ ok: true });
+}
+
+// ═════════════════════════════ EL REPORTE ═════════════════════════════════
+//
+//  Lo que el ejecutivo necesita para sentarse a cuadrar, en dos direcciones:
+//
+//   · CON LA CASA — qué recibió, qué vendió, qué cobró, qué rindió y qué
+//     queda debiendo en el período.
+//   · CON SUS BANQUEROS — a cada uno, cuánto cupo le entregó y cuánto le
+//     cobró, para poder revisar banquero por banquero.
+//
+//  Las fechas usan el calendario de Venezuela (UTC-4) igual que el resto de
+//  los reportes: la base guarda en UTC y cada consulta desplaza cuatro horas
+//  antes de agrupar. Si acá se usara UTC a secas, el corte del día caería a
+//  las 8 de la noche y ningún número coincidiría con los otros reportes.
+// ══════════════════════════════════════════════════════════════════════════
+export async function execReporte(request, env, url) {
+  const quien = await aQuienMiro(request, env, url);
+  if (quien.error) return quien.error;
+
+  const hasta = str(url.searchParams.get('hasta'), 10) || todayVE();
+  let desde = str(url.searchParams.get('desde'), 10);
+  if (!desde) {
+    const d = new Date(`${hasta}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - 29);
+    desde = d.toISOString().slice(0, 10);
+  }
+
+  // ── Con la casa ──
+  const casa = await env.DB.prepare(
+    `SELECT
+       COALESCE(SUM(CASE WHEN type = 'exec_assign' THEN amount END), 0)      AS recibido,
+       COALESCE(SUM(CASE WHEN type = 'exec_return' THEN -amount END), 0)     AS devuelto,
+       COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN -amount END), 0)     AS vendido,
+       COALESCE(SUM(CASE WHEN type = 'exec_sale'   THEN paid_amount END), 0) AS cobrado,
+       COALESCE(SUM(CASE WHEN type = 'exec_settle' THEN paid_amount END), 0) AS rendido,
+       COUNT(CASE WHEN type = 'exec_sale' THEN 1 END)                        AS entregas
+     FROM credit_ledger
+     WHERE cashier_id = ? AND date(created_at, ?) BETWEEN ? AND ?`
+  ).bind(quien.execId, VE_OFFSET, desde, hasta).first();
+
+  // ── Con cada banquero ──
+  // Se agrupan las ventas DEL EJECUTIVO (exec_sale), no las compras del
+  // banquero: un banquero puede haberle comprado también a la matriz, y eso
+  // no es plata de este ejecutivo.
+  const porBanquero = await env.DB.prepare(
+    `SELECT l.player_id AS banquero_id, u.username AS banquero,
+            COUNT(*)                            AS entregas,
+            COALESCE(SUM(-l.amount), 0)         AS entregado,
+            COALESCE(SUM(l.paid_amount), 0)     AS cobrado
+       FROM credit_ledger l
+       LEFT JOIN users u ON u.id = l.player_id
+      WHERE l.cashier_id = ? AND l.type = 'exec_sale'
+        AND date(l.created_at, ?) BETWEEN ? AND ?
+      GROUP BY l.player_id, u.username
+      ORDER BY cobrado DESC`
+  ).bind(quien.execId, VE_OFFSET, desde, hasta).all();
+
+  const yo = await env.DB.prepare(
+    'SELECT username, credit_balance, commission_pct, exec_asalariado FROM users WHERE id = ?'
+  ).bind(quien.execId).first();
+
+  // Lo que generó de deuda EN EL PERÍODO, con la misma regla de siempre: a
+  // sueldo debe todo lo que cobró; por comisión, su porcentaje de lo vendido.
+  const generado = yo && yo.exec_asalariado
+    ? (casa.cobrado || 0)
+    : Math.round((casa.vendido || 0) * ((yo && yo.commission_pct || 0) / 100));
+
+  return json({
+    desde, hasta,
+    ejecutivo: yo,
+    con_la_casa: {
+      ...casa,
+      generado,
+      // Lo que quedó pendiente DEL PERÍODO. No es la deuda total —esa está en
+      // el resumen y arrastra lo de antes—, es cuánto movió este período.
+      pendiente_del_periodo: generado - (casa.rendido || 0),
+      // El margen del ejecutivo. A sueldo es cero por definición.
+      margen: yo && yo.exec_asalariado ? 0 : (casa.cobrado || 0) - generado,
+    },
+    // La deuda TOTAL de hoy, para no confundirla con la del período.
+    deuda_hoy: (await deudaDe(env, quien.execId, yo && yo.commission_pct, yo && yo.exec_asalariado)).deuda,
+    por_banquero: porBanquero.results || [],
+  });
 }

@@ -171,6 +171,8 @@
     // pasando su id, porque está por encima de él.
     execSummary(exec) { return req('/api/exec/summary' + qs({ exec })); },
     execPlayers(exec) { return req('/api/exec/players' + qs({ exec })); },
+    // El reporte por fechas: con la casa y con cada banquero.
+    execReporte(desde, hasta, exec) { return req('/api/exec/reporte' + qs({ desde, hasta, exec })); },
     // El ejecutivo crea sus propios banqueros: nacen colgados de él.
     execCreateCashier(datos) { return POST('/api/exec/cashiers', datos); },
     // El ejecutivo le entrega cupo a uno de SUS banqueros y le cobra en el acto.

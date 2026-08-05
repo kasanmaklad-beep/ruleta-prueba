@@ -27,6 +27,7 @@ import {
   adminExecs, adminSetExec, adminSetExecLimite,
   adminAsignarFichas, adminDevolverFichas, adminRendicion, adminSetExecPago,
   cashierPedirCupo, cashierMisPedidos, pedidosPendientes, aprobarPedido, rechazarPedido,
+  execReporte,
 } from './execs.js';
 
 import {
@@ -201,6 +202,9 @@ async function handleApi(request, env, url) {
   // de cualquiera agregando ?exec=<id>, porque está por encima.
   if (method === 'GET'  && path === '/api/exec/summary') return execSummary(request, env, url);
   if (method === 'GET'  && path === '/api/exec/players') return execPlayers(request, env, url);
+  // El reporte por fechas: con la casa y con cada banquero. El dueño mira el
+  // de cualquiera agregando ?exec=<id>.
+  if (method === 'GET'  && path === '/api/exec/reporte') return execReporte(request, env, url);
   // El ejecutivo arma su propia red: el banquero nace colgado de él.
   if (method === 'POST' && path === '/api/exec/cashiers') return execCreateCashier(request, env);
   // El ejecutivo le entrega cupo a uno de SUS banqueros y le cobra.

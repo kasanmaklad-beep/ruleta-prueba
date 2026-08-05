@@ -241,6 +241,114 @@
     );
   }
 
+  // El reporte por fechas: lo que hace falta para sentarse a cuadrar. Dos
+  // direcciones — con la casa y con cada banquero — porque son las dos
+  // conversaciones que el ejecutivo tiene que poder tener con un número
+  // delante.
+  function Reporte({ setMsg }) {
+    const hoy = new Date(Date.now() - 4 * 3600 * 1000).toISOString().slice(0, 10);
+    const hace30 = new Date(Date.now() - 34 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+    const [desde, setDesde] = useState(hace30);
+    const [hasta, setHasta] = useState(hoy);
+    const [r, setR] = useState(null);
+    const [abierto, setAbierto] = useState(false);
+    const [cargando, setCargando] = useState(false);
+
+    const pedir = useCallback(async (d, h) => {
+      setCargando(true);
+      try { setR(await window.Api.execReporte(d, h)); }
+      catch (err) { setMsg({ kind: 'err', text: err.message }); }
+      finally { setCargando(false); }
+    }, [setMsg]);
+
+    const abrir = () => { setAbierto(true); if (!r) pedir(desde, hasta); };
+
+    if (!abierto) {
+      return (
+        <div style={S.card}>
+          <div style={{ display: 'flex', justifyContent: 'space-between',
+                        alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ ...S.titulo, marginBottom: 4 }}>REPORTE</div>
+              <div style={{ fontSize: 12, color: '#8f83b0', lineHeight: 1.6 }}>
+                Para cuadrar con la casa y con cada banquero, entre las fechas que elijas.
+              </div>
+            </div>
+            <Boton onClick={abrir}>VER REPORTE</Boton>
+          </div>
+        </div>
+      );
+    }
+
+    const c = r && r.con_la_casa;
+    return (
+      <div style={S.card}>
+        <div style={{ display: 'flex', justifyContent: 'space-between',
+                      alignItems: 'center', marginBottom: 12, gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ ...S.titulo, marginBottom: 0 }}>REPORTE</div>
+          <Boton chico tono="gris" onClick={() => setAbierto(false)}>CERRAR</Boton>
+        </div>
+
+        <div style={{ display: 'grid', gap: 10, alignItems: 'end', marginBottom: 14,
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+          <Campo label="DESDE">
+            <input style={S.input} type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+          </Campo>
+          <Campo label="HASTA">
+            <input style={S.input} type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+          </Campo>
+          <Boton disabled={cargando} onClick={() => pedir(desde, hasta)}>
+            {cargando ? '...' : 'ACTUALIZAR'}
+          </Boton>
+        </div>
+
+        {!r ? <div style={{ color: '#888' }}>Cargando…</div> : (
+          <>
+            <div style={{ fontSize: 12, letterSpacing: 1.5, color: '#9b8fc0', marginBottom: 8 }}>
+              CON LA CASA
+            </div>
+            <div style={{ display: 'grid', gap: 12, marginBottom: 16,
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+              <Dato titulo="Te entregaron" valor={plata(c.recibido)} chico />
+              <Dato titulo="Devolviste" valor={plata(c.devuelto)} chico />
+              <Dato titulo="Vendiste" valor={plata(c.vendido)} chico
+                    detalle={`${c.entregas} entrega(s)`} />
+              <Dato titulo="Cobraste" valor={plata(c.cobrado)} chico color="#7ee08a" />
+              <Dato titulo="Rendiste" valor={plata(c.rendido)} chico />
+              <Dato titulo="Del período queda" valor={plata(c.pendiente_del_periodo)} chico
+                    color={c.pendiente_del_periodo > 0 ? '#ffa04a' : '#7ee08a'} />
+            </div>
+
+            {/* La deuda de HOY no es la del período: arrastra lo de antes. Se
+                dice aparte para que nadie sume mal. */}
+            <div style={{ fontSize: 13, color: '#8f83b0', marginBottom: 16, lineHeight: 1.6 }}>
+              Del período te queda pendiente <b style={{ color: '#ffa04a' }}>{plata(c.pendiente_del_periodo)}</b>.
+              Tu deuda total de hoy —que arrastra lo anterior— es <b style={{ color: '#ffa04a' }}>{plata(r.deuda_hoy)}</b>.
+              {!r.ejecutivo.exec_asalariado && (
+                <> Tu margen del período: <b style={{ color: '#7ee08a' }}>{plata(c.margen)}</b>.</>
+              )}
+            </div>
+
+            <div style={{ fontSize: 12, letterSpacing: 1.5, color: '#9b8fc0', marginBottom: 8 }}>
+              CON CADA BANQUERO
+            </div>
+            <Tabla columnas={['Banquero', 'Entregas', 'Cupo entregado', 'Te pagó']}
+                   vacio="No le entregaste cupo a nadie en estas fechas.">
+              {(r.por_banquero || []).map((b) => (
+                <tr key={b.banquero_id}>
+                  <td style={{ ...S.td, fontWeight: 700 }}>{b.banquero || '—'}</td>
+                  <td style={S.td}>{b.entregas}</td>
+                  <td style={S.td}>{plata(b.entregado)}</td>
+                  <td style={{ ...S.td, color: '#7ee08a' }}>{plata(b.cobrado)}</td>
+                </tr>
+              ))}
+            </Tabla>
+          </>
+        )}
+      </div>
+    );
+  }
+
   function ExecPanel({ user, onExit, onLogout }) {
     const [data, setData] = useState(null);
     const [jugadores, setJugadores] = useState(null);
@@ -471,6 +579,8 @@
                   </Tabla>
                 </div>
               )}
+
+              <Reporte setMsg={setMsg} />
 
               <div style={S.card}>
                 <div style={{
