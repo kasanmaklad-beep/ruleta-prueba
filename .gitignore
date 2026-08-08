@@ -24,3 +24,6 @@ ruleta-prueba.zip
 # las láminas de las figuras se piden como /cartas/... y el servidor de
 # maquetas tiene la raíz acá, no en public/. No se despliega.
 cartas
+
+# Maquetas de la lluvia de ideas (no se despliegan)
+.superpowers/
