@@ -129,6 +129,21 @@
     '.vt-quieto .vt-arco.vt-centro,.vt-quieto .vt-btn:before,.vt-quieto .vt-btn:after',
     ' {animation:none}',
     '.vt-quieto .vt-rayo{opacity:.55}',
+    // ── LA CÁMARA AVANZA ─────────────────────────────────────────────────
+    // Los arcos crecen y se comen la pantalla mientras el formulario se va.
+    // Es lo que hace que la puerta y el salón se sientan el mismo lugar y no
+    // dos pantallas distintas.
+    '.vt-esc.vt-entrando .vt-arcos{animation:vt-adentro 900ms ease-in forwards}',
+    '.vt-esc.vt-entrando .vt-frente{animation:vt-irse 400ms ease-out forwards}',
+    '.vt-esc.vt-entrando .vt-mesa{animation:vt-abajo 900ms ease-in forwards}',
+    '@keyframes vt-adentro{to{transform:scale(6);opacity:0}}',
+    '@keyframes vt-irse{to{opacity:0;transform:translateY(14px)}}',
+    '@keyframes vt-abajo{to{transform:translateX(-50%) perspective(460px) rotateX(70deg) scale(2.4);',
+    ' opacity:0}}',
+    // Con el movimiento apagado no hay avance: se apaga y ya. Quien pidió no
+    // ver animaciones tampoco quiere que la pantalla se le venga encima.
+    '.vt-quieto.vt-entrando .vt-arcos,.vt-quieto.vt-entrando .vt-frente,',
+    '.vt-quieto.vt-entrando .vt-mesa{animation:none;opacity:0}',
   ].join('');
 
   function ponerEstilos() {
@@ -147,12 +162,17 @@
     );
   }
 
-  function Escena({ children }) {
+  function Escena({ children, entrando }) {
     const [son, setSon] = React.useState(Sonido.prendido());
     React.useEffect(ponerEstilos, []);
+    // El trueno acompaña el avance. Suena sólo si el jugador prendió el
+    // sonido, y el gesto que lo permite es el clic en el botón.
+    React.useEffect(() => { if (entrando) Sonido.trueno(); }, [entrando]);
 
     return (
-      <div className={'vt-esc' + (SIN_MOVIMIENTO ? ' vt-quieto' : '')}>
+      <div className={'vt-esc'
+        + (SIN_MOVIMIENTO ? ' vt-quieto' : '')
+        + (entrando ? ' vt-entrando' : '')}>
         <div className="vt-cielo" />
         <div className="vt-destello" />
         <svg className="vt-rayo" viewBox="0 0 360 735" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
@@ -185,5 +205,8 @@
     );
   }
 
-  window.Entrada = { Escena, BotonArco, Sonido };
+  // Lo que tarda el avance, en milisegundos. Vive acá y no en login.jsx para
+  // que el que cambie la animación no tenga que acordarse de cambiar la
+  // espera en otro archivo.
+  window.Entrada = { Escena, BotonArco, Sonido, DURACION_ENTRADA: 900 };
 })();

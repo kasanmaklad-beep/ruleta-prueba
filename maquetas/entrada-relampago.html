@@ -35,7 +35,13 @@
   };
 
   function Demo() {
-    return React.createElement(Escena, null,
+    // El avance de la cámara se prueba desde acá: entrar de verdad pide una
+    // clave, y esta maqueta existe justamente para no necesitarla.
+    const [entrando, setEntrando] = React.useState(false);
+    // No rebobina: en la aplicación real, cuando el avance termina se cambia
+    // de pantalla y la puerta ya no existe. Para verlo otra vez, recargar.
+    const avanzar = () => setEntrando(true);
+    return React.createElement(Escena, { entrando },
       React.createElement('div', {
         style: {
           width: '100%', maxWidth: 360, padding: 19, borderRadius: 14,
@@ -57,7 +63,7 @@
         ),
         React.createElement('input', { placeholder: 'USUARIO', style: campo }),
         React.createElement('input', { placeholder: 'CLAVE', type: 'password', style: campo }),
-        React.createElement(BotonArco, { texto: 'ABRIR EL SALÓN', onClick: () => {} }),
+        React.createElement(BotonArco, { texto: 'ABRIR EL SALÓN', onClick: avanzar }),
         React.createElement('div', { style: linea },
           React.createElement('span', { style: raya }),
           '¿PRIMERA VEZ AQUÍ?',

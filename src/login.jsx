@@ -149,6 +149,10 @@
     });
     const [error, setError] = useState(aviso || '');
     const [loading, setLoading] = useState(false);
+    // Mientras la cámara avanza hacia el salón. Es su propio estado y no
+    // `loading` porque son dos cosas distintas: loading es "esperando al
+    // servidor", esto es "ya entró y se está yendo la puerta".
+    const [entrando, setEntrando] = useState(false);
     // La casilla de las condiciones y el panel que las muestra enteras.
     const [acepta, setAcepta] = useState(false);
     const [verCondiciones, setVerCondiciones] = useState(false);
@@ -218,7 +222,14 @@
               condiciones_version: (window.CONDICIONES || {}).VERSION || '',
             });
         window.Api.setToken(res.token);
-        onAuth(res.user);
+        // Primero arranca el avance de la cámara, DESPUÉS se cambia de
+        // pantalla: si se cambiara antes, el jugador ve un corte en vez de un
+        // movimiento. El botón ya quedó deshabilitado, así que no se puede
+        // enviar dos veces mientras dura.
+        setEntrando(true);
+        const espera = (window.Entrada && window.Entrada.DURACION_ENTRADA) || 0;
+        setTimeout(() => onAuth(res.user), espera);
+        return;
       } catch (err) {
         setError(T(err.message) || T('Error inesperado'));
       } finally {
@@ -286,7 +297,7 @@
     ));
 
     return (
-      <Escena>
+      <Escena entrando={entrando}>
         {/* El vidrio esmerilado es lo que deja ver el salón detrás. Si el
             navegador no soporta backdrop-filter, el fondo opaco ya alcanza. */}
         <div style={{
@@ -449,8 +460,8 @@
 
             <BotonArco
               type="submit"
-              disabled={loading || (registro && !acepta)}
-              texto={loading
+              disabled={loading || entrando || (registro && !acepta)}
+              texto={(loading || entrando)
                 ? T('ABRIENDO…')
                 : (registro ? T('CREAR MI CUENTA') : T('ABRIR EL SALÓN'))}
             />
