@@ -229,12 +229,14 @@
     // Con la casa en efectivo no hay banco que pedir (ver el formulario).
     const pagosEnEfectivo = !cfg || cfg.pagos_manuales !== false;
 
+    // fontSize 16 NO se baja: con menos, Safari en iPhone hace zoom solo al
+    // tocar un campo y descuadra la pantalla entera.
     const inputStyle = {
-      width: '100%', padding: '12px 14px', marginBottom: 12, borderRadius: 6,
-      border: '1px solid #8b6a20', background: 'rgba(0,0,0,0.5)', color: '#fff',
+      width: '100%', padding: '12px 14px', marginBottom: 10, borderRadius: 6,
+      border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(2,7,12,0.7)', color: '#fff',
       fontSize: 16, fontFamily: 'Georgia, serif', outline: 'none', boxSizing: 'border-box',
     };
-    const ayuda = { fontSize: 11, color: '#888', marginTop: -8, marginBottom: 12, lineHeight: 1.4 };
+    const ayuda = { fontSize: 11, color: '#7f96a6', marginTop: -6, marginBottom: 12, lineHeight: 1.4 };
     const registro = mode === 'register';
 
     // ── Las condiciones enteras ────────────────────────────────────────
@@ -264,30 +266,47 @@
       );
     };
 
-    return (
+    // La escena de la tormenta vive en entrada.jsx. Si ese archivo no cargó
+    // —una copia vieja de index.html guardada en el teléfono, por ejemplo— la
+    // entrada sigue funcionando sin escena: una puerta fea por la que se
+    // entra vale más que una linda que no carga.
+    const Escena = (window.Entrada && window.Entrada.Escena) || (({ children }) => (
       <div style={{
-        minHeight: '100vh',
-        background: 'radial-gradient(ellipse at center, #3a1f08 0%, #1a0d02 60%, #050200 100%)',
-        color: '#fff', fontFamily: 'Georgia, serif',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-      }}>
+        minHeight: '100vh', background: '#0a1c2c', display: 'flex',
+        alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}>{children}</div>
+    ));
+    const BotonArco = (window.Entrada && window.Entrada.BotonArco) || (({ texto, type, disabled }) => (
+      <button type={type} disabled={disabled} style={{
+        width: '100%', padding: 14, borderRadius: 6, border: '1px solid #12a04c',
+        background: 'linear-gradient(180deg, #3fe07a, #12a04c)', color: '#04240f',
+        fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: 13, letterSpacing: 2.5,
+        cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1,
+      }}>{texto}</button>
+    ));
+
+    return (
+      <Escena>
+        {/* El vidrio esmerilado es lo que deja ver el salón detrás. Si el
+            navegador no soporta backdrop-filter, el fondo opaco ya alcanza. */}
         <div style={{
-          width: '100%', maxWidth: registro ? 440 : 380,
-          background: 'linear-gradient(180deg, #2a1a08, #1a0d02)',
-          border: '1px solid #8b6a20', borderRadius: 12, padding: 28,
-          boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+          width: '100%', maxWidth: registro ? 440 : 360,
+          color: '#fff', fontFamily: 'Georgia, serif',
+          background: 'rgba(4,12,20,0.74)',
+          border: '1px solid rgba(255,255,255,0.10)', borderRadius: 14,
+          padding: registro ? 20 : 19,
+          boxShadow: '0 14px 44px rgba(0,0,0,0.62)',
+          backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         }}>
-          <div style={{ textAlign: 'center', marginBottom: 22 }}>
+          <div style={{ textAlign: 'center', marginBottom: 18 }}>
             <div style={{
-              fontSize: 26, fontWeight: 900, letterSpacing: 3,
-              background: 'linear-gradient(180deg, #fff3b0, #ffd84a 55%, #b8860b)',
-              WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
-              textShadow: '0 0 18px rgba(255,216,74,0.2)',
-            }}>⚡ VOLTIO</div>
-            <div style={{ fontSize: 9, letterSpacing: 4, color: '#b88a28', marginTop: 4 }}>
-              {T('SALÓN DE JUEGOS')}
+              fontSize: 34, fontWeight: 700, letterSpacing: 8, color: '#fff6d8',
+              textShadow: '0 0 18px rgba(255,216,74,0.9), 0 0 52px rgba(255,216,74,0.45)',
+            }}>VOLTIO</div>
+            <div style={{ fontSize: 8, letterSpacing: 4, color: '#9fd8ff', marginTop: 6 }}>
+              {T('DONDE CAE EL RELÁMPAGO')}
             </div>
-            <div style={{ fontSize: 11, letterSpacing: 2, color: '#888', marginTop: 8 }}>
+            <div style={{ fontSize: 11, letterSpacing: 2, color: '#7f96a6', marginTop: 8 }}>
               {registro ? T('Creá tu cuenta') : T('Ingresá para jugar')}
             </div>
             {/* El idioma se elige ANTES de entrar: es la primera pantalla, y
@@ -428,36 +447,45 @@
               }}>{error}</div>
             )}
 
-            <button
+            <BotonArco
               type="submit"
               disabled={loading || (registro && !acepta)}
-              style={{
-                width: '100%', padding: '13px', borderRadius: 6, border: '2px solid #d4a94a',
-                background: 'linear-gradient(180deg, #d4a94a, #8b6a20)', color: '#1a1006',
-                fontWeight: 900, fontSize: 15, letterSpacing: 2, cursor: loading ? 'wait' : 'pointer',
-                fontFamily: 'Georgia, serif',
-                opacity: (loading || (registro && !acepta)) ? 0.5 : 1,
-                boxShadow: '0 4px 14px rgba(212,169,74,0.4)',
-              }}
-            >
-              {loading ? '...' : (registro ? T('REGISTRARME') : T('ENTRAR'))}
-            </button>
+              texto={loading
+                ? T('ABRIENDO…')
+                : (registro ? T('CREAR MI CUENTA') : T('ABRIR EL SALÓN'))}
+            />
           </form>
 
           {verCondiciones && <PanelCondiciones />}
 
-          <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13, color: '#aaa' }}>
-            {registro ? T('¿Ya tenés cuenta? ') : T('¿No tenés cuenta? ')}
-            <a
-              href="#"
-              onClick={(e) => { e.preventDefault(); setError(''); setMode(registro ? 'login' : 'register'); }}
-              style={{ color: '#d4a94a', fontWeight: 700, textDecoration: 'none' }}
-            >
-              {registro ? T('Iniciá sesión') : T('Registrate')}
-            </a>
+          {/* El registro es BOTÓN y no enlace: es a quien no se puede perder.
+              Y va debajo de una línea que le habla directo al que llega por
+              primera vez.
+              El segundo botón es gris azulado y NO dorado: con el principal en
+              verde, dos botones de color se peleaban la atención. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, margin: '14px 2px 11px',
+            fontSize: 9, letterSpacing: 3, color: '#6f8494',
+          }}>
+            <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
+            {registro ? T('¿YA TENÉS CUENTA?') : T('¿PRIMERA VEZ AQUÍ?')}
+            <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.12)' }} />
           </div>
+
+          <button
+            type="button"
+            onClick={() => { setError(''); setMode(registro ? 'login' : 'register'); }}
+            style={{
+              width: '100%', borderRadius: 6, padding: 12, cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, letterSpacing: 2.5, fontFamily: 'Georgia, serif',
+              color: '#a8bccb', background: 'rgba(255,255,255,0.04)',
+              border: '1.5px solid rgba(168,188,203,0.4)',
+            }}
+          >
+            {registro ? T('ENTRAR CON MI CUENTA') : T('CREAR MI CUENTA')}
+          </button>
         </div>
-      </div>
+      </Escena>
     );
   }
 

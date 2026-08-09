@@ -47,6 +47,19 @@
       'Las contraseñas no coinciden': 'The passwords do not match',
 
       'REGISTRARME': 'CREATE ACCOUNT',
+      // ── La puerta nueva (08/08/2026) ─────────────────────────────────
+      // "ABRIR EL SALÓN" no se traduce como "open the room": el botón no
+      // abre una habitación, hace entrar. En inglés el que manda es el gesto.
+      'ABRIR EL SALÓN': 'ENTER THE ROOM',
+      'ABRIENDO…': 'OPENING…',
+      'CREAR MI CUENTA': 'CREATE MY ACCOUNT',
+      'ENTRAR CON MI CUENTA': 'SIGN IN INSTEAD',
+      '¿PRIMERA VEZ AQUÍ?': 'FIRST TIME HERE?',
+      '¿YA TENÉS CUENTA?': 'ALREADY HAVE AN ACCOUNT?',
+      'DONDE CAE EL RELÁMPAGO': 'WHERE THE LIGHTNING STRIKES',
+      'RULETA': 'ROULETTE',
+      'Prender el sonido': 'Turn sound on',
+      'Apagar el sonido': 'Turn sound off',
       'Creá tu cuenta': 'Create your account',
       'Ingresá para jugar': 'Sign in to play',
       'Registrate': 'Sign up',
