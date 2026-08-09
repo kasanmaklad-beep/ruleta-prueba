@@ -21,6 +21,10 @@ import {
   adminGames, adminCreateGame, adminUpdateGame, adminToggleGame,
 } from './games.js';
 
+// La vitrina del salón: cuánta gente hay en cada mesa, los últimos números y
+// el último rayo.
+import { salonVivo } from './salon.js';
+
 // La capa ejecutiva: matriz → ejecutivo → banquero → jugador.
 import {
   execSummary, execPlayers, execCreateCashier, execVenderCupo,
@@ -82,6 +86,18 @@ export default {
           + `miradas ${r.miradas || 0} · cerradas ${r.cerradas} · pagado ${r.pagado}`))
         .catch((e) => console.log('[barrido] falló:', e && e.message))
     );
+
+    // Los giros son para la vitrina del salón, que sólo mira los últimos cinco
+    // de cada mesa. Guardarlos para siempre haría crecer la base sin que nadie
+    // los lea nunca. Treinta días alcanzan de sobra y dejan margen para mirar
+    // hacia atrás si algo huele raro.
+    if (cierreDelDia) {
+      ctx.waitUntil(
+        env.DB.prepare("DELETE FROM giros WHERE created_at < datetime('now','-30 days')").run()
+          .then((r) => console.log(`[giros] borrados ${(r.meta && r.meta.changes) || 0} viejos`))
+          .catch((e) => console.log('[giros] falló la purga:', e && e.message))
+      );
+    }
   },
 
   async fetch(request, env) {
@@ -129,6 +145,9 @@ async function handleApi(request, env, url) {
   if (method === 'GET'  && path === '/api/config')        return configPublica(request, env);
   if (method === 'POST' && path === '/api/condiciones')   return aceptarCondiciones(request, env);
   if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
+  // Lo que está pasando AHORA en cada mesa. Pide sesión igual que el catálogo:
+  // no se le cuenta a un desconocido quién está jugando.
+  if (method === 'GET'  && path === '/api/salon/vivo')    return salonVivo(request, env);
   if (method === 'POST' && path === '/api/game/spin')     return gameSpin(request, env);
 
   // ── Blackjack (Etapa B1) ──
@@ -424,10 +443,18 @@ async function gameSpin(request, env) {
   let win = 0;
   let anyLightning = false;
   let winDetails = null;
+  // El multiplicador del rayo que MÁS pagó en este giro. Va a la tabla de
+  // giros para que el salón pueda anunciar "cayó un rayo y pagó 200x". Se
+  // toma del rayo que de verdad se COBRÓ y no del que cayó en la casilla:
+  // anunciar un rayo que nadie ganó sería un anuncio falso.
+  let mejorRayo = null;
   for (const b of bets) {
     const r = calcWin(b, resultNum, ltgMap, mesa.pagoPleno);
     win += r.win;
     if (r.isLightningHit) anyLightning = true;
+    if (r.isLightningHit && r.win > 0 && (mejorRayo == null || r.multiplier > mejorRayo)) {
+      mejorRayo = r.multiplier;
+    }
     if (r.win > 0 && (!winDetails || r.win > winDetails.win)) {
       winDetails = { win: r.win, multiplier: r.multiplier, isLightningHit: r.isLightningHit, type: b.type };
     }
@@ -451,6 +478,17 @@ async function gameSpin(request, env) {
       gameId
     ).run();
   }
+
+  // El giro queda anotado, GANE O PIERDA: es lo que alimenta la pizarra del
+  // salón. Si sólo se guardaran los ganadores, la vitrina mostraría una
+  // ruleta que sale premiada siempre.
+  // Se anota DESPUÉS del techo, así 'premio' es lo que de verdad se le pagó.
+  // Y va suelto y no junto con lo de arriba a propósito: si esta escritura
+  // fallara, el jugador ya cobró y no se le puede tocar el saldo por un dato
+  // de vitrina.
+  await env.DB.prepare(
+    'INSERT INTO giros (game_id, user_id, numero, rayo_mult, premio) VALUES (?, ?, ?, ?, ?)'
+  ).bind(gameId, auth.userId, String(resultNum), mejorRayo, win).run();
 
   const cur = await env.DB.prepare('SELECT balance, held_balance FROM users WHERE id = ?')
     .bind(auth.userId).first();

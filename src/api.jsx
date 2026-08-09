@@ -237,6 +237,10 @@
     // y las cuentas de prueba la ven).
     // Los números de la casa sin necesidad de sesión (los usa el registro).
     configPublica() { return req('/api/config'); },
+    // La vitrina del salón: cuánta gente hay en cada mesa, los últimos números
+    // y el último rayo. Va aparte del catálogo porque se repite cada diez
+    // segundos y el catálogo no cambia nunca.
+    salonVivo() { return req('/api/salon/vivo'); },
     // Aceptar las condiciones desde adentro (cuentas viejas o texto nuevo).
     aceptarCondiciones(version) {
       return POST('/api/condiciones', { acepta_condiciones: true, condiciones_version: version });
