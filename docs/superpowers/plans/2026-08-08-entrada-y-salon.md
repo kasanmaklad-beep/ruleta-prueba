@@ -301,7 +301,9 @@ const VENTANA_GIROS = 2000;
 
 export async function salonVivo(request, env) {
   const auth = await requireAuth(request, env);
-  if (auth.error) return json({ error: auth.error }, auth.status);
+  // requireAuth ya trae la respuesta armada con su código: se devuelve tal
+  // cual. Armar un json propio acá devolvía 200 con un cuerpo de error.
+  if (auth.error) return auth.response;
 
   // Las mismas mesas que ve el salón, con la misma regla: una mesa EN PRUEBAS
   // no se le anuncia al jugador común ni siquiera con un contador de gente.
@@ -457,7 +459,7 @@ ok(anon.status === 401, 'sin sesión responde 401');
 const ses = await pedir('/api/auth/login', { method: 'POST', body: { username: USUARIO, password: CLAVE } });
 const tk = ses.data.token;
 const cat = await pedir('/api/games', {}, tk);
-const abiertas = (cat.data.games || []).filter((m) => m.activo || m.en_pruebas);
+const abiertas = (cat.data.mesas || []).filter((m) => m.activo || m.en_pruebas);
 
 const antes = await pedir('/api/salon/vivo', {}, tk);
 ok(antes.status === 200, 'con sesión responde 200');
@@ -481,7 +483,7 @@ ok(m && m.jugando >= 1, 'la mesa cuenta al menos un jugador');
 ok(m && m.ultimos.length <= 5, 'no manda más de cinco números');
 
 // 3. El portón de la mesa en pruebas
-const enPruebas = (cat.data.games || []).find((x) => x.en_pruebas);
+const enPruebas = (cat.data.mesas || []).find((x) => x.en_pruebas);
 if (!enPruebas) {
   console.log('⚠ no hay ninguna mesa EN PRUEBAS: el chequeo 3 no se pudo correr');
 } else {
@@ -805,7 +807,7 @@ Esperado: **todo queda quieto** y la pantalla se sigue leyendo igual — el rayo
 - [ ] **Step 6: Commit**
 
 ```bash
-cd ~/ruleta-deploy && git add src/entrada.jsx public/index.html maquetas/entrada-relampago.html public/entrada.js && git commit -m "La escena de la puerta: tormenta, arcos y ruleta
+cd ~/ruleta-deploy && git add src/entrada.jsx public/index.html maquetas/entrada-relampago.html && git commit -m "La escena de la puerta: tormenta, arcos y ruleta
 
 Va aparte de login.jsx, que ya tiene 466 líneas y tres pantallas. Este
 módulo no sabe nada de ingresar: sólo dibuja.
@@ -972,7 +974,7 @@ Esperado: el formulario no se corta, los dos botones se leen enteros, y **la pá
 - [ ] **Step 7: Commit**
 
 ```bash
-cd ~/ruleta-deploy && git add src/login.jsx public/login.js && git commit -m "La entrada nueva: la tormenta detrás del formulario
+cd ~/ruleta-deploy && git add src/login.jsx && git commit -m "La entrada nueva: la tormenta detrás del formulario
 
 Cambia cómo se ve, no qué hace. La validación, el registro con ficha
 completa, las condiciones y el aviso de sesión tomada quedan iguales.
@@ -1316,7 +1318,7 @@ Con "Reducir movimiento" prendido, recargar. Esperado: los datos se siguen viend
 - [ ] **Step 10: Commit**
 
 ```bash
-cd ~/ruleta-deploy && git add src/salon.jsx maquetas/salon-pizarra.html public/salon.js && git commit -m "El salón muestra lo que está pasando ahora
+cd ~/ruleta-deploy && git add src/salon.jsx maquetas/salon-pizarra.html && git commit -m "El salón muestra lo que está pasando ahora
 
 Cuánta gente hay en cada mesa, los últimos números y el último rayo. En
 el 21, las manos en juego: ahí no hay números que mostrar.
@@ -1428,7 +1430,7 @@ Si no hay quien la escriba, comprobarlo con la maqueta: agregarle a `maquetas/en
 - [ ] **Step 4: Commit**
 
 ```bash
-cd ~/ruleta-deploy && git add src/entrada.jsx src/login.jsx public/entrada.js public/login.js && git commit -m "La cámara avanza de la puerta al salón
+cd ~/ruleta-deploy && git add src/entrada.jsx src/login.jsx && git commit -m "La cámara avanza de la puerta al salón
 
 Al entrar, el formulario se va y los arcos crecen hasta comerse la
 pantalla. Puerta y salón son un solo movimiento y no dos pantallas.
