@@ -33,9 +33,23 @@
     prendido() {
       try { return localStorage.getItem(CLAVE_SONIDO) === '1'; } catch (e) { return false; }
     },
+    // ── EL DESBLOQUEO ────────────────────────────────────────────────────
+    // Safari en iPhone sólo deja empezar a sonar DENTRO del toque del dedo.
+    // Una llamada que sale de un efecto de React, de un temporizador o de una
+    // promesa llega tarde: el contexto de audio nace mudo y ya no se levanta
+    // nunca. Por eso hay que tocarlo en el gesto mismo, aunque todavía no haya
+    // nada que sonar.
+    // Es lo que ya hace la mesa sin darse cuenta: chip() sale del onClick de
+    // la ficha, y por eso el juego sí suena.
+    desbloquear() {
+      const A = window.AudioEngine;
+      if (A && A.ensureCtx) { try { A.ensureCtx(); } catch (e) { /* sin audio se juega igual */ } }
+    },
     alternar() {
       const nuevo = !Sonido.prendido();
       try { localStorage.setItem(CLAVE_SONIDO, nuevo ? '1' : '0'); } catch (e) { /* modo privado */ }
+      // Prender el sonido es el gesto más claro que existe: se aprovecha.
+      if (nuevo) Sonido.desbloquear();
       return nuevo;
     },
     // El trueno YA EXISTE y ya está sintetizado: window.AudioEngine.thunder()
@@ -155,8 +169,15 @@
   }
 
   function BotonArco({ texto, onClick, disabled, type }) {
+    // El desbloqueo va en onPointerDown y no en onClick porque este botón se
+    // usa también como submit del formulario: ahí el sonido lo pide un efecto
+    // que corre mucho después, y para entonces el permiso ya se perdió.
+    // pointerdown es lo más temprano del toque, y sirve igual para el dedo y
+    // para el ratón.
+    const abrirElAudio = () => { if (Sonido.prendido()) Sonido.desbloquear(); };
     return (
-      <button type={type || 'button'} className="vt-btn" onClick={onClick} disabled={disabled}>
+      <button type={type || 'button'} className="vt-btn"
+              onPointerDown={abrirElAudio} onClick={onClick} disabled={disabled}>
         {texto}
       </button>
     );
