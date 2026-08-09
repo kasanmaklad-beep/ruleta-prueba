@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maqueta · el salón en vivo</title>
+<!-- El proyecto pone border-box global en public/index.html. Sin esto la
+     maqueta miente: los anchos no dan lo mismo. -->
+<style>*{box-sizing:border-box}html,body{margin:0;background:#02050a}</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  // Las cinco mesas REALES de la base, al 08/08/2026, con sus colores.
+  const MESAS = [
+    { id:'catatumbo', tipo:'ruleta', label:'Catatumbo', activo:1, icono:'🐆⚡', color:'#ffd84a',
+      detalle1:'Ruleta americana 0/00 · 38 animales', detalle2:'Rayos con premios hasta 500x',
+      casillas:38, doble_cero:1, rayos:1, pago_pleno:29 },
+    { id:'americana', tipo:'ruleta', label:'Americana Clásica', activo:1, icono:'🎩', color:'#4fd1a5',
+      detalle1:'Ruleta americana de toda la vida', detalle2:'Sin animales · el pleno paga 35 a 1',
+      casillas:38, doble_cero:1, rayos:0, pago_pleno:35 },
+    { id:'europea', tipo:'ruleta', label:'Europea Clásica', activo:1, icono:'🎡', color:'#a78bfa',
+      detalle1:'Ruleta europea de un solo cero', detalle2:'La favorita de los jugadores finos',
+      casillas:37, doble_cero:0, rayos:0, pago_pleno:35 },
+    { id:'europea_animales', tipo:'ruleta', label:'Europea Catatumbo', activo:1, icono:'🐆🎡', color:'#ffd84a',
+      detalle1:'Europea de un solo cero · con animales', detalle2:'Rayos con premios hasta 500x',
+      casillas:37, doble_cero:0, rayos:1, pago_pleno:29 },
+    { id:'blackjack', tipo:'blackjack', label:'Blackjack Estándar', activo:1, icono:'🃏', color:'#4fd1a5',
+      detalle1:'6 mazos · el crupier se planta en 17', detalle2:'El blackjack natural paga 3 a 2',
+      mazos:6, pago_natural:1.5, apuesta_min:10 },
+  ];
+
+  // El Api falso. Devuelve una vitrina que CAMBIA en cada pedido, para poder
+  // ver entrar el número nuevo sin tener que jugar de verdad.
+  const RUEDA = ['17','26','0','32','15','11','3','36','22','9','00','7','14','31','5'];
+  let paso = 0;
+  window.Api = {
+    salonVivo() {
+      paso++;
+      const corrida = (desde) => {
+        const out = [];
+        for (let i = 0; i < 5; i++) out.push(RUEDA[(desde + paso + i) % RUEDA.length]);
+        return out;
+      };
+      return Promise.resolve({ mesas: [
+        // La de más gente: es la que se lleva el barrido de luz.
+        { id:'catatumbo', jugando:4, ultimos:corrida(0),
+          ultimo_rayo:{ mult:200, hace_min:6 }, manos_en_juego:null },
+        { id:'americana', jugando:2, ultimos:corrida(5), ultimo_rayo:null, manos_en_juego:null },
+        // Sin nadie: tiene que decir MESA LIBRE, apagada y sin punto.
+        { id:'europea', jugando:0, ultimos:['1','20','14','31','5'], ultimo_rayo:null, manos_en_juego:null },
+        // Rayo VIEJO (22 min): NO tiene que destellar la tarjeta.
+        { id:'europea_animales', jugando:1, ultimos:corrida(9),
+          ultimo_rayo:{ mult:50, hace_min:22 }, manos_en_juego:null },
+        { id:'blackjack', jugando:3, ultimos:[], ultimo_rayo:null, manos_en_juego:3 },
+      ]});
+    },
+  };
+</script>
+<script src="../public/i18n.js"></script>
+<script src="../public/condiciones.js"></script>
+<script src="../public/ui.js"></script>
+<script src="../public/salon.js"></script>
+<script>
+  const user = { username:'prueba3', first_name:'Juan', last_name:'Pérez', balance:2300 };
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    React.createElement(window.SalonScreen, {
+      user,
+      mesas: MESAS,
+      onEntrarMesa: (id) => console.log('entrar a', id),
+      onOpenWallet: () => {},
+      onLogout: () => {},
+    })
+  );
+</script>
+</body>
+</html>

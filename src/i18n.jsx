@@ -153,6 +153,16 @@
       'entraste como': 'signed in as',
       '— ELEGÍ TU MESA —': '— CHOOSE YOUR TABLE —',
       'MESA ABIERTA': 'TABLE OPEN',
+      // ── La vitrina del salón (08/08/2026) ────────────────────────────
+      // "ÚLTIMOS DE LA MESA" dice de dónde salen esos números, y por eso el
+      // inglés tampoco lo puede acortar a "LAST": acá cada jugador tiene su
+      // propio giro, y sin el rótulo la tira se lee como una sola ruleta
+      // girando para todos.
+      'JUGANDO': 'PLAYING',
+      'MESA LIBRE': 'TABLE FREE',
+      'ÚLTIMOS DE LA MESA': 'LAST AT THIS TABLE',
+      'Cayó un rayo hace {n} min y pagó {x}x': 'Lightning struck {n} min ago and paid {x}x',
+      '{n} manos en juego': '{n} hands in play',
       'PRÓXIMAMENTE': 'COMING SOON',
       'EN PRUEBAS': 'IN TESTING',
       'APUESTA DESDE': 'BETS FROM',

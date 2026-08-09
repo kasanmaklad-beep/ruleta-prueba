@@ -24,6 +24,16 @@
   // vino sin ellos, igual se anuncia: el texto se arma con la ficha.
   const DORADO = '#ffd84a';
 
+  // Los rojos de la ruleta. El cero y el doble cero van en verde. Es la misma
+  // convención de la mesa: si el salón los pintara de otro color, el jugador
+  // tendría que aprender dos idiomas para leer el mismo número.
+  const ROJOS = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+  function colorDeNumero(n) {
+    if (n === '0' || n === '00') return { background: 'linear-gradient(180deg,#3fe07a,#12a04c)', color: '#04240f' };
+    if (ROJOS.has(Number(n))) return { background: 'linear-gradient(180deg,#e0384f,#8e1526)', color: '#fff' };
+    return { background: 'linear-gradient(180deg,#2b333d,#0d1116)', color: '#fff' };
+  }
+
   function paraLaTarjeta(m) {
     const es21 = m.tipo === 'blackjack';
     const auto = es21 ? [
@@ -73,14 +83,24 @@
   // La tarjeta sabe dibujarse apagada, aunque hoy el salón no le mande mesas
   // cerradas: si algún día el dueño quiere anunciar una que viene, alcanza con
   // dejarla pasar en el filtro de arriba.
-  function TarjetaMesa({ mesa, isMobile, onEntrar }) {
+  function TarjetaMesa({ mesa, en, caliente, isMobile, onEntrar }) {
     const apagada = !mesa.activa;
+    // El barrido de luz lo lleva UNA sola mesa, la de más gente: si lo
+    // llevaran todas no señalaría nada.
+    const esCaliente = !!caliente && caliente === mesa.id;
+    // El fogonazo sólo se enciende si el rayo es RECIENTE. Uno de hace dos
+    // horas destellando sería un anuncio falso.
+    const tieneRayo = !!(en && en.ultimo_rayo && en.ultimo_rayo.hace_min <= 15);
     return (
-      <div style={{
-        borderRadius: 12, padding: isMobile ? 14 : 18, position: 'relative',
-        background: 'linear-gradient(160deg, rgba(60,38,10,0.9), rgba(20,12,4,0.95))',
-        border: `1px solid ${apagada ? '#3a3a3a' : '#b88a28'}`,
-        boxShadow: apagada ? 'none' : '0 4px 18px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,216,74,0.15)',
+      <div className={(esCaliente ? 'sl-caliente ' : '') + (tieneRayo ? 'sl-rayo' : '')} style={{
+        borderRadius: 12, padding: isMobile ? 14 : 18, position: 'relative', overflow: 'hidden',
+        // El borde toma el color de la mesa —el que el dueño le puso en el
+        // panel— y no el dorado de casa: es lo que hace que las cinco se
+        // distingan de un vistazo sin leer el nombre.
+        background: 'linear-gradient(150deg, rgba(255,255,255,0.06), rgba(3,10,16,0.94))',
+        border: `1px solid ${apagada ? '#3a3a3a' : (mesa.color || '#b88a28')}`,
+        boxShadow: apagada ? 'none'
+          : `0 6px 20px rgba(0,0,0,0.55)${esCaliente ? ', 0 0 26px rgba(255,216,74,0.14)' : ''}`,
         filter: apagada ? 'saturate(0.25) brightness(0.75)' : 'none',
       }}>
         <div style={{
@@ -102,6 +122,68 @@
         <div style={{ fontSize: 11, color: '#bba876', lineHeight: 1.6 }}>
           {mesa.detalle.map((linea, i) => <div key={i}>{linea}</div>)}
         </div>
+
+        {/* ── LO QUE ESTÁ PASANDO AHORA ────────────────────────────────
+            Cuánta gente hay. Si no hay nadie lo dice, apagado y sin punto:
+            una vitrina que finge movimiento se nota, y se nota mal. */}
+        {en && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10 }}>
+            {en.jugando > 0 ? (
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 8.5,
+                letterSpacing: 1.5, fontWeight: 700, color: '#9ff0a0', padding: '3px 7px',
+                border: '1px solid #2a8a2a', background: 'rgba(42,138,42,0.2)', borderRadius: 3,
+              }}>
+                <span className="sl-pulso" />
+                <b style={{ color: '#fff', fontSize: 10 }}>{en.jugando}</b> {T('JUGANDO')}
+              </span>
+            ) : (
+              <span style={{
+                fontSize: 8.5, letterSpacing: 1.5, fontWeight: 700, color: '#8b9aa6',
+                padding: '3px 7px', border: '1px solid #3a4650',
+                background: 'rgba(0,0,0,0.3)', borderRadius: 3,
+              }}>{T('MESA LIBRE')}</span>
+            )}
+          </div>
+        )}
+
+        {/* Los últimos números. El rótulo NO es adorno: en este casino cada
+            jugador tiene su propio giro, así que sin él la tira se lee como
+            si fuera una sola ruleta girando para todos. */}
+        {en && en.ultimos && en.ultimos.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 9, flexWrap: 'wrap' }}>
+            <small style={{ fontSize: 7.5, letterSpacing: 1.5, color: '#7f96a6' }}>
+              {T('ÚLTIMOS DE LA MESA')}
+            </small>
+            <div style={{ display: 'flex', gap: 5 }}>
+              {en.ultimos.map((n, i) => (
+                <span key={i + '-' + n} className={i === 0 ? 'sl-nuevo' : ''} style={Object.assign({
+                  width: 23, height: 23, borderRadius: '50%', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10.5, fontWeight: 900, flex: 'none',
+                }, colorDeNumero(n))}>{n}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* El rayo: el mejor anuncio de la casa, y sale solo. */}
+        {en && en.ultimo_rayo && (
+          <div style={{
+            fontSize: 9, letterSpacing: 0.5, color: '#ffd84a', marginTop: 9,
+            textShadow: '0 0 8px rgba(255,216,74,0.6)',
+          }}>
+            ⚡ {T('Cayó un rayo hace {n} min y pagó {x}x',
+                  { n: en.ultimo_rayo.hace_min, x: en.ultimo_rayo.mult })}
+          </div>
+        )}
+
+        {/* En el 21 no hay números que mostrar: hay manos en curso. */}
+        {en && en.manos_en_juego > 0 && (
+          <div style={{ fontSize: 9, letterSpacing: 0.5, color: '#8ea2b0', marginTop: 9 }}>
+            🃏 {T('{n} manos en juego', { n: en.manos_en_juego })}
+          </div>
+        )}
 
         <div style={{
           display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 12,
@@ -146,6 +228,49 @@
       return () => window.removeEventListener('resize', f);
     }, []);
 
+    // ── LA VITRINA ─────────────────────────────────────────────────────
+    // Qué está pasando ahora en cada mesa. Se pide aparte del catálogo
+    // porque se repite cada diez segundos y el catálogo no cambia nunca.
+    const [vivo, setVivo] = useState({});
+    useEffect(() => {
+      if (!window.Api || !window.Api.salonVivo) return undefined;
+      let vive = true;
+      // La PRIMERA vez se pide siempre, aunque el navegador diga que la
+      // pantalla está tapada: hay teléfonos que arrancan una pestaña
+      // restaurada como 'hidden', y ahí el salón se quedaría en blanco hasta
+      // que el jugador la tocara. El freno es para no REPETIR de fondo, no
+      // para dejar la vitrina vacía.
+      const traer = (siempre) => {
+        // Con la pantalla tapada no se repite: si el jugador deja el teléfono
+        // de lado, esto se frena solo y no le gasta datos ni le pega a la base
+        // por una vitrina que nadie está mirando.
+        if (!siempre && document.visibilityState !== 'visible') return;
+        window.Api.salonVivo().then((d) => {
+          if (!vive) return;
+          const porId = {};
+          for (const m of (d.mesas || [])) porId[m.id] = m;
+          setVivo(porId);
+        }).catch(() => { /* la vitrina es adorno: si falla, el salón se usa igual */ });
+      };
+      traer(true);
+      const seguir = () => traer(false);
+      const reloj = setInterval(seguir, 10000);
+      document.addEventListener('visibilitychange', seguir);
+      return () => {
+        vive = false;
+        clearInterval(reloj);
+        document.removeEventListener('visibilitychange', seguir);
+      };
+    }, []);
+
+    // La mesa con más gente. Sólo una lleva el barrido de luz: si lo llevaran
+    // todas no señalaría nada. Con el salón vacío no lo lleva ninguna.
+    let caliente = null;
+    for (const m of abiertas) {
+      const e = vivo[m.id];
+      if (e && e.jugando > 0 && (!caliente || e.jugando > (vivo[caliente].jugando || 0))) caliente = m.id;
+    }
+
     const botoncito = (borde, fondo, color) => ({
       padding: isMobile ? '3px 8px' : '5px 10px', borderRadius: 4,
       border: `1px solid ${borde}`, background: fondo, color,
@@ -155,10 +280,15 @@
 
     return (
       <div style={{
-        minHeight: '100vh', fontFamily: 'Georgia, serif', color: '#fff',
-        background: 'radial-gradient(ellipse at 50% 0%, #2a1a08 0%, #140d04 55%, #0a0a0a 100%)',
+        minHeight: '100vh', fontFamily: 'Georgia, serif', color: '#fff', position: 'relative',
+        // La misma paleta que la puerta: el salón tiene que sentirse el mismo
+        // lugar y no otra aplicación.
+        background: 'radial-gradient(ellipse 120% 55% at 50% 84%, #16405c 0%, #0a1c2c 44%, #02050a 100%)',
         display: 'flex', flexDirection: 'column',
       }}>
+        {/* La tormenta sigue viva pero muy baja: para que la lista no quede
+            plana, sin robarle atención a los datos. */}
+        <div className="sl-tormenta" aria-hidden="true" />
         {/* Barra superior: la marca del salón a un lado, la plata al otro */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -234,7 +364,8 @@
               </div>
             )}
             {abiertas.map(paraLaTarjeta).map((m) => (
-              <TarjetaMesa key={m.id} mesa={m} isMobile={isMobile}
+              <TarjetaMesa key={m.id} mesa={m} en={vivo[m.id]} caliente={caliente}
+                           isMobile={isMobile}
                            onEntrar={() => onEntrarMesa(m.id)} />
             ))}
           </div>
@@ -246,6 +377,50 @@
       </div>
     );
   }
+
+  // ── EL MOVIMIENTO DE LA VITRINA ──────────────────────────────────────
+  // Una hoja sola, puesta una sola vez, con el mismo freno que la puerta:
+  // quien pidió no ver animaciones no las ve, y un teléfono flojo tampoco.
+  (function estilos() {
+    if (document.getElementById('sl-css')) return;
+    const quieto =
+      (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+      || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+
+    // El fondo de tormenta va SIEMPRE: es color, no movimiento, y sin él el
+    // salón se ve de otra aplicación que la puerta.
+    const fondo = [
+      '.sl-tormenta{position:absolute;inset:0;pointer-events:none;background:',
+      ' radial-gradient(ellipse 60% 20% at 28% 4%,rgba(255,216,74,.12),transparent 70%),',
+      ' radial-gradient(ellipse 52% 18% at 78% 2%,rgba(140,200,255,.10),transparent 70%)}',
+      '.sl-pulso{width:6px;height:6px;border-radius:50%;background:#3fe07a;box-shadow:0 0 8px #3fe07a}',
+    ];
+
+    const s = document.createElement('style');
+    s.id = 'sl-css';
+    s.textContent = quieto ? fondo.join('') : fondo.concat([
+      '.sl-pulso{animation:sl-pulso 1.6s ease-in-out infinite}',
+      '@keyframes sl-pulso{0%,100%{opacity:.35;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}',
+      // El número que acaba de entrar cae con un golpe de luz: es la señal de
+      // que la mesa está viva AHORA y no hace una hora.
+      '.sl-nuevo{animation:sl-entra .5s ease-out}',
+      '@keyframes sl-entra{0%{opacity:0;transform:scale(.4)}60%{opacity:1;transform:scale(1.25)}',
+      ' 100%{opacity:1;transform:scale(1)}}',
+      // El barrido de la mesa caliente. Lo lleva UNA sola.
+      '.sl-caliente:after{content:"";position:absolute;top:0;bottom:0;width:70px;left:-100px;',
+      ' pointer-events:none;background:linear-gradient(100deg,transparent,rgba(255,216,74,.16),transparent);',
+      ' animation:sl-barrido 5.5s ease-in-out infinite}',
+      '@keyframes sl-barrido{0%{left:-100px}60%,100%{left:115%}}',
+      // El fogonazo del rayo sobre la tarjeta.
+      '.sl-rayo:before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:12px;',
+      ' background:radial-gradient(ellipse 80% 60% at 50% 0%,rgba(255,216,74,.4),transparent 70%);',
+      ' opacity:0;animation:sl-golpe 9s ease-out infinite}',
+      '@keyframes sl-golpe{0%,90%{opacity:0}91%{opacity:1}93%{opacity:.25}94.5%{opacity:.9}100%{opacity:0}}',
+      '.sl-tormenta{animation:sl-nube 16s ease-in-out infinite alternate}',
+      '@keyframes sl-nube{from{transform:translateX(-8px)}to{transform:translateX(8px)}}',
+    ]).join('');
+    document.head.appendChild(s);
+  })();
 
   window.SalonScreen = SalonScreen;
 })();
