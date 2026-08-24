@@ -317,10 +317,20 @@ export async function mesaJugable(env, raw, auth) {
 // `prueba3`… No es un rol nuevo en la base a propósito — un rol se le puede
 // asignar a un jugador por error y quedaría entrando a mesas sin terminar,
 // mientras que para llamarse "prueba7" hay que crear la cuenta a mano.
+// La gente del equipo del dueño que prueba con su propio nombre y no con una
+// cuenta `prueba`. Se escriben acá, en minúsculas, y no en la base: para
+// entrar a una mesa sin terminar hay que estar en esta lista Y que alguien
+// despliegue, que son dos manos distintas. Si algún día son muchos, conviene
+// moverlo a `settings` o a una columna de users; con dos nombres, una lista se
+// lee mejor que una tabla nueva.
+const PROBADORES_DEL_EQUIPO = ['nabil'];
+
 export function esProbador(auth) {
   if (!auth || auth.error) return false;
   if (auth.role === 'admin') return true;
-  return /^prueba[0-9]*$/.test(String(auth.username || '').toLowerCase());
+  const u = String(auth.username || '').toLowerCase();
+  if (/^prueba[0-9]*$/.test(u)) return true;
+  return PROBADORES_DEL_EQUIPO.includes(u);
 }
 
 // ¿Este usuario puede entrar a esta mesa? Abierta, cualquiera; en pruebas,
