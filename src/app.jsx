@@ -1156,6 +1156,10 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                   theme={t.theme}
                   lightningNumbers={lightningNumbers}
                   lightningIntensity={t.lightningIntensity / 100}
+                  // La marca de "mesa con relámpago" sale de la ficha de la
+                  // mesa y no de si hay rayos en esta ronda: tiene que verse
+                  // desde que el jugador entra, antes de la primera apuesta.
+                  conRayos={!!ficha.rayos}
                   // En el celular el cilindro vive dentro de un marco que lo
                   // recorta, y ese marco mide justo el diámetro de la rueda.
                   // Con el zoom de cámara la pista de la bola —que corre por

@@ -45,6 +45,11 @@ function RouletteWheel({
   theme = 'classic',
   lightningNumbers = new Map(),
   lightningIntensity = 1,
+  // ¿Esta mesa TIENE rayos? No es lo mismo que tener rayos AHORA: los
+  // multiplicadores se sortean al girar, así que fuera de la ronda
+  // lightningNumbers viene vacío. Sin esta bandera, una mesa de relámpago
+  // sin animalitos se ve idéntica a una clásica hasta que alguien apuesta.
+  conRayos = false,
   zoomed = false,
   bolaPx = 14,        // tamaño de la bola; se agranda si la rueda va achicada
   freeSpin = false,   // gira sin resultado (apuestas abiertas, como en el casino)
@@ -334,6 +339,27 @@ function RouletteWheel({
         }}
       />
 
+      {/* ═══ MARCA DE MESA CON RELÁMPAGO (1 de 2): el aro ═══
+          Se ve SIEMPRE, haya ronda o no. Va sobre el anillo exterior y no
+          sobre las casillas: así no le quita legibilidad a ningún número.
+          El color se elige para contrastar con el borde de la mesa — azul
+          sobre el dorado clásico, dorado sobre el borde azul del tema
+          eléctrico — porque una marca del mismo color del fondo no marca. */}
+      {conRayos && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            pointerEvents: 'none',
+            boxShadow: theme === 'lightning'
+              ? 'inset 0 0 0 3px #ffd84a, inset 0 0 18px rgba(255,216,74,0.55), 0 0 24px rgba(255,216,74,0.35)'
+              : 'inset 0 0 0 3px #5ab8ff, inset 0 0 18px rgba(90,184,255,0.55), 0 0 24px rgba(90,184,255,0.35)',
+            animation: 'aroElectrico 2.6s ease-in-out infinite',
+          }}
+        />
+      )}
+
       {/* Deflectores (fijos) — pequeños diamantes metálicos */}
       {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
         const a = (i * 45) + 22.5;
@@ -610,6 +636,35 @@ function RouletteWheel({
               />
             );
           })}
+          {/* ═══ MARCA DE MESA CON RELÁMPAGO (2 de 2): el rayo del cono ═══
+              Va grabado en el cono y gira con el cilindro, como el nombre.
+              Entra en el círculo interior (radio < 85): el nombre vive en un
+              anillo a 101, así que no se pisan. Y se dibuja ANTES del nombre
+              para que, si alguna vez se acercaran, el nombre quede encima. */}
+          {conRayos && (
+            <path
+              d={`M ${WHEEL_SIZE / 2 + 34} ${WHEEL_SIZE / 2 - 64}
+                  L ${WHEEL_SIZE / 2 - 30} ${WHEEL_SIZE / 2 + 10}
+                  L ${WHEEL_SIZE / 2 + 8} ${WHEEL_SIZE / 2 + 4}
+                  L ${WHEEL_SIZE / 2 - 26} ${WHEEL_SIZE / 2 + 64}
+                  L ${WHEEL_SIZE / 2 + 38} ${WHEEL_SIZE / 2 - 14}
+                  L ${WHEEL_SIZE / 2} ${WHEEL_SIZE / 2 - 8} Z`}
+              fill={theme === 'lightning' ? '#e8f4ff' : '#fff3c4'}
+              // Contorno oscuro fino: sin él, sobre el dorado del cono el rayo
+              // se confunde con los radios decorativos y deja de leerse.
+              stroke="rgba(20,12,2,0.55)"
+              strokeWidth="2"
+              strokeLinejoin="round"
+              opacity="0.95"
+              style={{
+                filter: theme === 'lightning'
+                  ? 'drop-shadow(0 0 8px #5ab8ff) drop-shadow(0 0 18px rgba(90,184,255,0.6))'
+                  : 'drop-shadow(0 0 8px #ffd84a) drop-shadow(0 0 18px rgba(255,216,74,0.6))',
+                animation: 'aroElectrico 2.6s ease-in-out infinite',
+              }}
+            />
+          )}
+
           {/* ═══ El nombre de la mesa, grabado en el cono ═══
               Es lo que tiene cualquier ruleta de verdad: el nombre de la casa
               (o de la mesa) en el cono del centro. Va DENTRO del grupo que

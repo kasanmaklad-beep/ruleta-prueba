@@ -17,6 +17,13 @@
   body { font-family: Georgia, serif; min-height: 100vh; }
   * { box-sizing: border-box; }
 
+  /* El latido de la marca de mesa con relámpago (el aro y el rayo del cono).
+     Lento a propósito: se ve TODO el tiempo, y algo que parpadea rápido
+     durante una partida entera cansa la vista. */
+  @keyframes aroElectrico {
+    0%, 100% { opacity: 0.62; }
+    50%      { opacity: 1; }
+  }
   @keyframes ltgFlicker {
     0%, 100% { opacity: 0.6; }
     50% { opacity: 1; }
