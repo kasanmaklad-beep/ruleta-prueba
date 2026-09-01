@@ -57,6 +57,13 @@
       orden: ORDEN_EUROPEA, casillas: 37, dobleCero: false, animales: false, rayos: false, pagoPleno: 35 },
     { id: 'europea_animales', label: 'Europea Catatumbo', ruedaLabel: 'Europea (un solo cero)',
       orden: ORDEN_EUROPEA, casillas: 37, dobleCero: false, animales: true, rayos: true, pagoPleno: 29 },
+    // Las dos nuevas (09/08/2026): rayos SIN animalitos. Es la combinación que
+    // nunca se había usado, y lo que hay que mirar acá es que el multiplicador
+    // no se pise con el número, que sin animalito va grande y centrado.
+    { id: 'americana_relampago', label: 'Americana Relámpago', ruedaLabel: 'Americana (0 y 00)',
+      orden: ORDEN_AMERICANA, casillas: 38, dobleCero: true, animales: false, rayos: true, pagoPleno: 29 },
+    { id: 'europea_relampago', label: 'Europea Relámpago', ruedaLabel: 'Europea (un solo cero)',
+      orden: ORDEN_EUROPEA, casillas: 37, dobleCero: false, animales: false, rayos: true, pagoPleno: 29 },
   ];
 
   // Rayos de muestra: se toman casillas de la propia rueda, así en la europea

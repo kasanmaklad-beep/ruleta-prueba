@@ -124,6 +124,10 @@ async function main() {
   await api('/api/auth/register', { metodo: 'POST', cuerpo: {
     username: usuario, password: 'clave123', first_name: 'Verifica', last_name: 'Mesa',
     cedula: sello.slice(-8), phone: '04141112233', email: `${usuario}@correo.com`, bank: '0134 - Banesco',
+    // Desde el 31/07/2026 el servidor no crea una cuenta sin condiciones
+    // aceptadas. Sin esto la batería moría con "No pude crear el jugador",
+    // y por eso estuvo sin poder correrse desde entonces.
+    acepta_condiciones: true, mayor_de_edad: true, condiciones_version: '2026-07-31',
   } });
   const ses = await api('/api/auth/login', { metodo: 'POST', cuerpo: { username: usuario, password: 'clave123' } });
   const PLT = ses.token;
