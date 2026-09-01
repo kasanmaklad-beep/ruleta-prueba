@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VOLTIO — modelos de rayo para el cilindro</title>
+<!-- ════════════════════════════════════════════════════════════════════
+     EL PROBLEMA QUE RESUELVE ESTA MAQUETA (09/08/2026)
+
+     Las mesas nuevas (Americana y Europea Relámpago) no llevan animalitos.
+     Y los rayos del juego SÓLO existen mientras dura una ronda: se sortean
+     al girar. O sea que un jugador que entra y todavía no apostó ve un
+     cilindro IDÉNTICO al de la mesa clásica.
+
+     Acá se prueban cuatro marcas PERMANENTES: se ven siempre, aunque no
+     haya ronda. Se dibujan ENCIMA del cilindro de verdad (public/wheel.js),
+     no de un dibujo aparte, así lo que se ve es lo que quedaría.
+     ════════════════════════════════════════════════════════════════════ -->
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0a0a0a;color:#e8d9a0;font-family:Georgia,serif;padding:18px}
+  h1{font-size:20px;color:#ffd84a;margin:0 0 4px}
+  p.sub{font-size:13px;color:#9a8a6a;margin:0 0 18px;max-width:900px;line-height:1.6}
+  .fila{display:flex;flex-wrap:wrap;gap:26px;justify-content:center}
+  .caso{width:330px}
+  .marco{position:relative;width:330px;height:330px;overflow:hidden;border-radius:12px;
+         background:radial-gradient(circle at 50% 40%,#2a1a08 0%,#000 80%)}
+  /* El cilindro real mide 520. Se envuelve entero y se escala el envoltorio,
+     con las capas DENTRO: así la marca cae siempre donde tiene que caer,
+     pase lo que pase con el tamaño. */
+  .centro{position:absolute;left:50%;top:50%;width:520px;height:520px;
+          margin:-260px 0 0 -260px;transform:scale(.634);transform-origin:center}
+  .capa{position:absolute;inset:0;pointer-events:none}
+  h3{font-size:15px;margin:12px 0 4px;color:#ffd84a}
+  .nota{font-size:12px;color:#9a8a6a;line-height:1.55;margin:0}
+  .nota b{color:#c9b98a}
+  @keyframes latir{0%,100%{opacity:.55}50%{opacity:1}}
+  @keyframes girarLento{to{transform:rotate(360deg)}}
+</style>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+</head>
+<body>
+<h1>⚡ Cuatro modelos de rayo para el cilindro</h1>
+<p class="sub">Los cuatro están dibujados <b>sobre el cilindro de verdad</b>, y son marcas
+<b>permanentes</b>: se ven siempre, con ronda o sin ronda. Ninguno tapa los números ni cambia el
+sorteo. Están sin ningún rayo de ronda encendido, a propósito: así es como lo ve un jugador que
+acaba de entrar y todavía no apostó.</p>
+<div id="root" class="fila"></div>
+
+<script src="../public/wheel.js"></script>
+<script>
+  var e = React.createElement;
+  var ORDEN_AMERICANA = ['0',28,9,26,30,11,7,20,32,17,5,22,34,15,3,24,36,13,1,'00',27,10,25,29,12,8,19,31,18,6,21,33,16,4,23,35,14,2];
+
+  function Cilindro() {
+    return e(window.RouletteWheel, {
+      orden: ORDEN_AMERICANA, spinning: false, resultIndex: -1,
+      lightningNumbers: new Map(), theme: 'classic',
+    });
+  }
+
+  // ── A · El aro eléctrico ───────────────────────────────────────────────
+  // El borde de madera pasa a azul eléctrico y respira. Es lo más sobrio.
+  function CapaAro() {
+    return e('svg', { className: 'capa', viewBox: '0 0 520 520' },
+      e('defs', null,
+        e('filter', { id: 'gl-a', x: '-50%', y: '-50%', width: '200%', height: '200%' },
+          e('feGaussianBlur', { stdDeviation: '3', result: 'b' }),
+          e('feMerge', null, e('feMergeNode', { in: 'b' }), e('feMergeNode', { in: 'SourceGraphic' })))),
+      e('circle', { cx: 260, cy: 260, r: 252, fill: 'none', stroke: '#5ab8ff', strokeWidth: 3,
+                    filter: 'url(#gl-a)', style: { animation: 'latir 2.4s ease-in-out infinite' } }),
+      e('circle', { cx: 260, cy: 260, r: 236, fill: 'none', stroke: 'rgba(140,200,255,.35)', strokeWidth: 1 })
+    );
+  }
+
+  // ── B · Rayos grabados en el aro ───────────────────────────────────────
+  // Ocho rayos repartidos en el borde, como grabados en la madera.
+  function CapaGrabados() {
+    var rayos = [];
+    for (var i = 0; i < 8; i++) {
+      var ang = i * 45;
+      rayos.push(e('text', {
+        key: i, x: 260, y: 42, textAnchor: 'middle', fontSize: 30,
+        transform: 'rotate(' + ang + ' 260 260)',
+        style: { filter: 'drop-shadow(0 0 7px #ffd84a)', opacity: .95 },
+      }, '⚡'));
+    }
+    return e('svg', { className: 'capa', viewBox: '0 0 520 520' },
+      e('circle', { cx: 260, cy: 260, r: 252, fill: 'none', stroke: 'rgba(255,216,74,.5)', strokeWidth: 1.5 }),
+      rayos);
+  }
+
+  // ── C · El corazón ─────────────────────────────────────────────────────
+  // Un rayo grande en el cubo del centro, girando muy lento con el cilindro.
+  function CapaCorazon() {
+    return e('svg', { className: 'capa', viewBox: '0 0 520 520' },
+      e('defs', null,
+        e('radialGradient', { id: 'aura-c' },
+          e('stop', { offset: '0%', stopColor: 'rgba(255,216,74,.55)' }),
+          e('stop', { offset: '100%', stopColor: 'rgba(255,216,74,0)' }))),
+      e('circle', { cx: 260, cy: 260, r: 120, fill: 'url(#aura-c)',
+                    style: { animation: 'latir 2.6s ease-in-out infinite' } }),
+      e('g', { style: { transformOrigin: '260px 260px', animation: 'girarLento 26s linear infinite' } },
+        e('path', {
+          d: 'M286 196 L236 272 L268 268 L246 330 L300 250 L268 254 Z',
+          fill: '#fff3c4',
+          style: { filter: 'drop-shadow(0 0 8px #ffd84a) drop-shadow(0 0 18px rgba(255,216,74,.6))' },
+        }))
+    );
+  }
+
+  // ── D · La corona de rayos ─────────────────────────────────────────────
+  // Rayos finos entre casilla y casilla, como radios del cilindro.
+  function CapaCorona() {
+    var lineas = [];
+    for (var i = 0; i < 19; i++) {
+      lineas.push(e('path', {
+        key: i,
+        d: 'M260 158 l-7 22 l10 -2 l-11 26',
+        fill: 'none', stroke: 'rgba(255,216,74,.75)', strokeWidth: 3.2,
+        transform: 'rotate(' + (i * (360 / 19)) + ' 260 260)',
+        style: { filter: 'drop-shadow(0 0 6px rgba(255,216,74,.9))' },
+      }));
+    }
+    return e('svg', { className: 'capa', viewBox: '0 0 520 520' }, lineas);
+  }
+
+  var MODELOS = [
+    { id: 'aro', titulo: 'A · El aro eléctrico', capa: CapaAro,
+      nota: 'El borde de madera pasa a <b>azul eléctrico</b> y respira despacio. Es el más sobrio y el que menos ensucia: no agrega ningún dibujo, sólo cambia el color del marco. Se distingue de lejos, incluso en una pantalla chica.' },
+    { id: 'grabados', titulo: 'B · Rayos grabados en el aro', capa: CapaGrabados,
+      nota: 'Ocho rayitos repartidos en el borde, como <b>grabados en la madera</b> de la mesa. Es el más literal: dice “relámpago” sin que haya que explicarlo. Contra: son ocho elementos más en una zona ya cargada.' },
+    { id: 'corazon', titulo: 'C · El corazón', capa: CapaCorazon,
+      nota: 'Un <b>rayo grande en el cubo del centro</b>, girando muy lento. El centro hoy está vacío, así que no le quita lugar a nada, y es lo que más se ve cuando la rueda gira. Mi favorito.' },
+    { id: 'corona', titulo: 'D · La corona', capa: CapaCorona,
+      nota: 'Rayos finos <b>entre casilla y casilla</b>, como radios. El más elegante de cerca; de lejos y en el teléfono puede leerse como simple decoración y perder el mensaje.' },
+  ];
+
+  function App() {
+    return MODELOS.map(function (m) {
+      return e('div', { className: 'caso', key: m.id },
+        e('div', { className: 'marco' },
+          e('div', { className: 'centro' }, e(Cilindro), e(m.capa))),
+        e('h3', null, m.titulo),
+        e('p', { className: 'nota', dangerouslySetInnerHTML: { __html: m.nota } }));
+    });
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(e(React.Fragment, null, App()));
+</script>
+</body>
+</html>
