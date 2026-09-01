@@ -352,9 +352,13 @@ function RouletteWheel({
             inset: 0,
             borderRadius: '50%',
             pointerEvents: 'none',
+            // TODO el resplandor va hacia ADENTRO. En el celular el cilindro
+            // vive dentro de un círculo con overflow:hidden que mide justo su
+            // diámetro (CRES_W en app.jsx): cualquier brillo hacia afuera se
+            // recorta y el aro llega apagado justo al aparato donde se juega.
             boxShadow: theme === 'lightning'
-              ? 'inset 0 0 0 3px #ffd84a, inset 0 0 18px rgba(255,216,74,0.55), 0 0 24px rgba(255,216,74,0.35)'
-              : 'inset 0 0 0 3px #5ab8ff, inset 0 0 18px rgba(90,184,255,0.55), 0 0 24px rgba(90,184,255,0.35)',
+              ? 'inset 0 0 0 3px #ffd84a, inset 0 0 10px rgba(255,216,74,0.9), inset 0 0 26px rgba(255,216,74,0.5)'
+              : 'inset 0 0 0 3px #5ab8ff, inset 0 0 10px rgba(90,184,255,0.9), inset 0 0 26px rgba(90,184,255,0.5)',
             animation: 'aroElectrico 2.6s ease-in-out infinite',
           }}
         />
