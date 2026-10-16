@@ -12,10 +12,17 @@ Reglas para quien ejecuta (Claude Code en loop):
 
 ## Fase 1 — Fiesta Animal en producción
 
-- [ ] 1. Leer SPEC-FIESTAANIMAL.md, ESTRUCTURA-SALON.md, DEPLOY.md y `wrangler.jsonc`.
+- [x] 1. Leer SPEC-FIESTAANIMAL.md, ESTRUCTURA-SALON.md, DEPLOY.md y `wrangler.jsonc`.
       Hacer un inventario en `docs/fiestaanimal/inventario-marca.md` de cada sitio del
       código donde "Catatumbo", "mycrosis", el dorado de casa (#ffd84a / #b88a28) o el
       logo están fijos (archivo + línea). Commit.
+      HECHO 16/10/2026 → `docs/fiestaanimal/inventario-marca.md`.
+      LO QUE CAMBIA DEL PLAN: el nombre son 24 sitios (10 los ve el jugador) y es
+      barato; el dorado son 145 apariciones en 13 archivos y NO es barato. Pero
+      `src/ui.jsx` ya tiene PALETAS (variables CSS que heredan), así que la vía es
+      alimentar esa paleta desde la ficha, no pintar 145 líneas. Por eso la tarea 3
+      conviene partirla en 3a (nombre y título) y 3b (color por la paleta), y dejar
+      el cilindro y el paño para la Fase 2, que ya prevé un tema por mesa.
 - [ ] 2. Crear la ficha de marca en el Worker: variables de entorno con valores por
       defecto = mycrosis tal como está hoy, y endpoint `GET /api/marca`. Commit.
 - [ ] 3. Frontend lee `/api/marca` al arrancar y la usa en: título de la pestaña, entrada
