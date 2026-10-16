@@ -23,8 +23,18 @@ Reglas para quien ejecuta (Claude Code en loop):
       alimentar esa paleta desde la ficha, no pintar 145 líneas. Por eso la tarea 3
       conviene partirla en 3a (nombre y título) y 3b (color por la paleta), y dejar
       el cilindro y el paño para la Fase 2, que ya prevé un tema por mesa.
-- [ ] 2. Crear la ficha de marca en el Worker: variables de entorno con valores por
+- [x] 2. Crear la ficha de marca en el Worker: variables de entorno con valores por
       defecto = mycrosis tal como está hoy, y endpoint `GET /api/marca`. Commit.
+      HECHO 16/10/2026 → `worker/marca.js`, ruta en `worker/index.js`, prueba en
+      `pruebas/verificar-marca.mjs` (12 comprobaciones).
+      DECISIÓN: la ficha lleva SIETE campos y no los seis de la SPEC. Se agregó
+      `subtitulo` porque en pantalla son dos textos distintos —el lema va en el pie
+      del salón y el subtítulo debajo del nombre en la entrada— y con uno solo
+      mycrosis dejaría de verse igual, que es la regla que no se negocia.
+      DECISIÓN: no se tocó `wrangler.jsonc`. Los valores por defecto del código YA
+      son mycrosis, así que su entorno no declara ninguna variable y no hay forma de
+      romperlo tocando configuración. Las variables se declaran sólo en el entorno
+      `fiestaanimal` (tarea 4).
 - [ ] 3. Frontend lee `/api/marca` al arrancar y la usa en: título de la pestaña, entrada
       (login/registro), cabecera del salón, cabecera del juego, panel admin y taquilla.
       Mycrosis debe verse idéntico a hoy. Commit.

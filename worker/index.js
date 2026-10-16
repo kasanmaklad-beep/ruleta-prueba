@@ -25,6 +25,9 @@ import {
 // el último rayo.
 import { salonVivo } from './salon.js';
 
+// La ficha de marca: qué casa es ésta (nombre, lema, colores).
+import { marcaPublica } from './marca.js';
+
 // La capa ejecutiva: matriz → ejecutivo → banquero → jugador.
 import {
   execSummary, execPlayers, execCreateCashier, execVenderCupo,
@@ -143,6 +146,9 @@ async function handleApi(request, env, url) {
   // retirar) y ahí todavía no hay usuario. Sólo salen datos que ya están a la
   // vista de cualquiera que entre al salón.
   if (method === 'GET'  && path === '/api/config')        return configPublica(request, env);
+  // Qué casa es ésta. Sin sesión, como la configuración: la entrada se dibuja
+  // con esto y ahí todavía no hay usuario.
+  if (method === 'GET'  && path === '/api/marca')         return marcaPublica(request, env);
   if (method === 'POST' && path === '/api/condiciones')   return aceptarCondiciones(request, env);
   if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
   // Lo que está pasando AHORA en cada mesa. Pide sesión igual que el catálogo:
