@@ -67,8 +67,8 @@
     '.vt-esc{position:fixed;inset:0;overflow:hidden;font-family:Georgia,serif;',
     ' background:radial-gradient(ellipse 120% 55% at 50% 78%,#16405c 0%,#0a1c2c 44%,#02050a 100%)}',
     '.vt-cielo{position:absolute;inset:0;background:',
-    ' radial-gradient(ellipse 62% 22% at 30% 6%,rgba(255,216,74,.22),transparent 70%),',
-    ' radial-gradient(ellipse 54% 20% at 76% 3%,rgba(140,200,255,.16),transparent 70%);',
+    ' radial-gradient(ellipse 62% 22% at 30% 6%,rgba(var(--m-oro-rgb),.22),transparent 70%),',
+    ' radial-gradient(ellipse 54% 20% at 76% 3%,rgba(var(--m-acento-rgb),.16),transparent 70%);',
     ' animation:vt-nube 14s ease-in-out infinite alternate}',
     '@keyframes vt-nube{from{transform:translateX(-10px)}to{transform:translateX(10px)}}',
     '.vt-rayo,.vt-destello{position:absolute;inset:0;width:100%;height:100%;opacity:0;',
@@ -77,29 +77,29 @@
     '@keyframes vt-flash{0%,88%{opacity:0}89%{opacity:1}90.5%{opacity:.15}92%{opacity:.95}',
     ' 94%{opacity:0}96%{opacity:.5}97.5%{opacity:0}100%{opacity:0}}',
     '.vt-piso{position:absolute;left:-30%;right:-30%;bottom:0;height:340px;pointer-events:none;',
-    ' background:repeating-linear-gradient(90deg,rgba(255,216,74,.055) 0 1px,transparent 1px 30px),',
-    ' repeating-linear-gradient(0deg,rgba(255,216,74,.05) 0 1px,transparent 1px 30px);',
+    ' background:repeating-linear-gradient(90deg,rgba(var(--m-oro-rgb),.055) 0 1px,transparent 1px 30px),',
+    ' repeating-linear-gradient(0deg,rgba(var(--m-oro-rgb),.05) 0 1px,transparent 1px 30px);',
     ' transform:perspective(300px) rotateX(72deg);transform-origin:50% 100%}',
     '.vt-arcos{position:absolute;left:0;right:0;top:130px;display:flex;justify-content:center;',
     ' align-items:flex-end;gap:8px;padding:0 26px;opacity:.85;max-width:430px;margin:0 auto;',
     ' pointer-events:none}',
-    '.vt-arco{flex:1;height:104px;border:1px solid rgba(255,216,74,.28);border-bottom:none;',
+    '.vt-arco{flex:1;height:104px;border:1px solid rgba(var(--m-oro-rgb),.28);border-bottom:none;',
     ' border-radius:44px 44px 0 0;position:relative;',
     ' background:linear-gradient(180deg,rgba(184,31,48,.28),rgba(3,8,14,.85));',
-    ' box-shadow:inset 0 0 22px rgba(255,216,74,.14)}',
+    ' box-shadow:inset 0 0 22px rgba(var(--m-oro-rgb),.14)}',
     '.vt-arco span{position:absolute;left:0;right:0;bottom:11px;text-align:center;font-size:8px;',
-    ' letter-spacing:2px;color:#ffd84a;text-shadow:0 0 8px #ffd84a}',
-    '.vt-arco.vt-centro{flex:1.3;height:136px;border-color:rgba(255,216,74,.55);',
-    ' background:linear-gradient(180deg,rgba(255,216,74,.2),rgba(3,8,14,.9));',
+    ' letter-spacing:2px;color:var(--m-oro);text-shadow:0 0 8px var(--m-oro)}',
+    '.vt-arco.vt-centro{flex:1.3;height:136px;border-color:rgba(var(--m-oro-rgb),.55);',
+    ' background:linear-gradient(180deg,rgba(var(--m-oro-rgb),.2),rgba(3,8,14,.9));',
     ' animation:vt-latir 3.4s ease-in-out infinite}',
-    '@keyframes vt-latir{0%,100%{box-shadow:inset 0 0 28px rgba(255,216,74,.3),0 0 26px rgba(255,216,74,.16)}',
-    ' 50%{box-shadow:inset 0 0 34px rgba(255,216,74,.5),0 0 40px rgba(255,216,74,.3)}}',
-    '.vt-arco.vt-frio{border-color:rgba(140,200,255,.28);',
+    '@keyframes vt-latir{0%,100%{box-shadow:inset 0 0 28px rgba(var(--m-oro-rgb),.3),0 0 26px rgba(var(--m-oro-rgb),.16)}',
+    ' 50%{box-shadow:inset 0 0 34px rgba(var(--m-oro-rgb),.5),0 0 40px rgba(var(--m-oro-rgb),.3)}}',
+    '.vt-arco.vt-frio{border-color:rgba(var(--m-acento-rgb),.28);',
     ' background:linear-gradient(180deg,rgba(29,107,69,.3),rgba(3,8,14,.85))}',
-    '.vt-arco.vt-frio span{color:#9fd8ff;text-shadow:0 0 8px #5ab8ff}',
+    '.vt-arco.vt-frio span{color:#9fd8ff;text-shadow:0 0 8px var(--m-acento)}',
     '.vt-mesa{position:absolute;left:50%;bottom:-150px;width:340px;height:340px;border-radius:50%;',
     ' transform:translateX(-50%) perspective(460px) rotateX(70deg);border:6px solid #6b5010;',
-    ' box-shadow:0 0 70px rgba(255,216,74,.28),inset 0 0 44px rgba(0,0,0,.85);overflow:hidden;',
+    ' box-shadow:0 0 70px rgba(var(--m-oro-rgb),.28),inset 0 0 44px rgba(0,0,0,.85);overflow:hidden;',
     ' pointer-events:none}',
     '.vt-rueda{position:absolute;inset:0;border-radius:50%;',
     ' background:repeating-conic-gradient(#b81f30 0 18deg,#0d1116 18deg 36deg);',
@@ -160,6 +160,26 @@
     '.vt-quieto.vt-entrando .vt-mesa{animation:none;opacity:0}',
   ].join('');
 
+
+  // De "var(--m-oro)" a "255,216,74", para poder seguir usando rgba() con
+  // transparencia. Si el color viene mal escrito, vale el de la casa: un
+  // error de tipeo en la configuración no puede dejar la puerta sin color.
+  function aRGB(hex, porDefecto) {
+    const h = String(hex || '').trim().replace('#', '');
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return porDefecto;
+    return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(',');
+  }
+
+  function coloresDeLaMarca() {
+    const m = (window.Marca && window.Marca.get()) || {};
+    return {
+      '--m-oro': m.colorPrimario || 'var(--m-oro)',
+      '--m-oro-rgb': aRGB(m.colorPrimario, '255,216,74'),
+      '--m-acento': m.colorAcento || 'var(--m-acento)',
+      '--m-acento-rgb': aRGB(m.colorAcento, '90,184,255'),
+    };
+  }
+
   function ponerEstilos() {
     if (document.getElementById('vt-css')) return;
     const s = document.createElement('style');
@@ -191,16 +211,16 @@
     React.useEffect(() => { if (entrando) Sonido.trueno(); }, [entrando]);
 
     return (
-      <div className={'vt-esc'
+      <div style={coloresDeLaMarca()} className={'vt-esc'
         + (SIN_MOVIMIENTO ? ' vt-quieto' : '')
         + (entrando ? ' vt-entrando' : '')}>
         <div className="vt-cielo" />
         <div className="vt-destello" />
         <svg className="vt-rayo" viewBox="0 0 360 735" preserveAspectRatio="xMidYMin slice" aria-hidden="true">
           <path d="M206 0 L176 96 L212 90 L156 226 L182 128 L146 134 Z" fill="#fff8e0"
-                style={{ filter: 'drop-shadow(0 0 14px #ffd84a) drop-shadow(0 0 44px rgba(255,216,74,.7))' }} />
-          <path d="M78 12 L60 78 L84 72 L52 152" stroke="rgba(255,216,74,.55)" strokeWidth="2.5" fill="none"
-                style={{ filter: 'drop-shadow(0 0 10px rgba(255,216,74,.9))' }} />
+                style={{ filter: 'drop-shadow(0 0 14px var(--m-oro)) drop-shadow(0 0 44px rgba(var(--m-oro-rgb),.7))' }} />
+          <path d="M78 12 L60 78 L84 72 L52 152" stroke="rgba(var(--m-oro-rgb),.55)" strokeWidth="2.5" fill="none"
+                style={{ filter: 'drop-shadow(0 0 10px rgba(var(--m-oro-rgb),.9))' }} />
         </svg>
         <div className="vt-piso" />
 

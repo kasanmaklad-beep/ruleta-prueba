@@ -52,9 +52,17 @@ Reglas para quien ejecuta (Claude Code en loop):
       traduce al idioma del jugador. Se aceptó en vez de agregar un campo más a la ficha
       sólo para la capitalización del título.
 
-- [ ] 3b. EL COLOR, por la paleta de `src/ui.jsx` (ver `docs/fiestaanimal/inventario-marca.md`):
+- [x] 3b. EL COLOR, por la paleta de `src/ui.jsx` (ver `docs/fiestaanimal/inventario-marca.md`):
       alimentar `PALETAS` desde la ficha, después entrada y salón. El cilindro y el paño
       NO entran acá: van en la Fase 2, que ya prevé un tema por mesa.
+      HECHO 16/10/2026. Entrada por variables CSS (`--m-oro`, `--m-acento`), salón por la
+      ficha, billetera por la paleta teñida. Prueba: `pruebas/verificar-paleta-marca.mjs`.
+      DECISIÓN: se tiñe SÓLO la paleta del jugador. El azul del dueño, el verde de la
+      banca y el violeta del ejecutivo no dicen qué casa es, dicen EN QUÉ PANEL ESTÁS, y
+      quien maneje las dos casas necesita distinguirlo de un vistazo. Hay prueba de que
+      la marca no los toca.
+      La maqueta `maquetas/salon-pizarra.html?marca=fiesta` muestra el salón con la otra
+      marca sin levantar nada ni entrar con cuenta.
 - [ ] 4. Agregar entorno `fiestaanimal` en `wrangler.jsonc`: nombre `fiestaanimal-juego`,
       custom domain `juego.fiestaanimal.com`, D1 `fiestaanimal-db` (crearla con
       `npx wrangler d1 create fiestaanimal-db` y pegar el id), los mismos crons, y las

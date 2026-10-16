@@ -71,7 +71,43 @@
       '--fondo-destacado': 'linear-gradient(180deg, #2a2008, #140d02)',
     },
   };
-  const paleta = (rol) => PALETAS[rol] || PALETAS.jugador;
+  // ── LA PALETA DEL JUGADOR, TEÑIDA POR LA MARCA ────────────────────────
+  // Sólo se tiñe la del JUGADOR. Las otras tres (dueño azul, banca verde,
+  // ejecutivo violeta) NO se tocan: ese color no dice qué casa es, dice EN
+  // QUÉ PANEL ESTÁS, y el que maneja plata de varios necesita distinguirlo
+  // de un vistazo. Si las cuatro cambiaran con la marca, se perdería.
+
+  // Mezcla un color con negro. f = 1 lo deja igual, f = 0 lo apaga del todo.
+  function apagar(hex, f) {
+    const h = String(hex || '').trim().replace('#', '');
+    if (!/^[0-9a-fA-F]{6}$/.test(h)) return '#000000';
+    const c = [0, 2, 4].map((i) => Math.round(parseInt(h.slice(i, i + 2), 16) * f));
+    return '#' + c.map((n) => Math.max(0, Math.min(255, n)).toString(16).padStart(2, '0')).join('');
+  }
+
+  function paletaDelJugador() {
+    const m = (window.Marca && window.Marca.get()) || null;
+    // Sin marca propia, o con la de la casa, se devuelve el objeto de
+    // siempre TAL CUAL. Derivar los tonos daría valores parecidos pero no
+    // idénticos, y mycrosis tiene que verse igual, no parecido.
+    if (!m || !m.colorPrimario || m.colorPrimario === '#ffd84a') return PALETAS.jugador;
+
+    const pri = m.colorPrimario;                     // el color vivo
+    const sec = m.colorSecundario || m.colorPrimario; // el apagado, para bordes
+    return {
+      '--acento': sec,
+      '--borde': apagar(sec, 0.62),
+      '--linea': apagar(sec, 0.28),
+      '--linea-suave': apagar(sec, 0.16),
+      '--fondo-pagina': `radial-gradient(ellipse at center, ${apagar(pri, 0.16)} 0%, ${apagar(pri, 0.07)} 60%, ${apagar(pri, 0.02)} 100%)`,
+      '--fondo-tarjeta': `linear-gradient(180deg, ${apagar(pri, 0.10)}, ${apagar(pri, 0.05)})`,
+      '--boton-acento': `linear-gradient(180deg, ${sec}, ${apagar(sec, 0.62)})`,
+      '--boton-texto': apagar(pri, 0.10),
+      '--fondo-destacado': `linear-gradient(180deg, ${apagar(pri, 0.16)}, ${apagar(pri, 0.06)})`,
+    };
+  }
+
+  const paleta = (rol) => (rol === 'jugador' ? paletaDelJugador() : (PALETAS[rol] || paletaDelJugador()));
 
   // ── La moneda de la casa ───────────────────────────────────────────────
   // La define el servidor (ajuste `moneda`) y llega con /api/me. Acá vive el

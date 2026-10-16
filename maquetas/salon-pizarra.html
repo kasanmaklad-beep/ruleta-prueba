@@ -13,6 +13,25 @@
 <body>
 <div id="root"></div>
 <script>
+  // ── SIMULAR OTRA MARCA ───────────────────────────────────────────────
+  // Abrí esta maqueta con ?marca=fiesta para ver el salón con los colores y
+  // el nombre de Fiesta Animal. Sin el parámetro se ve mycrosis, que es lo
+  // que tiene que quedar idéntico. Sirve para mirar las dos casas sin
+  // levantar dos servidores ni entrar con cuenta.
+  (function () {
+    const cual = new URLSearchParams(location.search).get('marca');
+    const FICHAS = {
+      fiesta: {
+        nombre: 'Fiesta Animal', lema: 'Juega. Gana. Vive la Fiesta Animal.',
+        subtitulo: 'EL SALÓN DE LOS ANIMALITOS',
+        colorPrimario: '#f59e0b', colorSecundario: '#f97316',
+        colorAcento: '#10b981', logo: 'huella',
+      },
+    };
+    const f = FICHAS[cual];
+    if (f) window.Marca = { get: () => f, nombre: () => f.nombre, cargar: () => Promise.resolve(f) };
+  })();
+
   // Las cinco mesas REALES de la base, al 08/08/2026, con sus colores.
   const MESAS = [
     { id:'catatumbo', tipo:'ruleta', label:'Catatumbo', activo:1, icono:'🐆⚡', color:'#ffd84a',

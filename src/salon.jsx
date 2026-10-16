@@ -22,7 +22,11 @@
   // La ficha del servidor, vestida para la tarjeta. El ícono, el color y las
   // dos líneas los escribe el dueño en el panel (Etapa 4); si una mesa nueva
   // vino sin ellos, igual se anuncia: el texto se arma con la ficha.
+  // El color de la casa sale de la ficha de marca. DORADO queda como el
+  // valor de mycrosis, que es el que vale si la ficha no cargó.
   const DORADO = '#ffd84a';
+  const oro = () => ((window.Marca && window.Marca.get().colorPrimario) || DORADO);
+  const oroApagado = () => ((window.Marca && window.Marca.get().colorSecundario) || '#b88a28');
 
   // Los rojos de la ruleta. El cero y el doble cero van en verde. Es la misma
   // convención de la mesa: si el salón los pintara de otro color, el jugador
@@ -116,7 +120,7 @@
         <div style={{
           fontSize: isMobile ? 17 : 19, letterSpacing: 2,
           // El color se lo pone el dueño a cada mesa; el dorado es el de casa.
-          color: apagada ? '#ffd84a' : mesa.color,
+          color: apagada ? oro() : mesa.color,
           fontWeight: 900, margin: '6px 0 4px',
         }}>{mesa.nombre}</div>
         <div style={{ fontSize: 11, color: '#bba876', lineHeight: 1.6 }}>
@@ -170,7 +174,7 @@
         {/* El rayo: el mejor anuncio de la casa, y sale solo. */}
         {en && en.ultimo_rayo && (
           <div style={{
-            fontSize: 9, letterSpacing: 0.5, color: '#ffd84a', marginTop: 9,
+            fontSize: 9, letterSpacing: 0.5, color: oro(), marginTop: 9,
             textShadow: '0 0 8px rgba(255,216,74,0.6)',
           }}>
             ⚡ {T('Cayó un rayo hace {n} min y pagó {x}x',
@@ -297,11 +301,11 @@
           <div style={{ lineHeight: 1 }}>
             <div style={{
               fontSize: isMobile ? 19 : 22, fontWeight: 900, letterSpacing: 2,
-              background: 'linear-gradient(180deg, #fff3b0, #ffd84a 55%, #b8860b)',
+              background: `linear-gradient(180deg, #fff3b0, ${oro()} 55%, ${oroApagado()})`,
               WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
               textShadow: '0 0 18px rgba(255,216,74,0.25)',
             }}>⚡ {(window.Marca ? window.Marca.nombre() : 'VOLTIO')}</div>
-            <div style={{ fontSize: 8, letterSpacing: 3, color: '#b88a28', marginTop: 3 }}>
+            <div style={{ fontSize: 8, letterSpacing: 3, color: oroApagado(), marginTop: 3 }}>
               {T('SALÓN DE JUEGOS')}
             </div>
           </div>
@@ -343,7 +347,7 @@
               {T('BIENVENIDO')}{nombreDe(user) ? `, ${nombreDe(user).toUpperCase()}` : ''}
             </div>
             {user && user.username && (
-              <div style={{ fontSize: 10, color: '#b88a28', letterSpacing: 1.5, marginTop: 3 }}>
+              <div style={{ fontSize: 10, color: oroApagado(), letterSpacing: 1.5, marginTop: 3 }}>
                 {T('entraste como')} <b style={{ color: '#e8d9a0' }}>{user.username}</b>
               </div>
             )}
