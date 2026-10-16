@@ -2191,5 +2191,11 @@ function AppRoot() {
 }
 
 // Mount
+// Se espera la ficha de marca ANTES del primer dibujo: si no, el jugador de
+// una casa vería por un instante el nombre de la otra. La espera tiene tope
+// adentro de Marca.cargar(), así que una caída del servidor no deja la
+// pantalla en blanco: entra con los valores de la casa.
 const root = ReactDOM.createRoot(document.getElementById('app'));
-root.render(<AppRoot />);
+const arrancar = () => root.render(<AppRoot />);
+if (window.Marca && window.Marca.cargar) window.Marca.cargar().then(arrancar);
+else arrancar();

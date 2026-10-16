@@ -57,3 +57,34 @@ export function marcaDe(env) {
 export async function marcaPublica(request, env) {
   return json(marcaDe(env));
 }
+
+// ── EL MANIFEST ──────────────────────────────────────────────────────────
+// Es el archivo que usa el teléfono cuando alguien "agrega a la pantalla de
+// inicio": de ahí saca el nombre que queda bajo el ícono. Lo sirve el Worker
+// y no `public/`, porque es lo único de la marca que el navegador lee SIN
+// pasar por el código de la página: si fuera un archivo fijo, Fiesta Animal
+// se instalaría en el teléfono llamándose Voltio.
+export async function manifestDeLaMarca(request, env) {
+  const m = marcaDe(env);
+  const cuerpo = {
+    name: `${m.nombre} — Salón de Juegos`,
+    short_name: m.nombre,
+    description: `${m.nombre} — ${m.lema}`,
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#0a0a0a',
+    theme_color: '#0a0a0a',
+    icons: [
+      { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+  };
+  return new Response(JSON.stringify(cuerpo, null, 2), {
+    headers: {
+      'Content-Type': 'application/manifest+json; charset=utf-8',
+      // Corto a propósito: si el dueño cambia el nombre, no quiero que el
+      // teléfono siga mostrando el viejo durante un día.
+      'Cache-Control': 'public, max-age=300',
+    },
+  });
+}

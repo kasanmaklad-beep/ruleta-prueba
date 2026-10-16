@@ -300,7 +300,7 @@
               background: 'linear-gradient(180deg, #fff3b0, #ffd84a 55%, #b8860b)',
               WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent',
               textShadow: '0 0 18px rgba(255,216,74,0.25)',
-            }}>⚡ VOLTIO</div>
+            }}>⚡ {(window.Marca ? window.Marca.nombre() : 'VOLTIO')}</div>
             <div style={{ fontSize: 8, letterSpacing: 3, color: '#b88a28', marginTop: 3 }}>
               {T('SALÓN DE JUEGOS')}
             </div>
@@ -372,7 +372,7 @@
         </div>
 
         <div style={{ textAlign: 'center', fontSize: 9, color: '#666', letterSpacing: 2, padding: '10px 0 14px' }}>
-          {T('VOLTIO · JUGÁ CON ENERGÍA')}
+          {(window.Marca ? window.Marca.nombre() : 'VOLTIO')} · {T((window.Marca ? window.Marca.get().lema : 'JUGÁ CON ENERGÍA'))}
         </div>
       </div>
     );

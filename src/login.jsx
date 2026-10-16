@@ -23,7 +23,7 @@
     return (
       <>
         <div style={{ fontSize: 16, fontWeight: 900, letterSpacing: 2, color: '#d4a94a' }}>
-          {T('CONDICIONES DE VOLTIO')}
+          {T('CONDICIONES DE {marca}', { marca: (window.Marca ? window.Marca.nombre() : 'VOLTIO') })}
         </div>
         <div style={{ fontSize: 10, color: '#777', letterSpacing: 1, marginBottom: 14 }}>
           {T('versión')} {(window.CONDICIONES || {}).VERSION}
@@ -287,6 +287,7 @@
         alignItems: 'center', justifyContent: 'center', padding: 20,
       }}>{children}</div>
     ));
+    const nom = (window.Marca ? window.Marca.nombre() : 'VOLTIO');
     const BotonArco = (window.Entrada && window.Entrada.BotonArco) || (({ texto, type, disabled }) => (
       <button type={type} disabled={disabled} style={{
         width: '100%', padding: 14, borderRadius: 6, border: '1px solid #12a04c',
@@ -311,11 +312,18 @@
         }}>
           <div style={{ textAlign: 'center', marginBottom: 18 }}>
             <div style={{
-              fontSize: 34, fontWeight: 700, letterSpacing: 8, color: '#fff6d8',
+              // El tamaño y el espaciado bajan con el largo del nombre. Están
+              // pensados para VOLTIO, que son seis letras; "Fiesta Animal" son
+              // trece y se partía en dos renglones. Mismo criterio que el
+              // nombre grabado en el cono del cilindro.
+              fontSize: nom.length <= 7 ? 34 : nom.length <= 11 ? 28 : 23,
+              letterSpacing: nom.length <= 7 ? 8 : nom.length <= 11 ? 5 : 3,
+              whiteSpace: 'nowrap',
+              fontWeight: 700, color: '#fff6d8',
               textShadow: '0 0 18px rgba(255,216,74,0.9), 0 0 52px rgba(255,216,74,0.45)',
-            }}>VOLTIO</div>
+            }}>{nom}</div>
             <div style={{ fontSize: 8, letterSpacing: 4, color: '#9fd8ff', marginTop: 6 }}>
-              {T('DONDE CAE EL RELÁMPAGO')}
+              {T((window.Marca ? window.Marca.get().subtitulo : 'DONDE CAE EL RELÁMPAGO'))}
             </div>
             <div style={{ fontSize: 11, letterSpacing: 2, color: '#7f96a6', marginTop: 8 }}>
               {registro ? T('Creá tu cuenta') : T('Ingresá para jugar')}

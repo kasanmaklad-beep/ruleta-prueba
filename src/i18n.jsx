@@ -103,7 +103,7 @@
       'Se recarga y se cobra': 'You deposit and collect',
       'con tu banquero.': 'with your banker.',
       'Leer las condiciones completas': 'Read the full terms',
-      'CONDICIONES DE VOLTIO': 'VOLTIO TERMS',
+      'CONDICIONES DE {marca}': '{marca} TERMS',
       'versión': 'version',
       'CERRAR': 'CLOSE',
       'ACEPTAR Y SEGUIR': 'ACCEPT AND CONTINUE',
@@ -115,9 +115,9 @@
       'Para crear la cuenta hay que leer y aceptar las condiciones.':
         'To create your account you must read and accept the terms.',
       'Hay que aceptar las condiciones para seguir.': 'You must accept the terms to continue.',
-      'Tengo 18 años cumplidos, entiendo que es un juego de azar en el que puedo perder mi dinero, y acepto las condiciones de VOLTIO.':
+      'Tengo 18 años cumplidos, entiendo que es un juego de azar en el que puedo perder mi dinero, y acepto las condiciones de {marca}.':
         'I am 18 or older, I understand this is a game of chance in which I can lose my money, '
-        + 'and I accept the VOLTIO terms.',
+        + 'and I accept the {marca} terms.',
       'Esto es un juego de azar': 'This is a game of chance',
       'Podés perder el dinero que apostás. No es una inversión ni una forma de ganarse la vida: jugá sólo lo que puedas perder sin que te cambie el mes.':
         'You can lose the money you bet. This is not an investment or a way to make a living: '
@@ -128,9 +128,9 @@
         + 'deposited. If you deposit and do not play, you cannot withdraw: the house is not a '
         + 'currency exchange.',
       'La plata entra y sale en efectivo': 'Money comes in and goes out in cash',
-      'Recargás y cobrás en la mano de tu banquero. La recarga mínima es {min} y el retiro mínimo {ret}. VOLTIO NO te va a pedir nunca datos de tu banco ni claves por la aplicación: si alguien te los pide, no es de la casa.':
+      'Recargás y cobrás en la mano de tu banquero. La recarga mínima es {min} y el retiro mínimo {ret}. {marca} NO te va a pedir nunca datos de tu banco ni claves por la aplicación: si alguien te los pide, no es de la casa.':
         'You deposit and collect in person with your banker. The minimum deposit is {min} and '
-        + 'the minimum withdrawal is {ret}. VOLTIO will NEVER ask for your bank details or '
+        + 'the minimum withdrawal is {ret}. {marca} will NEVER ask for your bank details or '
         + 'passwords through the app: if someone asks, they are not from the house.',
       'El resultado lo decide el servidor y queda anotado':
         'The result is decided by the server and recorded',
@@ -170,7 +170,9 @@
       'Abriendo el salón…': 'Opening the room…',
       'No hay mesas abiertas en este momento. Probá de nuevo en un rato.':
         'No tables are open right now. Please check back in a while.',
-      'VOLTIO · JUGÁ CON ENERGÍA': 'VOLTIO · PLAY WITH ENERGY',
+      'JUGÁ CON ENERGÍA': 'PLAY WITH ENERGY',
+      'DONDE CAE EL RELÁMPAGO': 'WHERE THE LIGHTNING STRIKES',
+      'Salón de Juegos': 'Game Room',
       'Ruleta americana 0/00 · {n} casillas': 'American roulette 0/00 · {n} pockets',
       'Ruleta europea, un solo cero · {n} casillas': 'European roulette, single zero · {n} pockets',
       'Rayos con premios hasta 500x': 'Lightning prizes up to 500x',

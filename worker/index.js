@@ -26,7 +26,7 @@ import {
 import { salonVivo } from './salon.js';
 
 // La ficha de marca: qué casa es ésta (nombre, lema, colores).
-import { marcaPublica } from './marca.js';
+import { marcaPublica, manifestDeLaMarca } from './marca.js';
 
 // La capa ejecutiva: matriz → ejecutivo → banquero → jugador.
 import {
@@ -149,6 +149,10 @@ async function handleApi(request, env, url) {
   // Qué casa es ésta. Sin sesión, como la configuración: la entrada se dibuja
   // con esto y ahí todavía no hay usuario.
   if (method === 'GET'  && path === '/api/marca')         return marcaPublica(request, env);
+  // El manifest del teléfono, armado con la marca de este entorno. Va bajo
+  // /api/ y no en /manifest.json porque Cloudflare sirve los archivos de
+  // public/ SIN ejecutar el Worker: ahí la ruta no se ejecutaría nunca.
+  if (method === 'GET'  && path === '/api/manifest')      return manifestDeLaMarca(request, env);
   if (method === 'POST' && path === '/api/condiciones')   return aceptarCondiciones(request, env);
   if (method === 'GET'  && path === '/api/games')         return listGames(request, env);
   // Lo que está pasando AHORA en cada mesa. Pide sesión igual que el catálogo:

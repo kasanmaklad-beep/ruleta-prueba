@@ -48,10 +48,11 @@
       {
         titulo: T('La plata entra y sale en efectivo'),
         texto: T('Recargás y cobrás en la mano de tu banquero. La recarga mínima es {min} '
-          + 'y el retiro mínimo {ret}. VOLTIO NO te va a pedir nunca datos de tu banco ni '
+          + 'y el retiro mínimo {ret}. {marca} NO te va a pedir nunca datos de tu banco ni '
           + 'claves por la aplicación: si alguien te los pide, no es de la casa.',
           { min: plata(c.min_topup != null ? c.min_topup : 5),
-            ret: plata(c.min_withdrawal != null ? c.min_withdrawal : 10) }),
+            ret: plata(c.min_withdrawal != null ? c.min_withdrawal : 10),
+            marca: (window.Marca ? window.Marca.nombre() : 'VOLTIO') }),
       },
       {
         titulo: T('El resultado lo decide el servidor y queda anotado'),
@@ -71,7 +72,7 @@
   // va a leer de verdad.
   function declaracion() {
     return T('Tengo 18 años cumplidos, entiendo que es un juego de azar en el que puedo '
-      + 'perder mi dinero, y acepto las condiciones de VOLTIO.');
+      + 'perder mi dinero, y acepto las condiciones de {marca}.', { marca: (window.Marca ? window.Marca.nombre() : 'VOLTIO') });
   }
 
   window.CONDICIONES = { VERSION, puntos, declaracion };

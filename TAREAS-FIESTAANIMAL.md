@@ -35,9 +35,26 @@ Reglas para quien ejecuta (Claude Code en loop):
       son mycrosis, así que su entorno no declara ninguna variable y no hay forma de
       romperlo tocando configuración. Las variables se declaran sólo en el entorno
       `fiestaanimal` (tarea 4).
-- [ ] 3. Frontend lee `/api/marca` al arrancar y la usa en: título de la pestaña, entrada
-      (login/registro), cabecera del salón, cabecera del juego, panel admin y taquilla.
-      Mycrosis debe verse idéntico a hoy. Commit.
+- [x] 3a. EL NOMBRE. Frontend lee `/api/marca` al arrancar y usa el nombre en: título de
+      la pestaña, manifest del teléfono, entrada, cabecera y pie del salón, grabado del
+      paño del 21 y las dos frases de las condiciones (con su traducción al inglés).
+      HECHO 16/10/2026 → `src/marca.jsx`, `/api/manifest` en `worker/marca.js`.
+      Probado con las variables de Fiesta Animal puestas de verdad en `.dev.vars`:
+      cambia todo y vuelve a mycrosis al sacarlas.
+      ARREGLADO EN EL CAMINO: el título de la entrada estaba calculado para "VOLTIO"
+      (seis letras) y "Fiesta Animal" se partía en dos renglones; ahora el tamaño y el
+      espaciado bajan con el largo, como el nombre grabado en el cono del cilindro.
+      DECISIÓN: `/manifest.json` NO se puede generar desde el Worker — Cloudflare sirve
+      los archivos de `public/` sin ejecutarlo. El manifest vive en `/api/manifest`, que
+      es lo único que siempre pasa por el Worker.
+      ÚNICO CAMBIO VISIBLE EN MYCROSIS: el título de la pestaña decía "Voltio — Salón de
+      Juegos" fijo y ahora dice "VOLTIO — …" (mayúsculas, como en toda la pantalla) y se
+      traduce al idioma del jugador. Se aceptó en vez de agregar un campo más a la ficha
+      sólo para la capitalización del título.
+
+- [ ] 3b. EL COLOR, por la paleta de `src/ui.jsx` (ver `docs/fiestaanimal/inventario-marca.md`):
+      alimentar `PALETAS` desde la ficha, después entrada y salón. El cilindro y el paño
+      NO entran acá: van en la Fase 2, que ya prevé un tema por mesa.
 - [ ] 4. Agregar entorno `fiestaanimal` en `wrangler.jsonc`: nombre `fiestaanimal-juego`,
       custom domain `juego.fiestaanimal.com`, D1 `fiestaanimal-db` (crearla con
       `npx wrangler d1 create fiestaanimal-db` y pegar el id), los mismos crons, y las

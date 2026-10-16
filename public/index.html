@@ -6,7 +6,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <meta name="theme-color" content="#0a0a0a" />
 <meta name="description" content="Ruleta Catatumbo — American Roulette con multiplicadores hasta 500x" />
-<link rel="manifest" href="/manifest.json" />
+<!-- El manifest lo arma el Worker con la marca de este entorno; el archivo
+     de public/ tiene el nombre de una sola casa. -->
+<link rel="manifest" href="/api/manifest" />
 <link rel="icon" href="/favicon.png" />
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -145,6 +147,9 @@
 <!-- JSX precompilado a JS plano (sin Babel runtime) -->
 <!-- Los idiomas van PRIMERO: el resto de los archivos usan T() al dibujar. -->
 <script src="i18n.js"></script>
+<!-- La marca va temprano: pone el título de la pestaña y la leen
+     la entrada y el salón al dibujarse. -->
+<script src="marca.js"></script>
 <script src="condiciones.js"></script>
 <script src="audio.js"></script>
 <script src="tweaks-panel.js"></script>

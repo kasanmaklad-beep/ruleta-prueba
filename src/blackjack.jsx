@@ -779,7 +779,7 @@ button.bj-violeta:active{box-shadow:0 1px 0 #401d6b}
             lleva el nombre de la casa. Va hundida en el fieltro, no escrita
             encima: casi no se ve, se nota cuando la luz le pega. */}
         <ellipse className="bj-medallon" cx="170" cy="74" rx="38" ry="11" />
-        <text className="bj-marca" x="170" y="77.5" textAnchor="middle">VOLTIO</text>
+        <text className="bj-marca" x="170" y="77.5" textAnchor="middle">{(window.Marca ? window.Marca.nombre() : 'VOLTIO')}</text>
       </svg>
     );
   }
