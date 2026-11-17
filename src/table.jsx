@@ -497,42 +497,26 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, onMoveBet, selectedChip, 
               return <CellRect key={n} x={r.x} y={r.y} w={r.w} h={r.h} fill={fill} stroke={felt.border} />;
             })}
 
-            {/* Highlight de hover */}
-            {hover && hover.numbers && hover.numbers.map((n, i) => {
-              const r = rectDe(n);
-              if (!r) return null;
-              return (
-                <rect
-                  key={i}
-                  x={r.x + 2} y={r.y + 2} width={r.w - 4} height={r.h - 4}
-                  fill="rgba(255,255,255,0.15)"
-                  stroke={accent}
-                  strokeWidth="2"
-                  style={{ pointerEvents: 'none', filter: `drop-shadow(0 0 6px ${accentGlow})` }}
-                />
-              );
-            })}
-
             {/* Los ceros: con su animal (Delfín / Ballena) donde los hay, y en
                 la europea uno solo, del alto de la columna. */}
             {(dobleCero ? [0, '00'] : [0]).map((k) => {
               const r = rectDe(k);
-              const [emoji, name] = animalOf(k);
               const label = String(k);
+              const boxW = rotateLabels ? r.h : r.w;
+              const boxH = rotateLabels ? r.w : r.h;
+              const imgBase = (typeof window !== 'undefined' && window.location && window.location.pathname.indexOf('/maquetas/') !== -1) ? '../public/animales' : '/animales';
+              const zImg = rotateLabels ? `${imgBase}/${label}.png` : `${imgBase}/${label}_vert.png`;
               return (
                 <g key={'z' + label} transform={rotText(r.cx, r.cy)}>
                   {conAnimales ? (
-                    <>
-                      <text x={r.cx} y={r.cy - 11} fontSize="15" textAnchor="middle"
-                        style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>{emoji}</text>
-                      <text x={r.cx} y={r.cy + 8} fill="#fff" fontSize="19" fontWeight="900"
-                        fontFamily="Georgia, serif" textAnchor="middle"
-                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>{label}</text>
-                      <text x={r.cx} y={r.cy + 19} fill="#fff" fontSize="7" fontWeight="700"
-                        fontFamily="Inter, Helvetica, Arial, sans-serif" letterSpacing="0.3"
-                        textAnchor="middle" opacity="0.95"
-                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>{name}</text>
-                    </>
+                    <image
+                      href={zImg}
+                      x={r.cx - boxW / 2 + 1}
+                      y={r.cy - boxH / 2 + 1}
+                      width={boxW - 2}
+                      height={boxH - 2}
+                      preserveAspectRatio="none"
+                    />
                   ) : (
                     // Sin animales el número manda: va solo y bien grande.
                     <text x={r.cx} y={r.cy + 9} fill="#fff" fontSize="26" fontWeight="900"
@@ -543,12 +527,14 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, onMoveBet, selectedChip, 
               );
             })}
 
-            {/* Números 1..36. Con animales: emoji arriba, número, nombre abajo.
+            {/* Números 1..36. Con animales: tarjeta ilustrada del animal.
                 Sin animales: solo el número, grande y centrado. */}
             {Array.from({ length: 36 }, (_, i) => i + 1).map((n) => {
               const r = cellRect(n);
               const isLtg = ltg.has(n);
-              const [emoji, name] = animalOf(n);
+              const boxW = rotateLabels ? r.h : r.w;
+              const boxH = rotateLabels ? r.w : r.h;
+              const imgBase = (typeof window !== 'undefined' && window.location && window.location.pathname.indexOf('/maquetas/') !== -1) ? '../public/animales' : '/animales';
               const brilloLtg = {
                 textShadow: isLtg
                   ? `0 0 8px ${accent}, 0 0 14px ${accentGlow}, 0 1px 2px rgba(0,0,0,0.9)`
@@ -559,26 +545,14 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, onMoveBet, selectedChip, 
               return (
                 <g key={'t' + n} transform={rotText(r.cx, r.cy)}>
                   {conAnimales ? (
-                    <>
-                      <text x={r.cx} y={r.cy - 12} fontSize="17" textAnchor="middle"
-                        style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.7))' }}>
-                        {emoji}
-                      </text>
-                      <text x={r.cx} y={r.cy + 9}
-                        fill={isLtg ? '#fff5b0' : '#fff'}
-                        fontSize={isLtg ? "19" : "17"}
-                        fontWeight="900" fontFamily="Georgia, serif" textAnchor="middle"
-                        style={brilloLtg}
-                      >
-                        {n}
-                      </text>
-                      <text x={r.cx} y={r.cy + 22} fill="#fff" fontSize="7.5"
-                        fontWeight="700" fontFamily="Inter, Helvetica, Arial, sans-serif"
-                        letterSpacing="0.3" textAnchor="middle" opacity="0.95"
-                        style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>
-                        {name}
-                      </text>
-                    </>
+                    <image
+                      href={`${imgBase}/${n}.png`}
+                      x={r.cx - boxW / 2 + 1}
+                      y={r.cy - boxH / 2 + 1}
+                      width={boxW - 2}
+                      height={boxH - 2}
+                      preserveAspectRatio="none"
+                    />
                   ) : (
                     <text x={r.cx} y={r.cy + 9}
                       fill={isLtg ? '#fff5b0' : '#fff'}
@@ -590,6 +564,22 @@ function BettingTable({ bets, onPlaceBet, onRemoveBet, onMoveBet, selectedChip, 
                     </text>
                   )}
                 </g>
+              );
+            })}
+
+            {/* Highlight de hover */}
+            {hover && hover.numbers && hover.numbers.map((n, i) => {
+              const r = rectDe(n);
+              if (!r) return null;
+              return (
+                <rect
+                  key={i}
+                  x={r.x + 2} y={r.y + 2} width={r.w - 4} height={r.h - 4}
+                  fill="rgba(255,255,255,0.18)"
+                  stroke={accent}
+                  strokeWidth="2"
+                  style={{ pointerEvents: 'none', filter: `drop-shadow(0 0 6px ${accentGlow})` }}
+                />
               );
             })}
 

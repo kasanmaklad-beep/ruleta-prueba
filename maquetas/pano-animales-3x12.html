@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Prueba Local — Paño de Ruleta 3 × 12 con Nuevos Diseños de Animales</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html, body { margin: 0; padding: 0; background: #07050a; color: #eee; font-family: Georgia, serif; }
+  * { box-sizing: border-box; }
+  @keyframes ltgFlicker { 0%, 100% { opacity: 0.6; } 50% { opacity: 1; } }
+  @keyframes ltgAuraPulse { 0% { opacity: 0.45; transform: scale(0.85); } 100% { opacity: 0.95; transform: scale(1.15); } }
+  @keyframes winnerFlick { 0%, 100% { opacity: 0.7; } 50% { opacity: 1; } }
+  .btn {
+    padding: 8px 14px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #8b6a20; background: rgba(0,0,0,0.5); color: #d4a94a;
+    font-family: Georgia, serif; font-weight: 700; font-size: 13px;
+  }
+  .btn.on { background: linear-gradient(180deg, #ffd84a, #b8860b); color: #1a1006; border-color: #fff5b0; }
+  .chip-btn {
+    width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
+    font-weight: 900; font-size: 13px; color: #fff;
+    border: 3px dashed rgba(255,255,255,0.85);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+  }
+  .chip-btn.sel { transform: scale(1.15); border-style: solid; border-color: #ffd84a; box-shadow: 0 0 12px #ffd84a; }
+</style>
+</head>
+<body>
+<div id="app" style="padding: 16px 16px 48px; max-width: 1100px; margin: 0 auto;"></div>
+
+<script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="/wheel.js"></script>
+<script src="/table.js"></script>
+<script>
+(function () {
+  var e = React.createElement;
+
+  var CHIPS = [
+    { val: 1, bg: '#6b7280' },
+    { val: 5, bg: '#dc2626' },
+    { val: 25, bg: '#16a34a' },
+    { val: 100, bg: '#1f2937' },
+    { val: 500, bg: '#7c3aed' },
+  ];
+
+  function DemoApp() {
+    var vistaState = React.useState('ambas'); // 'movil', 'escritorio', 'ambas'
+    var vista = vistaState[0], setVista = vistaState[1];
+
+    var chipState = React.useState(25);
+    var selectedChip = chipState[0], setSelectedChip = chipState[1];
+
+    var betsState = React.useState([
+      { type: 'straight', payload: 14, numbers: [14], amount: 25 },
+      { type: 'split', payload: '19-20', numbers: [19, 20], amount: 5 },
+      { type: 'corner', payload: '28-29-31-32', numbers: [28, 29, 31, 32], amount: 100 },
+    ]);
+    var bets = betsState[0], setBets = betsState[1];
+
+    var rayosState = React.useState(true);
+    var conRayos = rayosState[0], setConRayos = rayosState[1];
+
+    var winState = React.useState(null);
+    var winningNumber = winState[0], setWinningNumber = winState[1];
+
+    var ltg = React.useMemo(function () {
+      var m = new Map();
+      if (conRayos) {
+        m.set(7, 100);
+        m.set(23, 500);
+        m.set(32, 50);
+      }
+      return m;
+    }, [conRayos]);
+
+    var placeBet = function (b) {
+      setBets(function (prev) { return prev.concat([b]); });
+    };
+    var removeBet = function (type, payload) {
+      setBets(function (prev) {
+        var idx = -1;
+        for (var i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].type === type && String(prev[i].payload) === String(payload)) { idx = i; break; }
+        }
+        if (idx === -1) return prev;
+        var copy = prev.slice();
+        copy.splice(idx, 1);
+        return copy;
+      });
+    };
+    var moveBet = function (origen, destino) {
+      setBets(function (prev) {
+        var idx = -1;
+        for (var i = prev.length - 1; i >= 0; i--) {
+          if (prev[i].type === origen.type && String(prev[i].payload) === String(origen.payload)) { idx = i; break; }
+        }
+        if (idx === -1) return prev;
+        var ficha = prev[idx];
+        var copy = prev.slice();
+        copy.splice(idx, 1);
+        copy.push({ type: destino.type, payload: destino.payload, numbers: destino.numbers, amount: ficha.amount });
+        return copy;
+      });
+    };
+
+    var totalApostado = bets.reduce(function (s, b) { return s + b.amount; }, 0);
+    var fichaMesa = { id: 'catatumbo', dobleCero: true, animales: true, rayos: conRayos, pagoPleno: 29 };
+
+    // Dimensiones del paño natural
+    var NATURAL_W = 794;
+    var NATURAL_H = 372;
+
+    return e('div', null,
+      e('div', { style: { display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 16, borderBottom: '1px solid #3a2a10', paddingBottom: 12 } },
+        e('div', null,
+          e('div', { style: { fontSize: 22, fontWeight: 900, color: '#ffd84a', letterSpacing: 1 } }, '🎰 Prueba Local — Paño 3 × 12 con Nuevos Diseños'),
+          e('div', { style: { fontSize: 13, color: '#b5a47a', marginTop: 4 } },
+            'Haz clic en cualquier número, split (entre 2 números), calle (borde de 3), esquina (cruce de 4) o docena para poner fichas.')
+        ),
+        e('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          e('button', { className: 'btn ' + (vista === 'ambas' ? 'on' : ''), onClick: function () { setVista('ambas'); } }, 'Ver Móvil (3×12) + Escritorio'),
+          e('button', { className: 'btn ' + (vista === 'movil' ? 'on' : ''), onClick: function () { setVista('movil'); } }, 'Solo Móvil Vertical (3×12)'),
+          e('button', { className: 'btn ' + (vista === 'escritorio' ? 'on' : ''), onClick: function () { setVista('escritorio'); } }, 'Solo Escritorio (12×3)'),
+          e('button', { className: 'btn ' + (conRayos ? 'on' : ''), onClick: function () { setConRayos(!conRayos); } }, conRayos ? '⚡ Rayos: ON' : '⚡ Rayos: OFF'),
+          e('button', { className: 'btn ' + (winningNumber === 21 ? 'on' : ''), onClick: function () { setWinningNumber(winningNumber === 21 ? null : 21); } }, winningNumber ? '♛ Quitar Ganador (21)' : '♛ Simular Ganador (21)'),
+          e('button', { className: 'btn', onClick: function () { setBets([]); } }, '🗑 Limpiar (' + bets.length + ' fichas / $' + totalApostado + ')')
+        )
+      ),
+
+      // Selector de fichas
+      e('div', { style: { display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, background: '#140d06', padding: '10px 16px', borderRadius: 10, border: '1px solid #5a4214' } },
+        e('span', { style: { fontSize: 13, fontWeight: 700, color: '#ffd84a' } }, 'Ficha seleccionada:'),
+        CHIPS.map(function (c) {
+          return e('div', {
+            key: c.val,
+            className: 'chip-btn ' + (selectedChip === c.val ? 'sel' : ''),
+            style: { background: c.bg },
+            onClick: function () { setSelectedChip(c.val); }
+          }, '$' + c.val);
+        }),
+        e('span', { style: { marginLeft: 'auto', fontSize: 13, color: '#ccc' } }, 'Total en el paño: ', e('strong', { style: { color: '#ffd84a' } }, '$' + totalApostado))
+      ),
+
+      e('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 36, alignItems: 'flex-start', justifyContent: 'center' } },
+
+        // VISTA MÓVIL VERTICAL (3 × 12)
+        (vista === 'ambas' || vista === 'movil') && e('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center' } },
+          e('div', { style: { fontSize: 15, fontWeight: 800, color: '#ffd84a', marginBottom: 10, letterSpacing: 1 } }, '📱 VISTA MÓVIL VERTICAL (3 COLUMNAS × 12 FILAS)'),
+          e('div', {
+            style: {
+              width: NATURAL_H,
+              height: NATURAL_W,
+              position: 'relative',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
+              borderRadius: 8,
+            }
+          },
+            e('div', {
+              style: {
+                width: NATURAL_W,
+                height: NATURAL_H,
+                transform: 'translate(' + NATURAL_H + 'px, 0) rotate(90deg)',
+                transformOrigin: '0 0',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+              }
+            },
+              e(BettingTable, {
+                mesa: fichaMesa,
+                bets: bets,
+                onPlaceBet: placeBet,
+                onRemoveBet: removeBet,
+                onMoveBet: moveBet,
+                selectedChip: selectedChip,
+                disabled: false,
+                theme: 'modern',
+                lightningNumbers: ltg,
+                rotateLabels: true,
+                winningNumber: winningNumber
+              })
+            )
+          )
+        ),
+
+        // VISTA ESCRITORIO HORIZONTAL (12 × 3)
+        (vista === 'ambas' || vista === 'escritorio') && e('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center' } },
+          e('div', { style: { fontSize: 15, fontWeight: 800, color: '#ffd84a', marginBottom: 10, letterSpacing: 1 } }, '🖥 VISTA ESCRITORIO HORIZONTAL (12 COLUMNAS × 3 FILAS)'),
+          e('div', { style: { width: NATURAL_W, height: NATURAL_H, position: 'relative' } },
+            e(BettingTable, {
+              mesa: fichaMesa,
+              bets: bets,
+              onPlaceBet: placeBet,
+              onRemoveBet: removeBet,
+              onMoveBet: moveBet,
+              selectedChip: selectedChip,
+              disabled: false,
+              theme: 'modern',
+              lightningNumbers: ltg,
+              rotateLabels: false,
+              winningNumber: winningNumber
+            })
+          )
+        )
+      )
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('app')).render(e(DemoApp));
+})();
+</script>
+</body>
+</html>
