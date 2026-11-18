@@ -297,6 +297,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
   const [aviso, setAviso] = useState('');
   const avisoRef = useRef(null);
   const [selectedChip, setSelectedChip] = useState(5);
+  const [modoVecinos, setModoVecinos] = useState(false);
   const [phase, setPhase] = useState('betting'); // 'betting' | 'lightning' | 'spinning' | 'result'
   const [resultIndex, setResultIndex] = useState(null);
   const [resultNum, setResultNum] = useState(null);
@@ -370,7 +371,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
   // Media luna: se ve solo el arco superior del cilindro (la pista de la bola
   // y los números), como una franja curva sobre el 0/00.
   const CRES_W = Math.min(vw - 12, 430);
-  const CRES_H = 58;
+  const CRES_H = 112;   // antes 58: se ve más arco para seguir la bola antes de que baje la rueda entera
   const cresScale = CRES_W / 520;   // el diámetro del cilindro ocupa todo el ancho
   // El cilindro vive en un marco fijo durante toda la tirada: primero asoma
   // como media luna y después BAJA hasta verse entero, sin cambiar de tamaño,
@@ -422,6 +423,47 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
         : T('Saldo insuficiente'));
       return;
     }
+
+    // Modo VECINOS del cilindro: al tocar un pleno (straight) con ficha mínima
+    // de $5, divide el monto en 5 partes iguales entre el número elegido y sus
+    // 2 vecinos a cada lado en el cilindro de la mesa.
+    if (modoVecinos && bet.type === 'straight') {
+      if (bet.amount < 5) {
+        avisar('Para apostar a Vecinos la ficha mínima es de $5 ($1 en cada uno de los 5 números).');
+        return;
+      }
+      const orden = (ficha && Array.isArray(ficha.orden) && ficha.orden.length > 0)
+        ? ficha.orden
+        : window.AMERICAN_WHEEL_ORDER;
+      const idx = orden.findIndex((x) => String(x) === String(bet.payload));
+      if (idx !== -1) {
+        const len = orden.length;
+        const cinco = [-2, -1, 0, 1, 2].map((d) => orden[(idx + d + len) % len]);
+        const unitAmount = bet.amount / 5;
+        const tope = topeDe('straight');
+        if (tope > 0) {
+          for (const num of cinco) {
+            const k = betKey('straight', num);
+            const yaPuesto = bets.reduce(
+              (s, b) => (betKey(b.type, b.payload) === k ? s + b.amount : s), 0);
+            if (yaPuesto + unitAmount > tope) {
+              avisar(`El número ${num} superaría el máximo por pleno ($${tope.toLocaleString()}).`);
+              return;
+            }
+          }
+        }
+        const nuevas = cinco.map((num) => ({
+          type: 'straight',
+          payload: num,
+          numbers: [num],
+          amount: unitAmount,
+        }));
+        setBalance((b) => b - bet.amount);
+        setBets((bs) => [...bs, ...nuevas]);
+        return;
+      }
+    }
+
     // Tope por casilla: se frena acá, con la ficha en la mano. Cubrir otras
     // posiciones sigue permitido — lo que no se puede es cargar una sola.
     const tope = topeDe(bet.type);
@@ -441,7 +483,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
     }
     setBalance((b) => b - bet.amount);
     setBets((bs) => [...bs, bet]);
-  }, [apuestasAbiertas, disponible, retenido, bets, topeDe, avisar]);
+  }, [apuestasAbiertas, disponible, retenido, bets, topeDe, avisar, modoVecinos, ficha]);
 
   // Mudar una ficha de una casilla a otra: se levanta la ÚLTIMA de la casilla
   // de origen y se apoya en la de destino, con el mismo monto. No es poner una
@@ -1299,9 +1341,13 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                         key={v}
                         value={v}
                         selected={selectedChip === v}
-                        disabled={!apuestasAbiertas || v > disponible}
+                        disabled={!apuestasAbiertas || v > disponible || (modoVecinos && v < 5)}
                         compact
                         onClick={() => {
+                          if (modoVecinos && v < 5) {
+                            avisar('En modo Vecinos la ficha mínima es $5 ($1 por cada uno de los 5 números).');
+                            return;
+                          }
                           setSelectedChip(v);
                           if (window.AudioEngine) window.AudioEngine.chip();
                         }}
@@ -1315,7 +1361,7 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                       margin: '18px 0',
                       opacity: 0.5,
                     }} />
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 34, width: '100%', alignItems: 'stretch' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 22, width: '100%', alignItems: 'stretch' }}>
                       <ActionBtn onClick={clearBets} disabled={!apuestasAbiertas || bets.length === 0} compact>
                         {T('LIMPIAR')}
                       </ActionBtn>
@@ -1329,55 +1375,45 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                       >
                         {bets.length === 0 && lastBets.length > 0 ? `${T('GIRAR')} ↻` : T('GIRAR')}
                       </ActionBtn>
-                    </div>
-
-                    {/* ═══ Publicidad — banner vertical bajo GIRAR ═══ */}
-                    {(() => {
-                      const ad = ADS[adIndex % ADS.length];
-                      return (
-                        <div style={{
-                          // Ocupa todo el hueco libre debajo de GIRAR
-                          flex: 1,
-                          minHeight: 120,
-                          width: '100%',
-                          marginTop: 10,
-                          borderRadius: 6,
-                          border: `1px solid ${ad.color}66`,
-                          background: 'linear-gradient(180deg, rgba(20,0,4,0.75), rgba(0,0,0,0.4))',
-                          animation: 'neonTube 2.6s ease-in-out infinite',
+                      {/* Botón VECINOS debajo de GIRAR (reemplaza el texto vertical) */}
+                      <button
+                        id="vecinos-btn"
+                        onClick={() => {
+                          const next = !modoVecinos;
+                          setModoVecinos(next);
+                          if (next && selectedChip < 5) setSelectedChip(5);
+                          if (window.AudioEngine) window.AudioEngine.chip();
+                        }}
+                        disabled={!apuestasAbiertas}
+                        style={{
+                          padding: '14px 2px',
+                          minHeight: 54,
+                          borderRadius: 5,
+                          border: modoVecinos ? '2px solid #fff5b0' : '1px solid #d4a94a',
+                          background: modoVecinos
+                            ? 'linear-gradient(180deg, #ffe680 0%, #d4a94a 50%, #8b6a20 100%)'
+                            : 'linear-gradient(180deg, #3a260a 0%, #221504 100%)',
+                          color: modoVecinos ? '#1a0e00' : '#ffd84a',
+                          fontFamily: 'Georgia, serif',
+                          fontWeight: 900,
+                          fontSize: 9,
+                          letterSpacing: 0,
+                          cursor: !apuestasAbiertas ? 'not-allowed' : 'pointer',
+                          opacity: !apuestasAbiertas ? 0.55 : 1,
+                          boxShadow: modoVecinos
+                            ? '0 4px 0 #5a3e08, 0 0 18px rgba(255,216,74,0.85), inset 0 2px 0 rgba(255,255,255,0.8)'
+                            : '0 4px 0 #120a02, 0 4px 8px rgba(0,0,0,0.6)',
                           display: 'flex',
                           flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: 4,
-                          overflow: 'hidden',
-                          padding: '5px 2px',
-                        }}>
-                          {/* Letrero de neón vertical — solo el nombre */}
-                          <div key={ad.id} style={{
-                            flex: 1,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            minHeight: 0, width: '100%',
-                          }}>
-                            <div style={{
-                              writingMode: 'vertical-rl',
-                              transform: 'rotate(180deg)',
-                              fontFamily: 'Georgia, serif',
-                              fontWeight: 900,
-                              fontSize: 21,
-                              letterSpacing: 2,
-                              color: '#fff',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              maxHeight: '100%',
-                              // Neón: solo la respiración del brillo (sin parpadeo)
-                              animation: 'neonBreath 2.8s ease-in-out infinite',
-                            }}>{ad.title}</div>
-                          </div>
-                        </div>
-                      );
-                    })()}
+                          gap: 3,
+                        }}
+                      >
+                        <span>VECINOS</span>
+                        <span style={{ fontSize: 8, opacity: 0.9 }}>{modoVecinos ? 'ACTIVO (±2)' : '±2 CILINDRO'}</span>
+                      </button>
+                    </div>
                   </div>
                   {/* Paño rotado — full screen con escalado NO-UNIFORME */}
                   <div style={{
@@ -1435,15 +1471,19 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                       key={v}
                       value={v}
                       selected={selectedChip === v}
-                      disabled={!apuestasAbiertas || v > disponible}
+                      disabled={!apuestasAbiertas || v > disponible || (modoVecinos && v < 5)}
                       onClick={() => {
+                        if (modoVecinos && v < 5) {
+                          avisar('En modo Vecinos la ficha mínima es $5 ($1 por cada uno de los 5 números).');
+                          return;
+                        }
                         setSelectedChip(v);
                         if (window.AudioEngine) window.AudioEngine.chip();
                       }}
                     />
                   ))}
                 </div>
-                <div style={{ display: 'flex', gap: 28 }}>
+                <div style={{ display: 'flex', gap: 16 }}>
                   <ActionBtn onClick={clearBets} disabled={!apuestasAbiertas || bets.length === 0}>
                     {T('LIMPIAR')}
                   </ActionBtn>
@@ -1456,6 +1496,37 @@ function RouletteApp({ user, config, mesa, onLogout, onOpenSalon, onOpenAdmin, o
                   >
                     {bets.length === 0 && lastBets.length > 0 ? `${T('GIRAR')} ↻` : T('GIRAR')}
                   </ActionBtn>
+                  <button
+                    id="vecinos-btn-desktop"
+                    onClick={() => {
+                      const next = !modoVecinos;
+                      setModoVecinos(next);
+                      if (next && selectedChip < 5) setSelectedChip(5);
+                      if (window.AudioEngine) window.AudioEngine.chip();
+                    }}
+                    disabled={!apuestasAbiertas}
+                    style={{
+                      padding: '12px 18px',
+                      minHeight: 52,
+                      borderRadius: 5,
+                      border: modoVecinos ? '2px solid #fff5b0' : '1px solid #d4a94a',
+                      background: modoVecinos
+                        ? 'linear-gradient(180deg, #ffe680 0%, #d4a94a 50%, #8b6a20 100%)'
+                        : 'linear-gradient(180deg, #3a260a 0%, #221504 100%)',
+                      color: modoVecinos ? '#1a0e00' : '#ffd84a',
+                      fontFamily: 'Georgia, serif',
+                      fontWeight: 900,
+                      fontSize: 12,
+                      letterSpacing: 1,
+                      cursor: !apuestasAbiertas ? 'not-allowed' : 'pointer',
+                      opacity: !apuestasAbiertas ? 0.55 : 1,
+                      boxShadow: modoVecinos
+                        ? '0 5px 0 #5a3e08, 0 0 18px rgba(255,216,74,0.85), inset 0 2px 0 rgba(255,255,255,0.8)'
+                        : '0 5px 0 #120a02, 0 4px 8px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    {modoVecinos ? 'VECINOS ✓ (±2)' : 'VECINOS (±2)'}
+                  </button>
                 </div>
               </div>
             )}
